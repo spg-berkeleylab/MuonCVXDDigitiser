@@ -3,143 +3,218 @@
 
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
+#include "DD4hep/Detector.h"
+#include "DDRec/DetectorData.h"
+
+#include "gsl/gsl_math.h"
 
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
-
-#ifdef MARLIN_USE_AIDA
-#include <marlin/AIDAProcessor.h>
-#include <AIDA/IHistogramFactory.h>
-#include <AIDA/ICloud1D.h>
-//#include <AIDA/IHistogram1D.h>
-#endif // MARLIN_USE_AIDA
 
 
 using namespace lcio ;
 using namespace marlin ;
 
+using dd4hep::Detector;
+using dd4hep::DetElement;
+using dd4hep::rec::ZPlanarData;
 
 MuonCVXDDigitiser aMuonCVXDDigitiser ;
 
+MuonCVXDDigitiser::MuonCVXDDigitiser() : Processor("MuonCVXDDigitiser")
+{
+    _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
 
-MuonCVXDDigitiser::MuonCVXDDigitiser() : Processor("MuonCVXDDigitiser") {
+    registerInputCollection(LCIO::SIMTRACKERHIT,
+                           "CollectionName", 
+                           "Name of the SimTrackerHit collection",
+                           _colName,
+                           std::string("VXDCollection"));
 
-    // modify processor description
-    _description = "MuonCVXDDigitiser does whatever it does ..." ;
+    registerOutputCollection(LCIO::TRACKERHIT,
+                            "OutputCollectionName", 
+                            "Name of the output TrackerHit collection",
+                            _outputCollectionName,
+                            std::string("VTXTrackerHits"));
 
+    registerOutputCollection(LCIO::LCRELATION,
+                            "RelationColName", 
+                            "Name of the output VTX trackerhit relation collection",
+                            _colVTXRelation,
+                            std::string("VTXRelation"));
 
-    // register steering parameters: name, description, class-variable, default value
-    registerInputCollection( LCIO::MCPARTICLE,
-            "CollectionName" , 
-            "Name of the MCParticle collection"  ,
-            _colName ,
-            std::string("MCParticle")
-    );
+    registerProcessorParameter("SubDetectorName", 
+                               "Name of Vertex detector",
+                               _subDetName,
+                               std::string("VertexBarrel"));
+
+    registerProcessorParameter("TanLorentz",
+                               "Tangent of Lorentz Angle",
+                               _tanLorentzAngle,
+                               (double)0.8);
+
+    registerProcessorParameter("CutOnDeltaRays",
+                               "Cut on delta-ray energy (MeV)",
+                               _cutOnDeltaRays,
+                               (double)0.030);
+
+    registerProcessorParameter("Diffusion",
+                               "Diffusion coefficient (in mm) for layer thickness",
+                               _diffusionCoefficient,
+                               (double)0.002);
+
+    registerProcessorParameter("PixelSizeX",
+                               "Pixel Size X",
+                               _pixelSizeX,
+                               (double)0.025);
+
+    registerProcessorParameter("PixelSizeY",
+                               "Pixel Size Y",
+                               _pixelSizeY,
+                               (double)0.025);
+
+    registerProcessorParameter("Debug",
+                               "Debug option",
+                               _debug,
+                               int(0));
+
+    registerProcessorParameter("ElectronsPerKeV",
+                               "Electrons per keV",
+                               _electronsPerKeV,
+                               (double)270.3);
+
+    std::vector<float> bkgdHitsInLayer;
+    bkgdHitsInLayer.push_back(34400.);
+    bkgdHitsInLayer.push_back(23900.);
+    bkgdHitsInLayer.push_back(9600.);
+    bkgdHitsInLayer.push_back(5500.);
+    bkgdHitsInLayer.push_back(3100.);    
+    registerProcessorParameter("BackgroundHitsPerLayer",
+                               "Background Hits per Layer",
+                               _bkgdHitsInLayer,
+                               bkgdHitsInLayer);
+
+    registerProcessorParameter("SegmentLength",
+                               "Segment Length",
+                               _segmentLength,
+                               double(0.005));
+
+    registerProcessorParameter("WidthOfCluster",
+                               "Width of cluster",
+                               _widthOfCluster,
+                               double(3.0));
+
+    registerProcessorParameter("Threshold",
+                               "Cell Threshold in electrons",
+                               _threshold,
+                               200.);
+
+    registerProcessorParameter("PoissonSmearing",
+                               "Apply Poisson smearing of electrons collected on pixels",
+                               _PoissonSmearing,
+                               1);
+
+    registerProcessorParameter("ElectronicEffects",
+                               "Apply Electronic Effects",
+                               _electronicEffects,
+                               int(1));
+
+    registerProcessorParameter("ElectronicNoise",
+                               "electronic noise in electrons",
+                               _electronicNoise,
+                               100.);
+
+    registerProcessorParameter("StoreFiredPixels",
+                               "Store fired pixels",
+                               _produceFullPattern,
+                               int(0));
+
+    registerProcessorParameter("UseMCPMomentum",
+                               "Use Particle Momentum",
+                               _useMCPMomentum,
+                               int(1));
+
+    registerProcessorParameter("EnergyLoss",
+                               "Energy Loss keV/mm",
+                               _energyLoss,
+                               double(280.0));
+
+    registerProcessorParameter("RemoveDRayPixels",
+                               "Remove D-Ray Pixels",
+                               _removeDrays,
+                               int(1));
+
+    registerProcessorParameter("GenerateBackground",
+                               "Generate Background",
+                               _generateBackground,
+                               int(0));
 }
 
 
 
-void MuonCVXDDigitiser::init() { 
-
+void MuonCVXDDigitiser::init()
+{ 
     streamlog_out(DEBUG) << "   init called  " << std::endl ;
 
-    // usually a good idea to
     printParameters() ;
 
     _nRun = 0 ;
     _nEvt = 0 ;
-
+    _totEntries = 0;
+    _fluctuate = new MyG4UniversalFluctuationForSi();
 }
 
 
-void MuonCVXDDigitiser::processRunHeader( LCRunHeader* run) { 
-
+void MuonCVXDDigitiser::processRunHeader( LCRunHeader* run)
+{ 
     _nRun++ ;
+
+    Detector& theDetector = Detector::getInstance();
+    DetElement vxBarrel = theDetector.detector(_subDetName);
+    ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();
+    _numberOfLayers  = zPlanarData.layers.size();
+
+    _laddersInLayer.resize(_numberOfLayers);
+    _layerHalfPhi.resize(_numberOfLayers);
+    _layerHalfThickness.resize(_numberOfLayers);
+    _layerThickness.resize(_numberOfLayers);
+    _layerRadius.resize(_numberOfLayers);
+    _layerLadderLength.resize(_numberOfLayers);
+    _layerLadderWidth.resize(_numberOfLayers);
+    _layerLadderHalfWidth.resize(_numberOfLayers);
+    _layerActiveSiOffset.resize(_numberOfLayers);
 } 
 
 
 
-void MuonCVXDDigitiser::processEvent( LCEvent * evt ) { 
-
-
-    // this gets called for every event 
-    // usually the working horse ...
-
-
-#ifdef MARLIN_USE_AIDA
-
-    // define a histogram pointer
-    static AIDA::ICloud1D* hMCPEnergy ;    
-
-    if( isFirstEvent() ) { 
-
-        hMCPEnergy = AIDAProcessor::histogramFactory(this)->
-            createCloud1D( "hMCPEnergy", "energy of the MCParticles", 100 ) ; 
-
+void MuonCVXDDigitiser::processEvent( LCEvent * evt )
+{ 
+    LCCollection * STHcol = NULL;
+    try
+    {
+        STHcol = evt->getCollection(_colName);
     }
-#endif // MARLIN_USE_AIDA
-
-    // try to get lcio collection (exits if collection is not available)
-    // NOTE: if the AIDAProcessor is activated in your steering file and Marlin is linked with
-    //      RAIDA you may get the message: "*** Break *** segmentation violation" followed by a
-    //      stack-trace (generated by ROOT) in case the collection is unavailable. This happens
-    //      because ROOT is somehow catching the exit signal commonly used to exit a program
-    //      intentionally. Sorry if this messsage may confuse you. Please ignore it!
-    LCCollection* col = evt->getCollection( _colName ) ;
-
-
-    // Alternativelly if you do not want Marlin to exit in case of a non-existing collection
-    // use the following (commented out) code:
-    //LCCollection* col = NULL;
-    //try{
-    //    col = evt->getCollection( _colName );
-    //}
-    //catch( lcio::DataNotAvailableException e )
-    //{
-    //    streamlog_out(WARNING) << _colName << " collection not available" << std::endl;
-    //    col = NULL;
-    //}
-
-    // this will only be entered if the collection is available
-    if( col != NULL ){
-
-        int nMCP = col->getNumberOfElements()  ;
-
-        for(int i=0; i< nMCP ; i++){
-
-            MCParticle* p = dynamic_cast<MCParticle*>( col->getElementAt( i ) ) ;
-
-#ifdef MARLIN_USE_AIDA
-            // fill histogram from LCIO data :
-            hMCPEnergy->fill( p->getEnergy() ) ;
-#endif
-        } 
+    catch( lcio::DataNotAvailableException ex )
+    {
+        streamlog_out(WARNING) << _colName << " collection not available" << std::endl;
+        STHcol = NULL;
     }
 
-
-
-    //-- note: this will not be printed if compiled w/o MARLINDEBUG=1 !
+    if( STHcol != NULL )
+    {
+        // TODO missing implementation
+    }
 
     streamlog_out(DEBUG) << "   processing event: " << evt->getEventNumber() 
         << "   in run:  " << evt->getRunNumber() << std::endl ;
 
-
-
     _nEvt ++ ;
 }
 
+void MuonCVXDDigitiser::check( LCEvent * evt )
+{}
 
 
-void MuonCVXDDigitiser::check( LCEvent * evt ) { 
-    // nothing to check here - could be used to fill checkplots in reconstruction processor
-}
-
-
-void MuonCVXDDigitiser::end(){ 
-
-    //   std::cout << "MuonCVXDDigitiser::end()  " << name() 
-    // 	    << " processed " << _nEvt << " events in " << _nRun << " runs "
-    // 	    << std::endl ;
-
-}
+void MuonCVXDDigitiser::end()
+{}
 
