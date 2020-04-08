@@ -21,7 +21,12 @@ using dd4hep::rec::ZPlanarData;
 
 MuonCVXDDigitiser aMuonCVXDDigitiser ;
 
-MuonCVXDDigitiser::MuonCVXDDigitiser() : Processor("MuonCVXDDigitiser")
+MuonCVXDDigitiser::MuonCVXDDigitiser() :
+    Processor("MuonCVXDDigitiser"),
+    _nRun(0),
+    _nEvt(0),
+    _totEntries(0),
+    _currentLayer(0)
 {
     _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
 
@@ -170,9 +175,10 @@ void MuonCVXDDigitiser::processRunHeader( LCRunHeader* run)
     _nRun++ ;
 
     Detector& theDetector = Detector::getInstance();
-    DetElement vxBarrel = theDetector.detector(_subDetName);
-    ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();
-    _numberOfLayers  = zPlanarData.layers.size();
+    DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
+    ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
+    std::vector<ZPlanarData::LayerLayout> vx_layers = zPlanarData.layers;
+    _numberOfLayers  = vx_layers.size();
 
     _laddersInLayer.resize(_numberOfLayers);
     _layerHalfPhi.resize(_numberOfLayers);
@@ -183,6 +189,35 @@ void MuonCVXDDigitiser::processRunHeader( LCRunHeader* run)
     _layerLadderWidth.resize(_numberOfLayers);
     _layerLadderHalfWidth.resize(_numberOfLayers);
     _layerActiveSiOffset.resize(_numberOfLayers);
+    _layerPhiOffset.resize(_numberOfLayers);
+
+    int curr_layer = 0;
+    for(ZPlanarData::LayerLayout z_layout : vx_layers)
+    {
+        _laddersInLayer[curr_layer] = z_layout.ladderNumber;
+
+        _layerHalfPhi[curr_layer] = M_PI/((double)_laddersInLayer[curr_layer]);   // TODO investigate
+
+        _layerThickness[curr_layer] = z_layout.thicknessSensitive;
+
+        _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
+
+        _layerRadius[curr_layer] = z_layout.distanceSensitive + 0.5 * _layerThickness[curr_layer];
+
+        _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;
+
+        _layerLadderWidth[curr_layer] = z_layout.widthSensitive;
+
+        _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer]/2.;
+
+        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive;
+
+        //_layerLadderGap[curr_layer] = laddergaps[curr_layer];
+
+        _layerPhiOffset[curr_layer] = z_layout.phi0;
+
+        curr_layer++;
+    }
 } 
 
 
@@ -202,7 +237,86 @@ void MuonCVXDDigitiser::processEvent( LCEvent * evt )
 
     if( STHcol != NULL )
     {
-        // TODO missing implementation
+        LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHIT);
+        LCCollectionVec *STHLocCol = NULL;
+        if (_produceFullPattern != 0)
+        {
+            STHLocCol = new LCCollectionVec(LCIO::SIMTRACKERHIT);
+        }
+
+        for (int i=0; i < STHcol->getNumberOfElements(); ++i)
+        {
+            SimTrackerHit * simTrkHit = 
+                dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
+
+            ProduceIonisationPoints( simTrkHit );      
+
+            if (_currentLayer < 0 || _currentLayer >= int(_layerRadius.size())) continue;
+
+            ProduceSignalPoints( );
+
+            SimTrackerHitImplVec simTrkHitVec;
+
+            if (_PoissonSmearing != 0) PoissonSmearer( simTrkHitVec );
+
+            if (_electronicEffects != 0) GainSmearer( simTrkHitVec );
+
+            TrackerHitImpl *recoHit = ReconstructTrackerHit( simTrkHitVec );
+            if (recoHit == nullptr)
+            {
+                streamlog_out(DEBUG) << "Number of pixels above threshold = 0 " << std::endl;
+                continue;
+            }
+
+            TrackerHitToLab( recoHit );
+            if (_debug != 0) PrintInfo(simTrkHit, recoHit);
+
+            recoHit->rawHits().push_back(simTrkHit);
+            if (_produceFullPattern == 0)
+            {
+                recoHit->rawHits().push_back(simTrkHit);
+            }
+            else
+            {
+                int nSimHits = int( simTrkHitVec.size() );
+                for (int iS=0;iS<nSimHits;++iS)
+                {
+                    SimTrackerHitImpl * sth = simTrkHitVec[iS];
+                    float charge = sth->getEDep();
+                    if ( charge >_threshold)
+                    {
+                        SimTrackerHitImpl * newsth = new SimTrackerHitImpl();
+                        double spos[3];
+                        double sLab[3];
+                        for (int iC=0;iC<3;++iC) 
+                        spos[iC] = sth->getPosition()[iC];
+                        TransformToLab(spos,sLab);
+                        newsth->setPosition(sLab);
+                        newsth->setEDep(charge);
+                        STHLocCol->addElement(newsth);
+                        recoHit->rawHits().push_back( newsth );
+                    }
+                }
+            }
+
+            float pointResoRPhi=0.004;
+            float pointResoZ=0.004;
+            float covMat[TRKHITNCOVMATRIX] = {
+                0.,0.,
+                pointResoRPhi * pointResoRPhi,
+                0.,0.,
+                pointResoZ*pointResoZ
+            };
+            recoHit->setCovMatrix(covMat);      
+
+            recoHit->setType(100+simTrkHit->getCellID0());
+            THcol->addElement( recoHit );
+            for (int i=0; i < int(simTrkHitVec.size()); ++i)
+            {
+                SimTrackerHit * hit = simTrkHitVec[i];
+                delete hit;
+            }     
+        }
     }
 
     streamlog_out(DEBUG) << "   processing event: " << evt->getEventNumber() 
@@ -217,4 +331,34 @@ void MuonCVXDDigitiser::check( LCEvent * evt )
 
 void MuonCVXDDigitiser::end()
 {}
+
+
+
+
+void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
+{}
+
+void MuonCVXDDigitiser::ProduceSignalPoints()
+{}
+
+void MuonCVXDDigitiser::PoissonSmearer(SimTrackerHitImplVec &simTrkVec)
+{}
+
+void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
+{}
+
+TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
+{
+    return nullptr;
+}
+
+void MuonCVXDDigitiser::TrackerHitToLab(TrackerHitImpl *recoHit)
+{}
+
+void MuonCVXDDigitiser::TransformToLab(double *xLoc, double *xLab)
+{}
+
+void MuonCVXDDigitiser::PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit)
+{}
+
 

@@ -18,10 +18,63 @@
 using namespace lcio ;
 using namespace marlin ;
 
+typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
 
 /**  Digitizer for Simulated Hits in the Vertex Detector. <br>
  * Digitization follows the procedure adopted in the CMS software package.
- * @param CollectionName Name of the MCParticle collection
+ * Processor produces an output collection of the Tracker Hits. 
+ * Collection has name "VTXTrackerHits".
+ * @param CollectionName name of input SimTrackerHit collection <br>
+ * (default parameter value : "vxd01_VXD", taken from Mokka)
+ * @param TanLorentz tangent of the Lorentz angle <br>
+ * (default parameter value : 0.8) <br>
+ * @param CutOnDeltaRays cut on the energy of delta-electrons (in MeV) <br>
+ * (default parameter value : 0.03) <br>
+ * @param Diffusion diffusion coefficient for the nominal active layer thickness (in mm) <br>
+ * (default parameter value : 0.002) <br>
+ * @param LayerThickness thickness of the active Silicon layer (in mm) <br>
+ * (default parameter value : 0.03744) <br>
+ * @param PixelSizeX pixel size along direction perpendicular to beam axis (in mm) <br>
+ * (default value : 0.025) <br>
+ * @param PixelSizeY pixel size along beam axis (in mm) <br>
+ * (default value : 0.025) <br>
+ * @param ElectronsPerMeV number of electrons produced per MeV of deposited energy <br>
+ * (default parameter value : 270.3) <br>
+ * @param Threshold threshold on charge deposited on one pixel (in electons) <br>
+ * (default parameter value : 200.0) <br>
+ * @param LaddersInLayer vector of integers, numbers of phi-ladders in each layer <br>
+ * (default parameter values : 8, 8, 12, 16, 20; taken from Mokka database for VXD model vxd01) <br>
+ * @param LadderRadius vector of doubles, radii of layers (in mm) <br>
+ * (default parameter values : 15.301, 26.301, 38.301, 49.301, 60.301; taken from Mokka database 
+ * for VXD model vxd01) <br>
+ * @param ActiveLadderOffset vector of doubles, offset of active Si layer along phi-angle (in mm) for each layer <br>
+ * (default parameter values : 1.455, 1.39866, 2.57163, 3.59295, 4.42245) <br>
+ * @param LadderHalfWidth vector of doubles, half-width of the ladders in each layer (in mm)<br>
+ * (default parameter values : 6.5, 11.0, 11.0, 11.0, 11.0; taken from Mokka database for VXD model vxd01) <br>
+ * @param LadderGaps vector of doubles, gaps between two symmetric ladders (+/-z) in mm<br>
+ * (default parameter values : 0.0, 0.04, 0.04, 0.04, 0.04; taken from Mokka database) <br>
+ * @param PhiOffset vector of doubles, offset in phi angle for starting ladder in each layer <br>
+ * (default parameter values : 0, 0, 0, 0, 0; taken from Mokka database for VXD model vxd01) <br>
+ * @param SegmentLength segment length along track path which is used to subdivide track into segments (in mm).
+ * The number of track subsegments is calculated as int(TrackLengthWithinActiveLayer/SegmentLength)+1 <br>
+ * (default parameter value : 0.005) <br>
+ * @param WidthOfCluster defines width in Gaussian sigmas to perform charge integration for 
+ * a given pixel <br>
+ * (default parameter value : 3.0) <br>
+ * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
+ * (default parameter value : 1) <br>
+ * @param ElectronicNoise electronic noise in electrons <br>
+ * (default parameter value : 100) <br>
+ * @param GenerateBackground flag to switch on pseudo-generation of pair background hits
+ * Background hits are uniformly generated in cosQ and Phi <br>
+ * (default parameter value : 0)
+ * @param BackgroundHitsPerLayer expected mean value of background hits accumulated in each layer 
+ * over readout time. This number is calculated as Number of background hits per bunch crossing times
+ * number of bunch crossings over integration time. <br>
+ * (default values : 34400 23900 9600 5500 3100 corresponding to 100 overlaid bunch crossings) <br>
+ * @param Debug boolean variable, if set to 1, printout is activated <br>
+ * (default parameter value : 0) <br>
+ * <br>
  */
 class MuonCVXDDigitiser : public Processor {
   
@@ -96,9 +149,19 @@ protected:
     std::vector<float> _layerPhiOffset{};
     std::vector<float> _layerActiveSiOffset{};
     std::vector<float> _layerHalfPhi{};
-    std::vector<float> _layerLadderGap{};
+    //std::vector<float> _layerLadderGap{};
     std::vector<float> _layerLadderWidth{};
- 
+
+    int _currentLayer;
+
+    void ProduceIonisationPoints(SimTrackerHit *hit);
+    void ProduceSignalPoints();
+    void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
+    void GainSmearer(SimTrackerHitImplVec &simTrkVec);
+    TrackerHitImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
+    void TrackerHitToLab(TrackerHitImpl *recoHit);
+    void TransformToLab(double *xLoc, double *xLab);
+    void PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit);
 };
 
 #endif
