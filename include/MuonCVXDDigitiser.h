@@ -18,7 +18,16 @@
 using namespace lcio ;
 using namespace marlin ;
 
+struct IonisationPoint
+{
+    double x;
+    double y;
+    double z;
+    double eloss;
+};
+
 typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
+typedef std::vector<IonisationPoint> IonisationPointVec;
 
 /**  Digitizer for Simulated Hits in the Vertex Detector. <br>
  * Digitization follows the procedure adopted in the CMS software package.
@@ -76,8 +85,8 @@ typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
  * (default parameter value : 0) <br>
  * <br>
  */
-class MuonCVXDDigitiser : public Processor {
-  
+class MuonCVXDDigitiser : public Processor
+{  
 public:
   
     virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
@@ -152,7 +161,19 @@ protected:
     //std::vector<float> _layerLadderGap{};
     std::vector<float> _layerLadderWidth{};
 
+    // internal state
     int _currentLayer;
+    int _currentModule;
+    int _numberOfSegments;
+    double _currentParticleMass;
+    double _currentParticleMomentum;
+    double _currentPhi;
+    double _eSum;
+    double _segmentDepth;
+    double _currentLocalPosition[3];
+    double _currentEntryPoint[3];
+    double _currentExitPoint[3];
+    IonisationPointVec _ionisationPoints;
 
     void ProduceIonisationPoints(SimTrackerHit *hit);
     void ProduceSignalPoints();
@@ -162,6 +183,8 @@ protected:
     void TrackerHitToLab(TrackerHitImpl *recoHit);
     void TransformToLab(double *xLoc, double *xLab);
     void PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit);
+    void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
+
 };
 
 #endif

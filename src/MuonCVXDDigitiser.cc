@@ -1,5 +1,6 @@
 #include "MuonCVXDDigitiser.h"
 #include <iostream>
+#include <algorithm>
 
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
@@ -311,9 +312,9 @@ void MuonCVXDDigitiser::processEvent( LCEvent * evt )
 
             recoHit->setType(100+simTrkHit->getCellID0());
             THcol->addElement( recoHit );
-            for (int i=0; i < int(simTrkHitVec.size()); ++i)
+            for (int k=0; k < int(simTrkHitVec.size()); ++k)
             {
-                SimTrackerHit * hit = simTrkHitVec[i];
+                SimTrackerHit * hit = simTrkHitVec[k];
                 delete hit;
             }     
         }
@@ -325,18 +326,193 @@ void MuonCVXDDigitiser::processEvent( LCEvent * evt )
     _nEvt ++ ;
 }
 
-void MuonCVXDDigitiser::check( LCEvent * evt )
+void MuonCVXDDigitiser::check(LCEvent *evt)
 {}
-
 
 void MuonCVXDDigitiser::end()
-{}
+{
+    streamlog_out(DEBUG) << "   end called  " << std::endl;
+    delete _fluctuate;
+}
 
+/** Function calculates local coordinates of the sim hit 
+ * in the given ladder and local momentum of particle. 
+ * Also returns module number and ladder 
+ * number.
+ * Local coordinate system within the ladder 
+ * is defined as following :  <br> 
+ *    - x axis lies in the ladder plane and orthogonal to the beam axis <br>
+ *    - y axis is perpendicular to the ladder plane <br>
+ *    - z axis lies in the ladder plane and parallel to the beam axis <br>
+ * 
+ *    Encoding of modules: <br>
+ *    ======================  <br>
+ *    - 0 = left endcap <br>
+ *    - 1 = left ladder in the barrel <br>
+ *    - 2 = right ladder in the barrel <br>
+ *    - 3 = right endcap <br>
+ * 
+ */
+void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit, 
+                                          double *localPosition,
+                                          double *localDirection)
+{
+    double xLab[3] = {
+        hit->getPosition()[0],
+        hit->getPosition()[1],
+        hit->getPosition()[2]
+    };
 
+    int layer = -1;
 
+    double RXY = sqrt(xLab[0] * xLab[0] + xLab[1] * xLab[1]);
+
+    layer = hit->getCellID0() - 1;                          
+    _currentLayer = layer;
+
+    if (layer < 0 || layer > _numberOfLayers) 
+    return;
+
+    int module = (xLab[2] < 0.0 ) ? 1 : 2;
+    _currentModule = module;
+
+    double Momentum[3];
+    if (hit->getMCParticle())
+    {
+        for (int j=0; j<3; ++j)
+            Momentum[j] = hit->getMCParticle()->getMomentum()[j];
+    }
+    else
+    {
+        for (int j=0; j<3; ++j)
+            Momentum[j] = hit->getMomentum()[j];
+    }
+
+    _currentParticleMass = 0;
+    if (hit->getMCParticle())
+        _currentParticleMass   = hit->getMCParticle()->getMass();
+    if (_currentParticleMass < 0.510e-3)
+        _currentParticleMass = 0.510e-3;  
+
+    _currentParticleMomentum = 0.0;
+    for (int i=0; i<3; ++i)
+        _currentParticleMomentum += Momentum[i] * Momentum[i];
+    _currentParticleMomentum = sqrt(_currentParticleMomentum);
+
+    double PXY = sqrt(Momentum[0] * Momentum[0] + Momentum[1] * Momentum[1]);
+
+    double PhiInLab = (double)atan2(xLab[1],xLab[0]);
+    if (PhiInLab < 0.0) PhiInLab += M_2_PI;
+    double PhiInLabMom = atan2(Momentum[1],Momentum[0]);
+    if (PhiInLabMom < 0.0) PhiInLabMom += M_2_PI;
+    double Radius = _layerRadius[layer];
+
+    double Phi0 = _layerPhiOffset[layer];
+
+    int nLadders = _laddersInLayer[layer];
+
+    double dPhi = 2.0*_layerHalfPhi[layer];
+
+    double PhiLadder=0;
+    double PhiInLocal=0;
+
+    if (nLadders > 2) // laddered structure
+    {
+        int iLadder=0;
+        for (int ic = 0; ic < nLadders; ++ic)
+        {
+            PhiLadder = double(ic)*dPhi + Phi0;
+            PhiInLocal = PhiInLab - PhiLadder;
+            if (RXY*cos(PhiInLocal)-Radius > -_layerThickness[layer] && 
+                RXY*cos(PhiInLocal)-Radius < _layerThickness[layer])
+            {
+                iLadder = ic;
+                break;
+            }
+        }
+
+        double PhiLocalMom = PhiInLabMom - PhiLadder;
+        localPosition[0] = RXY * sin(PhiInLocal);
+        localPosition[1] = xLab[2];
+        localPosition[2] = RXY * cos(PhiInLocal) - Radius;
+        localDirection[0]=PXY * sin(PhiLocalMom);
+        localDirection[1]=Momentum[2];
+        localDirection[2]=PXY * cos(PhiLocalMom);
+        _currentPhi = PhiLadder;
+    }  
+    else // cyllindrical structure
+    {
+        localPosition[0]=0.0;
+        localPosition[1]=xLab[2];
+        localPosition[2]=RXY - Radius;
+        double PhiLocalMom = PhiInLabMom - PhiInLab;
+        localDirection[0]=PXY * sin(PhiLocalMom);
+        localDirection[1]=Momentum[2];
+        localDirection[2]=PXY * cos(PhiLocalMom); 
+        _currentPhi = PhiInLab;
+    }
+}
 
 void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
-{}
+{
+    double pos[3];
+    double dir[3];
+    double entry[3];
+    double exit[3];
+
+    FindLocalPosition( hit, pos, dir);
+
+    if (_currentLayer < 0 || _currentLayer > _numberOfLayers) 
+    return;
+
+    entry[2] = -_layerHalfThickness[_currentLayer]; 
+    exit[2] = _layerHalfThickness[_currentLayer];
+
+    for (int i=0; i<2; ++i) {
+        entry[i]=pos[i]+dir[i]*(entry[2]-pos[2])/dir[2];
+        exit[i]=pos[i]+dir[i]*(exit[2]-pos[2])/dir[2];
+    }
+
+    for (int i=0; i<3; ++i) {
+        _currentLocalPosition[i] = pos[i];
+        _currentEntryPoint[i] = entry[i];
+        _currentExitPoint[i] = exit[i];
+    }
+
+    double tanx = dir[0]/dir[2];
+    double tany = dir[1]/dir[2];  
+    double trackLength = std::min(1.0e+3,
+        _layerThickness[_currentLayer] * sqrt(1.0 + tanx * tanx + tany * tany));
+    double dEmean = 1e-6*_energyLoss * trackLength;  
+
+    _numberOfSegments = int(trackLength / _segmentLength) + 1;
+    dEmean = dEmean / ((double)_numberOfSegments);
+    _ionisationPoints.resize(_numberOfSegments);
+
+    _eSum = 0.0;
+
+    double segmentLength = trackLength/((double)_numberOfSegments);
+    _segmentDepth = _layerThickness[_currentLayer]/((double)_numberOfSegments);
+
+    for (int i=0; i<_numberOfSegments; ++i)
+    {
+        double z = -_layerHalfThickness[_currentLayer] + ((double)(i) + 0.5) * _segmentDepth;
+        double x = pos[0] + dir[0] * (z - pos[2]) / dir[2];
+        double y = pos[1] + dir[1] * (z - pos[2]) / dir[2];
+        IonisationPoint ipoint;
+        double de = _fluctuate->SampleFluctuations(double(1000. * _currentParticleMomentum),
+                                                   double(1000. * _currentParticleMass),
+                                                   _cutOnDeltaRays,
+                                                   segmentLength,
+                                                   double(1000.*dEmean)) / 1000.;
+        _eSum = _eSum + de;
+        ipoint.eloss = de;
+        ipoint.x = x;
+        ipoint.y = y;
+        ipoint.z = z;
+        _ionisationPoints[i] = ipoint;
+    }
+}
 
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {}
