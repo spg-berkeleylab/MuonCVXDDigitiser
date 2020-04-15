@@ -7,14 +7,16 @@
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
 
+#include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
+#include "CLHEP/Random/RandGauss.h"
+#include "CLHEP/Random/RandPoisson.h" 
 
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
 
-
-using namespace lcio ;
-using namespace marlin ;
+using CLHEP::RandGauss;
+using CLHEP::RandPoisson;
 
 using dd4hep::Detector;
 using dd4hep::DetElement;
@@ -254,15 +256,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             if (_currentLayer < 0 || _currentLayer >= int(_layerRadius.size())) continue;
 
-            ProduceSignalPoints( );
+            ProduceSignalPoints();
 
             SimTrackerHitImplVec simTrkHitVec;
+            ProduceHits(simTrkHitVec);
 
-            if (_PoissonSmearing != 0) PoissonSmearer( simTrkHitVec );
+            if (_PoissonSmearing != 0) PoissonSmearer(simTrkHitVec);
 
-            if (_electronicEffects != 0) GainSmearer( simTrkHitVec );
+            if (_electronicEffects != 0) GainSmearer(simTrkHitVec);
 
-            TrackerHitImpl *recoHit = ReconstructTrackerHit( simTrkHitVec );
+            TrackerHitImpl *recoHit = ReconstructTrackerHit(simTrkHitVec);
             if (recoHit == nullptr)
             {
                 streamlog_out(DEBUG) << "Number of pixels above threshold = 0 " << std::endl;
@@ -506,13 +509,174 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 }
 
 void MuonCVXDDigitiser::ProduceSignalPoints()
-{}
+{
+    double TanLorentzX = 0;
+    double TanLorentzY = 0;        // TODO is it necessary (no EM field along y)
 
+    if (_currentModule == 1 || _currentModule == 2)   // TODO check is useless
+    {
+        TanLorentzX = _tanLorentzAngle;
+    }
+
+    _signalPoints.resize(_numberOfSegments);
+
+    // run over ionisation points
+    for (int i = 0; i < _numberOfSegments; ++i)
+    {
+        IonisationPoint ipoint = _ionisationPoints[i];
+        double z = ipoint.z;
+        double x = ipoint.x;
+        double y = ipoint.y;
+        double DistanceToPlane = _layerHalfThickness[_currentLayer] - z;
+        double xOnPlane = x + TanLorentzX * DistanceToPlane;
+        double yOnPlane = y + TanLorentzY * DistanceToPlane;
+        double DriftLength = DistanceToPlane * sqrt(1.0 + pow(TanLorentzX, 2) 
+                                                        + pow(TanLorentzY, 2));
+
+        double SigmaDiff = sqrt(DriftLength / _layerThickness[_currentLayer])
+                           * _diffusionCoefficient;
+
+        double SigmaX = SigmaDiff * sqrt(1.0 + pow(TanLorentzX, 2));
+        double SigmaY = SigmaDiff * sqrt(1.0 + pow(TanLorentzY, 2));
+
+        double charge = 1.0e+6 * ipoint.eloss * _electronsPerKeV;
+
+        SignalPoint  spoint;
+        spoint.x = xOnPlane;
+        spoint.y = yOnPlane;
+        spoint.sigmaX = SigmaX;
+        spoint.sigmaY = SigmaY;
+        spoint.charge = charge;
+        _signalPoints[i] = spoint;
+    }
+}
+
+void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
+{  
+    simTrkVec.clear();
+
+    _currentTotalCharge = 0.0;
+
+    for (int i=0; i<_numberOfSegments; ++i)
+    {
+        SignalPoint spoint = _signalPoints[i];
+        double xCentre = spoint.x;
+        double yCentre = spoint.y;
+        double sigmaX = spoint.sigmaX;
+        double sigmaY = spoint.sigmaY;
+        double xLo = spoint.x - _widthOfCluster * spoint.sigmaX;
+        double xUp = spoint.x + _widthOfCluster * spoint.sigmaX;
+        double yLo = spoint.y - _widthOfCluster * spoint.sigmaY;
+        double yUp = spoint.y + _widthOfCluster * spoint.sigmaY;
+        
+        _currentTotalCharge += spoint.charge;
+
+        int ixLo, ixUp, iyLo, iyUp;
+
+        TransformXYToCellID(xLo, yLo, ixLo, iyLo);
+        TransformXYToCellID(xUp, yUp, ixUp, iyUp);
+
+        for (int ix = ixLo; ix< ixUp + 1; ++ix)
+        {
+            if (ix < 0) continue;
+
+            for (int iy = iyLo; iy < iyUp + 1; ++iy)
+            {
+                if (iy < 0) continue;
+
+                double xCurrent, yCurrent;
+                TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
+                
+                gsl_sf_result result;
+                int status = gsl_sf_erf_Q_e((xCurrent - 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
+                double LowerBound = 1 - result.val;
+
+                status = gsl_sf_erf_Q_e((xCurrent + 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
+                double UpperBound = 1 - result.val;
+                double integralX = UpperBound - LowerBound;
+
+                status = gsl_sf_erf_Q_e((yCurrent - 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
+                LowerBound = 1 - result.val;
+
+                status = gsl_sf_erf_Q_e((yCurrent + 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
+                UpperBound = 1 - result.val;
+                double integralY = UpperBound - LowerBound;
+
+                float totCharge = float(spoint.charge * integralX * integralY);
+
+                int iexist = 0;
+                int cellID = 100000 * ix + iy;                 // TODO check cellID
+                SimTrackerHitImpl *existingHit = nullptr;
+                for (int iHits = 0; iHits < int(simTrkVec.size()); ++iHits)
+                {
+                    existingHit = simTrkVec[iHits];
+                    int cellid = existingHit->getCellID0();
+                    if (cellid == cellID)
+                    {
+                        iexist = 1;
+                        break;
+                    }
+                }
+                if (iexist == 1)
+                {
+                    float edep = existingHit->getEDep();
+                    edep += totCharge;
+                    existingHit->setEDep( edep );
+                }
+                else 
+                {
+                    SimTrackerHitImpl * hit = new SimTrackerHitImpl();
+                    double pos[3] = {
+                        xCurrent,
+                        yCurrent,
+                        _layerHalfThickness[_currentLayer]
+                    };
+                    hit->setPosition(pos);
+                    hit->setCellID0(cellID);
+                    hit->setEDep(totCharge);
+                    simTrkVec.push_back(hit);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Function that fluctuates charge (in units of electrons)
+ * deposited on the fired pixels according to the Poisson
+ * distribution...
+ */
 void MuonCVXDDigitiser::PoissonSmearer(SimTrackerHitImplVec &simTrkVec)
-{}
+{
+    for (int ihit = 0; ihit < int(simTrkVec.size()); ++ihit)
+    {
+        SimTrackerHitImpl *hit = simTrkVec[ihit];
+        float charge = hit->getEDep();
+        float rng;
+        if (charge > 1000.) // assume Gaussian
+        {
+            rng = float(RandGauss::shoot(charge, sqrt(charge)));
+        }
+        else // assume Poisson
+        {
+            rng = float(RandPoisson::shoot(charge));
+        }
+        hit->setEDep(rng);
+    }  
+}
 
+/**
+ * Simulation of electronic noise.
+ */
 void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
-{}
+{
+    for (int i = 0; i < simTrkVec.size(); ++i)
+    {
+        double Noise = RandGauss::shoot(0., _electronicNoise);
+        SimTrackerHitImpl *hit = simTrkVec[i];
+        hit->setEDep(hit->getEDep() + float(Noise));
+    }
+}
 
 TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
 {
@@ -527,5 +691,62 @@ void MuonCVXDDigitiser::TransformToLab(double *xLoc, double *xLab)
 
 void MuonCVXDDigitiser::PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit)
 {}
+
+/**
+ * Function calculates position in pixel matrix based on the 
+ * local coordinates of point in the ladder.
+ */
+void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & iy)
+{
+    int layer = _currentLayer;
+    int nladders = _laddersInLayer[layer];
+    //double ladderGap = _layerLadderGap[layer];
+    double ladderGap = 0;                             // TODO investigate
+    double ladderLength = _layerLadderLength[layer];
+
+    double yInLadder = (y < 0.0) ? y + ladderLength : y - ladderGap;
+
+    iy = (yInLadder < 0.0) ? -1 : int(yInLadder / _pixelSizeY);
+
+    double xInLadder = x;
+    if (nladders > 2) // laddered structure
+    {
+        xInLadder += _layerLadderHalfWidth[layer] + _layerActiveSiOffset[layer];
+    }
+    else // cyllindrical structure  TODO is it necessary
+    {
+        xInLadder += (_layerRadius[layer] + _layerHalfThickness[layer]) * _currentPhi;
+    }
+
+    ix = (xInLadder < 0.0) ? -1 : int(xInLadder/_pixelSizeX);
+}
+
+/**
+ Function calculates position in the local frame 
+ based on the index of pixel in the ladder.
+*/
+void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double & y)
+{
+    int layer = _currentLayer;
+    int nladders = _laddersInLayer[layer];
+    //double ladderGap = _layerLadderGap[layer];
+    double ladderGap = 0;                             // TODO investigate
+    double ladderLength = _layerLadderLength[layer];
+
+    y = (0.5 + double(iy)) * _pixelSizeY;
+
+    if (_currentModule == 1) 
+        y -= ladderLength;
+    else
+        y += ladderGap;
+
+    x = (0.5 + double(ix)) * _pixelSizeX;
+
+    if (nladders > 2) // laddered structure
+        x -= _layerLadderHalfWidth[layer] + _layerActiveSiOffset[layer];
+    else // cyllindrical structure TODO is it necessary
+        x -= (_layerRadius[layer]+_layerHalfThickness[layer]) * _currentPhi;
+}
+
 
 

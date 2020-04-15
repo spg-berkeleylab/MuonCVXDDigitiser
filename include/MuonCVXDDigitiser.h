@@ -26,8 +26,18 @@ struct IonisationPoint
     double eloss;
 };
 
+struct SignalPoint
+{
+    double x;
+    double y;
+    double sigmaX;
+    double sigmaY;
+    double charge;
+};
+
 typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
 typedef std::vector<IonisationPoint> IonisationPointVec;
+typedef std::vector<SignalPoint> SignalPointVec;
 
 /**  Digitizer for Simulated Hits in the Vertex Detector. <br>
  * Digitization follows the procedure adopted in the CMS software package.
@@ -168,15 +178,18 @@ protected:
     double _currentParticleMass;
     double _currentParticleMomentum;
     double _currentPhi;
+    double _currentTotalCharge;
     double _eSum;
     double _segmentDepth;
     double _currentLocalPosition[3];
     double _currentEntryPoint[3];
     double _currentExitPoint[3];
     IonisationPointVec _ionisationPoints;
+    SignalPointVec _signalPoints;
 
     void ProduceIonisationPoints(SimTrackerHit *hit);
     void ProduceSignalPoints();
+    void ProduceHits(SimTrackerHitImplVec &simTrkVec);
     void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
     void GainSmearer(SimTrackerHitImplVec &simTrkVec);
     TrackerHitImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
@@ -184,7 +197,8 @@ protected:
     void TransformToLab(double *xLoc, double *xLab);
     void PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit);
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
-
+    void TransformXYToCellID(double x, double y, int & ix, int & iy);
+    void TransformCellIDToXY(int ix, int iy, double & x, double & y);
 };
 
 #endif
