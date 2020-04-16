@@ -287,42 +287,41 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             }
             else
             {
-                int nSimHits = int( simTrkHitVec.size() );
-                for (int iS=0;iS<nSimHits;++iS)
+                for (int iS = 0; iS < simTrkHitVec.size(); ++iS)
                 {
-                    SimTrackerHitImpl * sth = simTrkHitVec[iS];
+                    SimTrackerHitImpl *sth = simTrkHitVec[iS];
                     float charge = sth->getEDep();
-                    if ( charge >_threshold)
+                    if (charge >_threshold)
                     {
-                        SimTrackerHitImpl * newsth = new SimTrackerHitImpl();
+                        SimTrackerHitImpl *newsth = new SimTrackerHitImpl();
                         double spos[3];
                         double sLab[3];
-                        for (int iC=0;iC<3;++iC) 
-                        spos[iC] = sth->getPosition()[iC];
+                        for (int iC = 0; iC < 3; ++iC) 
+                            spos[iC] = sth->getPosition()[iC];
                         TransformToLab(spos,sLab);
                         newsth->setPosition(sLab);
                         newsth->setEDep(charge);
                         STHLocCol->addElement(newsth);
-                        recoHit->rawHits().push_back( newsth );
+                        recoHit->rawHits().push_back(newsth);
                     }
                 }
             }
 
-            float pointResoRPhi=0.004;
-            float pointResoZ=0.004;
+            // TODO what is this?
+            float pointResoRPhi = 0.004;
+            float pointResoZ = 0.004;
             float covMat[TRKHITNCOVMATRIX] = {
-                0.,0.,
-                pointResoRPhi * pointResoRPhi,
-                0.,0.,
-                pointResoZ*pointResoZ
+                0., 0., pointResoRPhi * pointResoRPhi,
+                0., 0., pointResoZ * pointResoZ
             };
-            recoHit->setCovMatrix(covMat);      
+            recoHit->setCovMatrix(covMat);
 
-            recoHit->setType(100+simTrkHit->getCellID0());
-            THcol->addElement( recoHit );
+            recoHit->setType(100 + simTrkHit->getCellID0());
+            THcol->addElement(recoHit);
+
             for (int k=0; k < int(simTrkHitVec.size()); ++k)
             {
-                SimTrackerHit * hit = simTrkHitVec[k];
+                SimTrackerHit *hit = simTrkHitVec[k];
                 delete hit;
             }     
         }
