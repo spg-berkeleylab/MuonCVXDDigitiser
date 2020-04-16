@@ -14,9 +14,10 @@
 
 #include "MyG4UniversalFluctuationForSi.h"
 
+// TODO check the following value
+#define PX_PER_ROW 100000
 
-using namespace lcio ;
-using namespace marlin ;
+using marlin::Processor;
 
 struct IonisationPoint
 {
@@ -136,7 +137,8 @@ protected:
     std::string _colVTXRelation;
 
     // processor parameters
-    double _tanLorentzAngle;
+    double _tanLorentzAngleX;
+    double _tanLorentzAngleY;
     double _cutOnDeltaRays;
     double _diffusionCoefficient;
     double _pixelSizeX;

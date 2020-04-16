@@ -58,8 +58,13 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
 
     registerProcessorParameter("TanLorentz",
                                "Tangent of Lorentz Angle",
-                               _tanLorentzAngle,
+                               _tanLorentzAngleX,
                                (double)0.8);
+
+    registerProcessorParameter("TanLorentzY",
+                               "Tangent of Lorentz Angle along Y",
+                               _tanLorentzAngleY,
+                               (double)0);
 
     registerProcessorParameter("CutOnDeltaRays",
                                "Cut on delta-ray energy (MeV)",
@@ -227,7 +232,7 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
-    LCCollection * STHcol = NULL;
+    LCCollection * STHcol = nullptr;
     try
     {
         STHcol = evt->getCollection(_colName);
@@ -235,10 +240,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     catch( lcio::DataNotAvailableException ex )
     {
         streamlog_out(WARNING) << _colName << " collection not available" << std::endl;
-        STHcol = NULL;
+        STHcol = nullptr;
     }
 
-    if( STHcol != NULL )
+    if( STHcol != nullptr )
     {
         LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHIT);
         LCCollectionVec *STHLocCol = nullptr;
@@ -272,7 +277,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 continue;
             }
 
-            TrackerHitToLab( recoHit );
+            TrackerHitToLab(recoHit);
             if (_debug != 0) PrintInfo(simTrkHit, recoHit);
 
             recoHit->rawHits().push_back(simTrkHit);
@@ -350,10 +355,8 @@ void MuonCVXDDigitiser::end()
  * 
  *    Encoding of modules: <br>
  *    ======================  <br>
- *    - 0 = left endcap <br>
  *    - 1 = left ladder in the barrel <br>
  *    - 2 = right ladder in the barrel <br>
- *    - 3 = right endcap <br>
  * 
  */
 void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit, 
@@ -510,14 +513,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {
-    double TanLorentzX = 0;
-    double TanLorentzY = 0;        // TODO is it necessary (no EM field along y)
-
-    if (_currentModule == 1 || _currentModule == 2)   // TODO check is useless
-    {
-        TanLorentzX = _tanLorentzAngle;
-    }
-
     _signalPoints.resize(_numberOfSegments);
 
     // run over ionisation points
@@ -528,16 +523,16 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         double x = ipoint.x;
         double y = ipoint.y;
         double DistanceToPlane = _layerHalfThickness[_currentLayer] - z;
-        double xOnPlane = x + TanLorentzX * DistanceToPlane;
-        double yOnPlane = y + TanLorentzY * DistanceToPlane;
-        double DriftLength = DistanceToPlane * sqrt(1.0 + pow(TanLorentzX, 2) 
-                                                        + pow(TanLorentzY, 2));
+        double xOnPlane = x + _tanLorentzAngleX * DistanceToPlane;
+        double yOnPlane = y + _tanLorentzAngleY * DistanceToPlane;
+        double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
+                                                        + pow(_tanLorentzAngleY, 2));
 
         double SigmaDiff = sqrt(DriftLength / _layerThickness[_currentLayer])
                            * _diffusionCoefficient;
 
-        double SigmaX = SigmaDiff * sqrt(1.0 + pow(TanLorentzX, 2));
-        double SigmaY = SigmaDiff * sqrt(1.0 + pow(TanLorentzY, 2));
+        double SigmaX = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleX, 2));
+        double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
 
         double charge = 1.0e+6 * ipoint.eloss * _electronsPerKeV;
 
@@ -605,7 +600,7 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
                 float totCharge = float(spoint.charge * integralX * integralY);
 
                 int iexist = 0;
-                int cellID = 100000 * ix + iy;                 // TODO check cellID
+                int cellID = PX_PER_ROW * ix + iy;                 // TODO check cellID
                 SimTrackerHitImpl *existingHit = nullptr;
                 for (int iHits = 0; iHits < int(simTrkVec.size()); ++iHits)
                 {
@@ -678,16 +673,192 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
     }
 }
 
+/**
+ * Emulates reconstruction of Tracker Hit 
+ * Tracker hit position is reconstructed as center-of-gravity 
+ * of cluster of fired cells. Position is corrected for Lorentz shift.
+ * TODO check the track reco algorithm (is is the one we need?)
+ */
 TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
 {
+    double pos[3] = {0, 0, 0};
+    double charge = 0;
+
+    /* Simple center-of-gravity
+    for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
+    {
+        SimTrackerHit *hit = simTrkVec[iHit];
+        if (hit->getEDep() <= _threshold) continue;
+
+        charge += hit->getEDep();
+        pos[0] += hit->getEDep() * hit->getPosition()[0];
+        pos[1] += hit->getEDep() * hit->getPosition()[1];
+    }
+
+    if (charge > 0.)
+    {
+        TrackerHitImpl *recoHit = new TrackerHitImpl();
+        recoHit->setEDep(charge);
+
+        pos[0] /= charge;
+        pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
+
+        pos[1] /= charge;
+        pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
+
+        recoHit->setPosition(pos);
+        return recoHit;
+    }
+    */
+
+    /* Partial histogram */
+    int nPixels = 0;
+    int ixmin =  1000000;
+    int ixmax = -1000000;
+    int iymin =  1000000;
+    int iymax = -1000000;
+
+    for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
+    {
+        SimTrackerHit *hit = simTrkVec[iHit];
+        if (hit->getEDep() <= _threshold) continue;
+
+        nPixels++;
+        charge += hit->getEDep();
+        int cellID = hit->getCellID0();
+        int ix = cellID / PX_PER_ROW ;
+        int iy = cellID - PX_PER_ROW * ix;      
+
+        if (ix > ixmax) ixmax = ix;
+        if (ix < ixmin) ixmin = ix;
+        if (iy > iymax) iymax = iy;
+        if (iy < iymin) iymin = iy;
+    }
+
+    if (charge > 0. && nPixels > 0)
+    {
+        TrackerHitImpl *recoHit = new TrackerHitImpl();
+        recoHit->setEDep(charge);
+
+        double _amplX[20];
+        double _amplY[20];
+
+        for (int k = 0; k < 20; ++k)
+        {
+            _amplY[k] = 0.0;
+            _amplX[k] = 0.0;
+        }
+
+        for (int iHit = 0; iHit < int(simTrkVec.size()); ++iHit)
+        {
+            SimTrackerHit *hit = simTrkVec[iHit];
+            if (hit->getEDep() <= _threshold) continue;
+
+            int cellID = hit->getCellID0();
+            int ix = cellID / PX_PER_ROW ;
+            int iy = cellID - PX_PER_ROW * ix;
+            if ((iy - iymin) < 20)
+                _amplY[iy - iymin] = _amplY[iy - iymin] + hit->getEDep();
+            if ((ix - ixmin) < 20) 
+                _amplX[ix - ixmin] = _amplX[ix - ixmin] + hit->getEDep();        
+
+        }
+
+        double aXCentre = 0;
+        double aYCentre = 0;
+        for (int i = ixmin + 1; i < ixmax; ++i)
+        {
+            aXCentre += _amplX[i - ixmin];
+        }
+        for (int i = iymin + 1; i < iymax; ++i)
+        {
+            aYCentre += _amplY[i - iymin];
+        }
+        aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
+        aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
+
+        double aTot = 0;
+        for (int i = ixmin; i < ixmax + 1; ++i)
+        {
+            double xx, yy;
+            aTot += _amplX[i - ixmin];
+            TransformCellIDToXY(i, 2, xx, yy);
+            if (i != ixmin && i != ixmax)
+            {
+                pos[0] += xx * aXCentre;
+            }
+            else
+            {
+                pos[0] += xx * _amplX[i - ixmin];
+            }
+        }
+        pos[0] /= aTot;
+        pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
+
+        aTot = 0;
+        for (int i = iymin; i < iymax + 1 ;++i)
+        {
+            double xx, yy;
+            TransformCellIDToXY(i, i, xx, yy);
+            aTot += _amplY[i - iymin];
+            if (i != iymin && i != iymax)
+            {
+                pos[1] += yy * aYCentre;
+            }
+            else
+            {
+                pos[1] += yy * _amplY[i-iymin];
+            }
+        }
+        pos[1] /= aTot;
+        pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
+
+        recoHit->setPosition(pos);
+        return recoHit;
+    }
+
     return nullptr;
 }
 
 void MuonCVXDDigitiser::TrackerHitToLab(TrackerHitImpl *recoHit)
-{}
+{
+    double pos[3];
+    for (int i = 0; i < 3; ++i)
+    {
+        pos[i] = recoHit->getPosition()[i];
+    }
+    double xLab[3];
+    TransformToLab(pos, xLab);
 
+    recoHit->setPosition(xLab);
+}
+
+/** Function transforms local coordinates in the ladder
+ * into global coordinates
+ */
 void MuonCVXDDigitiser::TransformToLab(double *xLoc, double *xLab)
-{}
+{
+    int nLadders = _laddersInLayer[_currentLayer];
+    double Radius = _layerRadius[_currentLayer];
+
+    if (nLadders > 2 ) // laddered structure
+    {
+        double baseLine = Radius + xLoc[2];
+        double PhiInLab = _currentPhi + atan2(xLoc[0], baseLine);
+        double RXY = sqrt(pow(baseLine, 2) + pow(xLoc[0], 2));
+        xLab[2] = xLoc[1];
+        xLab[0] = RXY * cos(PhiInLab);
+        xLab[1] = RXY * sin(PhiInLab);
+    }
+    else // cyllindrical structure
+    {
+        double baseLine = Radius + xLoc[2];
+        double PhiInLab = _currentPhi + xLoc[0] / baseLine;
+        xLab[0] = baseLine * cos(PhiInLab);
+        xLab[1] = baseLine * sin(PhiInLab);
+        xLab[2] = xLoc[1];    
+    } 
+}
 
 void MuonCVXDDigitiser::PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit)
 {}
@@ -718,7 +889,7 @@ void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & 
         xInLadder += (_layerRadius[layer] + _layerHalfThickness[layer]) * _currentPhi;
     }
 
-    ix = (xInLadder < 0.0) ? -1 : int(xInLadder/_pixelSizeX);
+    ix = (xInLadder < 0.0) ? -1 : int(xInLadder / _pixelSizeX);
 }
 
 /**
@@ -745,7 +916,7 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
     if (nladders > 2) // laddered structure
         x -= _layerLadderHalfWidth[layer] + _layerActiveSiOffset[layer];
     else // cyllindrical structure TODO is it necessary
-        x -= (_layerRadius[layer]+_layerHalfThickness[layer]) * _currentPhi;
+        x -= (_layerRadius[layer] + _layerHalfThickness[layer]) * _currentPhi;
 }
 
 
