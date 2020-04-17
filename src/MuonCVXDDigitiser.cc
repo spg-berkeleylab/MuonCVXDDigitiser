@@ -432,33 +432,33 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
 
     int nLadders = _laddersInLayer[_currentLayer];
 
-    double dPhi = 2.0 * _layerHalfPhi[_currentLayer];
-
-    double PhiLadder = 0;
-    double PhiInLocal = 0;
 
     if (nLadders > 2) // laddered structure
     {
+        bool ladder_missing = true;
+
         for (int ic = 0; ic < nLadders; ++ic)
         {
-            PhiLadder = double(ic) * dPhi + Phi0;
-            PhiInLocal = PhiInLab - PhiLadder;
+            double PhiLadder = double(ic) * 2.0 * _layerHalfPhi[_currentLayer] + Phi0;
+            double PhiInLocal = PhiInLab - PhiLadder;
             double delta_radius = RXY * cos(PhiInLocal) - Radius;
-            if (delta_radius > -_layerThickness[_currentLayer] && 
-                delta_radius < _layerThickness[_currentLayer])     // TODO verify check
+
+            if (abs(delta_radius) <= _layerHalfThickness[_currentLayer])
             {
+                double PhiLocalMom = PhiInLabMom - PhiLadder;
+                localPosition[0] = RXY * sin(PhiInLocal);
+                localPosition[1] = xLab[2];
+                localPosition[2] = delta_radius;
+                localDirection[0]= PXY * sin(PhiLocalMom);
+                localDirection[1]= Momentum[2];
+                localDirection[2]= PXY * cos(PhiLocalMom);
+                _currentPhi = PhiLadder;
+                ladder_missing = false;
                 break;
             }
         }
-
-        double PhiLocalMom = PhiInLabMom - PhiLadder;
-        localPosition[0] = RXY * sin(PhiInLocal);
-        localPosition[1] = xLab[2];
-        localPosition[2] = RXY * cos(PhiInLocal) - Radius;
-        localDirection[0]= PXY * sin(PhiLocalMom);
-        localDirection[1]= Momentum[2];
-        localDirection[2]= PXY * cos(PhiLocalMom);
-        _currentPhi = PhiLadder;
+        if (ladder_missing)
+            streamlog_out(DEBUG) << "Hit out of ladder" << std::endl;
     }  
     else // cyllindrical structure TODO is it necessary?
     {
@@ -503,7 +503,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double tany = dir[1] / dir[2];  
     double trackLength = std::min(1.0e+3,
         _layerThickness[_currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
-    _numberOfSegments = int(trackLength / _segmentLength) + 1;  // TODO use ceil(trackLength / _segmentLength)
+    _numberOfSegments = ceil(trackLength / _segmentLength);
 
     double dEmean = (1e-6 * _energyLoss * trackLength) / ((double)_numberOfSegments);
 
@@ -511,6 +511,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
     _eSum = 0.0;
 
+    // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
     _segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
 
@@ -519,13 +520,14 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double z = -_layerHalfThickness[_currentLayer] + ((double)(i) + 0.5) * _segmentDepth;
         double x = pos[0] + dir[0] * (z - pos[2]) / dir[2];
         double y = pos[1] + dir[1] * (z - pos[2]) / dir[2];
-        IonisationPoint ipoint;
         double de = _fluctuate->SampleFluctuations(double(1000. * _currentParticleMomentum),
                                                    double(1000. * _currentParticleMass),
                                                    _cutOnDeltaRays,
                                                    segmentLength,
                                                    double(1000. * dEmean)) / 1000.;
         _eSum = _eSum + de;
+
+        IonisationPoint ipoint;
         ipoint.eloss = de;
         ipoint.x = x;
         ipoint.y = y;
