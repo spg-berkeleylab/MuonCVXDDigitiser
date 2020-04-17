@@ -210,9 +210,9 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 
-        _layerRadius[curr_layer] = z_layout.distanceSensitive + 0.5 * _layerThickness[curr_layer];
+        _layerRadius[curr_layer] = z_layout.distanceSensitive + _layerHalfThickness[curr_layer];
 
-        _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor;
 
         _layerLadderWidth[curr_layer] = z_layout.widthSensitive;
 
@@ -226,6 +226,8 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
         curr_layer++;
     }
+
+    PrintGeometryInfo();
 } 
 
 
@@ -323,7 +325,13 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             {
                 SimTrackerHit *hit = simTrkHitVec[k];
                 delete hit;
-            }     
+            }
+
+            evt->addCollection(THcol, _outputCollectionName.c_str());
+            if (_produceFullPattern != 0)
+            {
+                evt->addCollection(STHLocCol, "VTXPixels");
+            }
         }
     }
 
@@ -368,8 +376,26 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
         hit->getPosition()[2]
     };
 
-    _currentLayer = hit->getCellID0() - 1;                           // TODO is it correct?
-    if (_currentLayer < 0 || _currentLayer > _numberOfLayers) return;
+    double RXY = sqrt(pow(xLab[0], 2) + pow(xLab[1], 2));
+
+    _currentLayer = -1;
+    for (int i = 0; i < _numberOfLayers; ++i)
+    {
+        if (_laddersInLayer[i] > 2) // laddered structure
+        {
+            double xmin = _layerRadius[i] - _layerHalfThickness[i];
+            double xmax = _layerRadius[i] + _layerHalfThickness[i];
+            xmax /= (double)cos(_layerHalfPhi[i]);
+            if (RXY > xmin && RXY < xmax)
+            {
+                _currentLayer = i;
+                break;
+            }
+        }
+        else // cyllindrical structure
+        {}
+    }
+    if (_currentLayer < 0) return;
 
     _currentModule = (xLab[2] < 0.0 ) ? 1 : 2;
 
@@ -407,8 +433,6 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     int nLadders = _laddersInLayer[_currentLayer];
 
     double dPhi = 2.0 * _layerHalfPhi[_currentLayer];
-
-    double RXY = sqrt(pow(xLab[0], 2) + pow(xLab[1], 2));
 
     double PhiLadder = 0;
     double PhiInLocal = 0;
@@ -549,8 +573,6 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
 {  
     simTrkVec.clear();
 
-    _currentTotalCharge = 0.0;
-
     for (int i=0; i<_numberOfSegments; ++i)
     {
         SignalPoint spoint = _signalPoints[i];
@@ -563,8 +585,6 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
         double yLo = spoint.y - _widthOfCluster * spoint.sigmaY;
         double yUp = spoint.y + _widthOfCluster * spoint.sigmaY;
         
-        _currentTotalCharge += spoint.charge;
-
         int ixLo, ixUp, iyLo, iyUp;
 
         TransformXYToCellID(xLo, yLo, ixLo, iyLo);
@@ -676,7 +696,7 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
  * Emulates reconstruction of Tracker Hit 
  * Tracker hit position is reconstructed as center-of-gravity 
  * of cluster of fired cells. Position is corrected for Lorentz shift.
- * TODO check the track reco algorithm (is is the one we need?)
+ * TODO check the track reco algorithm (is it the one we need?)
  */
 TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
 {
@@ -859,9 +879,6 @@ void MuonCVXDDigitiser::TransformToLab(double *xLoc, double *xLab)
     } 
 }
 
-void MuonCVXDDigitiser::PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit)
-{}
-
 /**
  * Function calculates position in pixel matrix based on the 
  * local coordinates of point in the ladder.
@@ -916,6 +933,34 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
         x -= _layerLadderHalfWidth[layer] + _layerActiveSiOffset[layer];
     else // cyllindrical structure TODO is it necessary
         x -= (_layerRadius[layer] + _layerHalfThickness[layer]) * _currentPhi;
+}
+
+void MuonCVXDDigitiser::PrintGeometryInfo()
+{
+    streamlog_out(MESSAGE) << "Number of layers: " << _numberOfLayers << std::endl;
+    streamlog_out(MESSAGE) << "Pixel size X: " << _pixelSizeX << std::endl;
+    streamlog_out(MESSAGE) << "Pixel size Y: " << _pixelSizeY << std::endl;
+    streamlog_out(MESSAGE) << "Electrons per KeV: " << _electronsPerKeV << std::endl;
+    streamlog_out(MESSAGE) << "Segment depth: " << _segmentDepth << std::endl;
+    for (int i = 0; i < _numberOfLayers; ++i) 
+    {
+        streamlog_out(MESSAGE) << "Layer " << i << std::endl;
+        streamlog_out(MESSAGE) << "  Number of ladders: " << _laddersInLayer[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Radius: " << _layerRadius[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Ladder length: " << _layerLadderLength[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Ladder width: "<< _layerLadderWidth[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Ladder half width: " << _layerLadderHalfWidth[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Phi offset: " << _layerPhiOffset[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Active Si offset: " << _layerActiveSiOffset[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Half phi: " << _layerHalfPhi[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Thickness: " << _layerThickness[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Half thickness: " << _layerHalfThickness[i] << std::endl;
+    }
+}
+
+void MuonCVXDDigitiser::PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit)
+{
+    // TODO TBD
 }
 
 

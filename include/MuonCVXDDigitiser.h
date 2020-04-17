@@ -155,7 +155,7 @@ protected:
     int _useMCPMomentum;
     int _removeDrays;
     int _generateBackground;
-    std::vector<float> _bkgdHitsInLayer;
+    std::vector<float> _bkgdHitsInLayer;  // TODO is it necessary
 
     MyG4UniversalFluctuationForSi *_fluctuate;
 
@@ -180,7 +180,6 @@ protected:
     double _currentParticleMass;
     double _currentParticleMomentum;
     double _currentPhi;
-    double _currentTotalCharge;
     double _eSum;
     double _segmentDepth;
     double _currentLocalPosition[3];
@@ -197,10 +196,12 @@ protected:
     TrackerHitImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
     void TrackerHitToLab(TrackerHitImpl *recoHit);
     void TransformToLab(double *xLoc, double *xLab);
-    void PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit);
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
     void TransformXYToCellID(double x, double y, int & ix, int & iy);
     void TransformCellIDToXY(int ix, int iy, double & x, double & y);
+
+    void PrintGeometryInfo();
+    void PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit);
 };
 
 #endif
