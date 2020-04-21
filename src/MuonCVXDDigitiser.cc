@@ -4,6 +4,7 @@
 
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
+#include <UTIL/CellIDDecoder.h>
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
 
@@ -11,7 +12,7 @@
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
-
+    
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
 
@@ -202,23 +203,24 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     int curr_layer = 0;
     for(ZPlanarData::LayerLayout z_layout : vx_layers)
     {
+        // ALE: Geometry is in cm, convert all lenght in mm
         _laddersInLayer[curr_layer] = z_layout.ladderNumber;
 
         _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]);   // TODO investigate
 
-        _layerThickness[curr_layer] = z_layout.thicknessSensitive;
+        _layerThickness[curr_layer] = z_layout.thicknessSensitive * 10;
 
         _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 
-        _layerRadius[curr_layer] = z_layout.distanceSensitive + _layerHalfThickness[curr_layer];
+        _layerRadius[curr_layer] = z_layout.distanceSensitive * 10 + _layerHalfThickness[curr_layer];
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor;
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * 10;
 
-        _layerLadderWidth[curr_layer] = z_layout.widthSensitive;
+        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * 10;
 
         _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 
-        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive;
+        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * 10;
 
         //_layerLadderGap[curr_layer] = laddergaps[curr_layer];
 
@@ -247,6 +249,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
     if( STHcol != nullptr )
     {
+        CellIDDecoder<SimTrackerHit> cellid_decoder( STHcol) ;
         LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHIT);
         LCCollectionVec *STHLocCol = nullptr;
         if (_produceFullPattern != 0)
@@ -254,13 +257,17 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             STHLocCol = new LCCollectionVec(LCIO::SIMTRACKERHIT);
         }
 
+        streamlog_out(DEBUG) << "ALE >>> Number of hits: " << STHcol->getNumberOfElements()  << std::endl;
         for (int i=0; i < STHcol->getNumberOfElements(); ++i)
         {
             SimTrackerHit * simTrkHit = 
                 dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
 
-            ProduceIonisationPoints( simTrkHit );      
+            // ALE: use CellID0 to extract layer 
+            _currentLayer = cellid_decoder( simTrkHit )["layer"];
 
+            ProduceIonisationPoints( simTrkHit );      
+            
             if (_currentLayer < 0 || _currentLayer >= int(_layerRadius.size())) continue;
 
             ProduceSignalPoints();
@@ -275,7 +282,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             TrackerHitImpl *recoHit = ReconstructTrackerHit(simTrkHitVec);
             if (recoHit == nullptr)
             {
-                streamlog_out(DEBUG) << "Number of pixels above threshold = 0 " << std::endl;
+                streamlog_out(DEBUG) << "Skip hit" << std::endl;
                 continue;
             }
 
@@ -327,12 +334,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 delete hit;
             }
 
-            evt->addCollection(THcol, _outputCollectionName.c_str());
-            if (_produceFullPattern != 0)
-            {
-                evt->addCollection(STHLocCol, "VTXPixels");
-            }
         }
+
+        streamlog_out(DEBUG) << "ALE >>> Number of output  hits: " << THcol->getNumberOfElements()  << std::endl;
+        // ALE: Collection need to update here!
+        evt->addCollection(THcol, _outputCollectionName.c_str());
+        if (_produceFullPattern != 0)
+        {
+            evt->addCollection(STHLocCol, "VTXPixels");
+        }
+
     }
 
     streamlog_out(DEBUG) << "   processing event: " << evt->getEventNumber() 
@@ -377,7 +388,9 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     };
 
     double RXY = sqrt(pow(xLab[0], 2) + pow(xLab[1], 2));
-
+/*
+ * ALE: Are we sure that the distance is taken from the middle of the ladder?
+ 
     _currentLayer = -1;
     for (int i = 0; i < _numberOfLayers; ++i)
     {
@@ -385,7 +398,7 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
         {
             double xmin = _layerRadius[i] - _layerHalfThickness[i];
             double xmax = _layerRadius[i] + _layerHalfThickness[i];
-            xmax /= (double)cos(_layerHalfPhi[i]);
+            xmax /= (double)cos(_layerHalfPhi[i]);   
             if (RXY > xmin && RXY < xmax)
             {
                 _currentLayer = i;
@@ -395,6 +408,7 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
         else // cyllindrical structure
         {}
     }
+*/
     if (_currentLayer < 0) return;
 
     _currentModule = (xLab[2] < 0.0 ) ? 1 : 2;
@@ -504,7 +518,6 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double trackLength = std::min(1.0e+3,
         _layerThickness[_currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
     _numberOfSegments = ceil(trackLength / _segmentLength);
-
     double dEmean = (1e-6 * _energyLoss * trackLength) / ((double)_numberOfSegments);
 
     _ionisationPoints.resize(_numberOfSegments);
@@ -738,7 +751,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
     int ixmax = -1000000;
     int iymin =  1000000;
     int iymax = -1000000;
-
+    streamlog_out(DEBUG) << "ALE >>> simTrkVec size: " << int(simTrkVec.size()) << std::endl;
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
@@ -755,7 +768,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         if (iy > iymax) iymax = iy;
         if (iy < iymin) iymin = iy;
     }
-
+    streamlog_out(DEBUG) << "ALE >>> total charge: " << charge << std::endl;
     if (charge > 0. && nPixels > 0)
     {
         TrackerHitImpl *recoHit = new TrackerHitImpl();
@@ -784,7 +797,6 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
                 _amplX[ix - ixmin] = _amplX[ix - ixmin] + hit->getEDep();        
 
         }
-
         double aXCentre = 0;
         double aYCentre = 0;
         for (int i = ixmin + 1; i < ixmax; ++i)
@@ -797,6 +809,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         }
         aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
         aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
+        streamlog_out(DEBUG) << "ALE >>> centre " << aXCentre << "," << aXCentre << std::endl;
 
         double aTot = 0;
         for (int i = ixmin; i < ixmax + 1; ++i)
@@ -835,6 +848,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
 
         recoHit->setPosition(pos);
+        streamlog_out(DEBUG) << "ALE >>> hit position (x,y) " << pos[0] << "," << pos[1] << std::endl;
         return recoHit;
     }
 
