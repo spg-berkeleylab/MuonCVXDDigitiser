@@ -7,6 +7,7 @@
 #include <UTIL/CellIDDecoder.h>
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
+#include "DD4hep/DD4hepUnits.h"
 
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
@@ -22,6 +23,11 @@ using CLHEP::RandPoisson;
 using dd4hep::Detector;
 using dd4hep::DetElement;
 using dd4hep::rec::ZPlanarData;
+using dd4hep::rec::SurfaceManager;
+using dd4hep::rec::SurfaceMap;
+using dd4hep::rec::ISurface;
+using dd4hep::rec::Vector2D;
+using dd4hep::rec::Vector3D;
 
 MuonCVXDDigitiser aMuonCVXDDigitiser ;
 
@@ -189,6 +195,15 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     std::vector<ZPlanarData::LayerLayout> vx_layers = zPlanarData.layers;
     _numberOfLayers  = vx_layers.size();
 
+    SurfaceManager& surfMan = *theDetector.extension<SurfaceManager>();
+    _map = surfMan.map( vxBarrel.name() ) ;
+    if( ! _map ) 
+    {
+      std::stringstream err  ; err << " Could not find surface map for detector: "
+                                 << _subDetName << " in SurfaceManager " ;
+      throw Exception( err.str() ) ;
+    }
+
     _laddersInLayer.resize(_numberOfLayers);
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
@@ -257,7 +272,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             STHLocCol = new LCCollectionVec(LCIO::SIMTRACKERHIT);
         }
 
-        streamlog_out(DEBUG) << "ALE >>> Number of hits: " << STHcol->getNumberOfElements()  << std::endl;
         for (int i=0; i < STHcol->getNumberOfElements(); ++i)
         {
             SimTrackerHit * simTrkHit = 
@@ -265,6 +279,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             // ALE: use CellID0 to extract layer 
             _currentLayer = cellid_decoder( simTrkHit )["layer"];
+
 
             ProduceIonisationPoints( simTrkHit );      
             
@@ -296,7 +311,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             }
             else
             {
-                for (int iS = 0; iS < simTrkHitVec.size(); ++iS)
+                for (int iS = 0; iS < (int)simTrkHitVec.size(); ++iS)
                 {
                     SimTrackerHitImpl *sth = simTrkHitVec[iS];
                     float charge = sth->getEDep();
@@ -336,7 +351,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
         }
 
-        streamlog_out(DEBUG) << "ALE >>> Number of output  hits: " << THcol->getNumberOfElements()  << std::endl;
         // ALE: Collection need to update here!
         evt->addCollection(THcol, _outputCollectionName.c_str());
         if (_produceFullPattern != 0)
@@ -435,17 +449,17 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     double PXY = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2));
 
     double PhiInLab = atan2(xLab[1], xLab[0]);
-    if (PhiInLab < 0.0) PhiInLab += M_2_PI;
+    // ALE Are we sure that we need 2*PI and not only PI ?
+    if (PhiInLab < 0.0) PhiInLab += 2*M_PI;
 
     double PhiInLabMom = atan2(Momentum[1], Momentum[0]);
-    if (PhiInLabMom < 0.0) PhiInLabMom += M_2_PI;
+    if (PhiInLabMom < 0.0) PhiInLabMom += 2*M_PI;
 
     double Radius = _layerRadius[_currentLayer];
 
     double Phi0 = _layerPhiOffset[_currentLayer];
 
     int nLadders = _laddersInLayer[_currentLayer];
-
 
     if (nLadders > 2) // laddered structure
     {
@@ -489,12 +503,39 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
 
 void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 {
-    double pos[3];
-    double dir[3];
+    double pos[3] = {0,0,0};
+    double dir[3] = {0,0,0};
     double entry[3];
     double exit[3];
 
     FindLocalPosition(hit, pos, dir);
+
+/*
+    // ALE: Check with standard localization positin
+    Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
+    const int cellID0 = hit->getCellID0() ;
+    SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
+    const dd4hep::rec::ISurface* surf = sI->second ;
+    Vector3D u = surf->u() ;
+    Vector3D v = surf->v() ;
+    // get local coordinates on surface
+    Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
+    double uL = lv[0] / dd4hep::mm ;
+    double vL = lv[1] / dd4hep::mm ;
+    
+    Vector3D compPos( pos[0], pos[1], pos[2] );
+    Vector3D compDir( dir[0], dir[1], dir[2] );
+
+    streamlog_out( DEBUG1 ) << "ALE: hit at    : " << oldPos
+                            << " computed to: " << compPos
+                            << " with direction " << compDir
+                            << " surf u: " << u
+                            << " surf v: " << v
+                            << " uL: " << uL
+                            << " vL: " << vL
+                            << std::endl;
+    // ALE end
+*/
 
     if (_currentLayer < 0 || _currentLayer > _numberOfLayers) 
     return;
@@ -699,7 +740,7 @@ void MuonCVXDDigitiser::PoissonSmearer(SimTrackerHitImplVec &simTrkVec)
  */
 void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
 {
-    for (int i = 0; i < simTrkVec.size(); ++i)
+    for (int i = 0; i < (int)simTrkVec.size(); ++i)
     {
         double Noise = RandGauss::shoot(0., _electronicNoise);
         SimTrackerHitImpl *hit = simTrkVec[i];
@@ -751,7 +792,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
     int ixmax = -1000000;
     int iymin =  1000000;
     int iymax = -1000000;
-    streamlog_out(DEBUG) << "ALE >>> simTrkVec size: " << int(simTrkVec.size()) << std::endl;
+
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
@@ -768,7 +809,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         if (iy > iymax) iymax = iy;
         if (iy < iymin) iymin = iy;
     }
-    streamlog_out(DEBUG) << "ALE >>> total charge: " << charge << std::endl;
+
     if (charge > 0. && nPixels > 0)
     {
         TrackerHitImpl *recoHit = new TrackerHitImpl();
@@ -809,7 +850,6 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         }
         aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
         aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
-        streamlog_out(DEBUG) << "ALE >>> centre " << aXCentre << "," << aXCentre << std::endl;
 
         double aTot = 0;
         for (int i = ixmin; i < ixmax + 1; ++i)
@@ -848,7 +888,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
 
         recoHit->setPosition(pos);
-        streamlog_out(DEBUG) << "ALE >>> hit position (x,y) " << pos[0] << "," << pos[1] << std::endl;
+        
         return recoHit;
     }
 
