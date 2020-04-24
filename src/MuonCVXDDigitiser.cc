@@ -223,19 +223,19 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]);   // TODO investigate
 
-        _layerThickness[curr_layer] = z_layout.thicknessSensitive * 10;
+        _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm ;
 
         _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 
-        _layerRadius[curr_layer] = z_layout.distanceSensitive * 10 + _layerHalfThickness[curr_layer];
+        _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm  + _layerHalfThickness[curr_layer];
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * 10;
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm ;
 
-        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * 10;
+        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm ;
 
         _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 
-        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * 10;
+        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm ;
 
         //_layerLadderGap[curr_layer] = laddergaps[curr_layer];
 
@@ -272,6 +272,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             STHLocCol = new LCCollectionVec(LCIO::SIMTRACKERHIT);
         }
 
+        streamlog_out(DEBUG) << "ALE >>> Number of hits: " << STHcol->getNumberOfElements()  << std::endl;
         for (int i=0; i < STHcol->getNumberOfElements(); ++i)
         {
             SimTrackerHit * simTrkHit = 
@@ -279,7 +280,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             // ALE: use CellID0 to extract layer 
             _currentLayer = cellid_decoder( simTrkHit )["layer"];
-
+            _currentLadder = cellid_decoder( simTrkHit )["module"];
 
             ProduceIonisationPoints( simTrkHit );      
             
@@ -351,6 +352,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
         }
 
+        streamlog_out(DEBUG) << "ALE >>> Number of output  hits: " << THcol->getNumberOfElements()  << std::endl;
         // ALE: Collection need to update here!
         evt->addCollection(THcol, _outputCollectionName.c_str());
         if (_produceFullPattern != 0)
@@ -398,33 +400,34 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     double xLab[3] = {
         hit->getPosition()[0],
         hit->getPosition()[1],
-        hit->getPosition()[2]
+        hit->getPosition()[2] 
     };
 
-    double RXY = sqrt(pow(xLab[0], 2) + pow(xLab[1], 2));
-/*
- * ALE: Are we sure that the distance is taken from the middle of the ladder?
- 
-    _currentLayer = -1;
-    for (int i = 0; i < _numberOfLayers; ++i)
-    {
-        if (_laddersInLayer[i] > 2) // laddered structure
-        {
-            double xmin = _layerRadius[i] - _layerHalfThickness[i];
-            double xmax = _layerRadius[i] + _layerHalfThickness[i];
-            xmax /= (double)cos(_layerHalfPhi[i]);   
-            if (RXY > xmin && RXY < xmax)
-            {
-                _currentLayer = i;
-                break;
-            }
-        }
-        else // cyllindrical structure
-        {}
-    }
-*/
+    // ALE: is it needed? <- TO CHECK
     if (_currentLayer < 0) return;
 
+    // ALE: use SurfaceManager to calculate local coordinates
+    const int cellID0 = hit->getCellID0() ;
+    SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
+    const dd4hep::rec::ISurface* surf = sI->second ;
+
+    // ALE: get local coordinates on surface
+    Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
+    Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
+    localPosition[0] = lv[0] / dd4hep::mm ;
+    localPosition[1] = lv[1] / dd4hep::mm ;
+
+    // ALE: calcuate the third coordinates: z
+    // ALE: uhm... origin is in cm, hits in mm... 
+    Vector3D origin( surf->origin()[0]*10, surf->origin()[1]*10, surf->origin()[2]*10);
+    localPosition[2] = (oldPos - origin) * surf->normal();
+
+
+
+
+/*
+    double RXY = sqrt(pow(xLab[0], 2) + pow(xLab[1], 2)) * dd4hep::mm;
+*/
     _currentModule = (xLab[2] < 0.0 ) ? 1 : 2;
 
     double Momentum[3];
@@ -446,10 +449,17 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     _currentParticleMomentum = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2) 
                                     + pow(Momentum[2], 2));
 
+    localDirection[0] = Momentum * surf->u();
+    localDirection[1] = Momentum * surf->v();
+    localDirection[2] = Momentum * surf->normal();
+
+    _currentPhi = _currentLadder * 2.0 * _layerHalfPhi[_currentLayer] + _layerPhiOffset[_currentLayer];
+
+/*
     double PXY = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2));
 
     double PhiInLab = atan2(xLab[1], xLab[0]);
-    // ALE Are we sure that we need 2*PI and not only PI ?
+    
     if (PhiInLab < 0.0) PhiInLab += 2*M_PI;
 
     double PhiInLabMom = atan2(Momentum[1], Momentum[0]);
@@ -460,6 +470,7 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     double Phi0 = _layerPhiOffset[_currentLayer];
 
     int nLadders = _laddersInLayer[_currentLayer];
+
 
     if (nLadders > 2) // laddered structure
     {
@@ -473,8 +484,12 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
 
             if (abs(delta_radius) <= _layerHalfThickness[_currentLayer])
             {
+                streamlog_out( DEBUG1 ) << "ALE: layer " << _currentLayer
+                            << " ladder " << _currentLadder
+                            << " ic " << ic
+                            << std::endl ;
                 double PhiLocalMom = PhiInLabMom - PhiLadder;
-                localPosition[0] = RXY * sin(PhiInLocal);
+                localPosition[0] = RXY / dd4hep::mm * sin(PhiInLocal);
                 localPosition[1] = xLab[2];
                 localPosition[2] = delta_radius;
                 localDirection[0]= PXY * sin(PhiLocalMom);
@@ -482,23 +497,15 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
                 localDirection[2]= PXY * cos(PhiLocalMom);
                 _currentPhi = PhiLadder;
                 ladder_missing = false;
-                break;
             }
         }
         if (ladder_missing)
             streamlog_out(DEBUG) << "Hit out of ladder" << std::endl;
     }  
-    else // cyllindrical structure TODO is it necessary?
-    {
-        localPosition[0]= 0.0;
-        localPosition[1]= xLab[2];
-        localPosition[2]= RXY - Radius;
-        double PhiLocalMom = PhiInLabMom - PhiInLab;
-        localDirection[0]= PXY * sin(PhiLocalMom);
-        localDirection[1]= Momentum[2];
-        localDirection[2]= PXY * cos(PhiLocalMom);
-        _currentPhi = PhiInLab;
-    }
+*/
+
+    
+
 }
 
 void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
@@ -510,32 +517,16 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
     FindLocalPosition(hit, pos, dir);
 
-/*
-    // ALE: Check with standard localization positin
+    // ALE: DEBUG
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
-    const int cellID0 = hit->getCellID0() ;
-    SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
-    const dd4hep::rec::ISurface* surf = sI->second ;
-    Vector3D u = surf->u() ;
-    Vector3D v = surf->v() ;
-    // get local coordinates on surface
-    Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
-    double uL = lv[0] / dd4hep::mm ;
-    double vL = lv[1] / dd4hep::mm ;
-    
     Vector3D compPos( pos[0], pos[1], pos[2] );
     Vector3D compDir( dir[0], dir[1], dir[2] );
 
     streamlog_out( DEBUG1 ) << "ALE: hit at    : " << oldPos
                             << " computed to: " << compPos
                             << " with direction " << compDir
-                            << " surf u: " << u
-                            << " surf v: " << v
-                            << " uL: " << uL
-                            << " vL: " << vL
-                            << std::endl;
+                            << std::endl ;
     // ALE end
-*/
 
     if (_currentLayer < 0 || _currentLayer > _numberOfLayers) 
     return;
@@ -792,7 +783,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
     int ixmax = -1000000;
     int iymin =  1000000;
     int iymax = -1000000;
-
+    streamlog_out(DEBUG) << "ALE >>> simTrkVec size: " << int(simTrkVec.size()) << std::endl;
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
@@ -809,7 +800,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         if (iy > iymax) iymax = iy;
         if (iy < iymin) iymin = iy;
     }
-
+    streamlog_out(DEBUG) << "ALE >>> total charge: " << charge << std::endl;
     if (charge > 0. && nPixels > 0)
     {
         TrackerHitImpl *recoHit = new TrackerHitImpl();
@@ -850,6 +841,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         }
         aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
         aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
+        streamlog_out(DEBUG) << "ALE >>> centre " << aXCentre << "," << aXCentre << std::endl;
 
         double aTot = 0;
         for (int i = ixmin; i < ixmax + 1; ++i)
@@ -888,7 +880,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
 
         recoHit->setPosition(pos);
-        
+        streamlog_out(DEBUG) << "ALE >>> hit position (x,y) " << pos[0] << "," << pos[1] << std::endl;
         return recoHit;
     }
 

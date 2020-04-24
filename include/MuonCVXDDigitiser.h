@@ -11,7 +11,8 @@
 #include "IMPL/TrackerHitImpl.h"
 #include "IMPL/SimTrackerHitImpl.h"
 #include <IMPL/LCCollectionVec.h>
-
+#include "DDRec/Surface.h"
+#include "DDRec/SurfaceManager.h"
 #include "MyG4UniversalFluctuationForSi.h"
 
 // TODO check the following value
@@ -172,10 +173,13 @@ protected:
     std::vector<float> _layerHalfPhi{};
     //std::vector<float> _layerLadderGap{};
     std::vector<float> _layerLadderWidth{};
+    const dd4hep::rec::SurfaceMap* _map ;
+
 
     // internal state
     int _currentLayer;
     int _currentModule;
+    int _currentLadder;
     int _numberOfSegments;
     double _currentParticleMass;
     double _currentParticleMomentum;
