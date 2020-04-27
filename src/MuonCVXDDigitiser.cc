@@ -278,7 +278,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             SimTrackerHit * simTrkHit = 
                 dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
 
-            // ALE: use CellID0 to extract layer 
+            // ALE: use CellID0 to extract layer and ladder numbers
             _currentLayer = cellid_decoder( simTrkHit )["layer"];
             _currentLadder = cellid_decoder( simTrkHit )["module"];
 
@@ -379,8 +379,7 @@ void MuonCVXDDigitiser::end()
 
 /** Function calculates local coordinates of the sim hit 
  * in the given ladder and local momentum of particle. 
- * Also returns module number and ladder 
- * number.
+ * Also returns module number and ladder number.
  * Local coordinate system within the ladder 
  * is defined as following :  <br> 
  *    - x axis lies in the ladder plane and orthogonal to the beam axis <br>
@@ -397,12 +396,7 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
                                           double *localPosition,
                                           double *localDirection)
 {
-    double xLab[3] = {
-        hit->getPosition()[0],
-        hit->getPosition()[1],
-        hit->getPosition()[2] 
-    };
-
+    
     // ALE: is it needed? <- TO CHECK
     if (_currentLayer < 0) return;
 
@@ -410,37 +404,23 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     const int cellID0 = hit->getCellID0() ;
     SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
     const dd4hep::rec::ISurface* surf = sI->second ;
-
-    // ALE: get local coordinates on surface
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
     Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
     localPosition[0] = lv[0] / dd4hep::mm ;
     localPosition[1] = lv[1] / dd4hep::mm ;
 
-    // ALE: calcuate the third coordinates: z
-    // ALE: uhm... origin is in cm, hits in mm... 
-    Vector3D origin( surf->origin()[0]*10, surf->origin()[1]*10, surf->origin()[2]*10);
-    localPosition[2] = (oldPos - origin) * surf->normal();
+    // ALE: calculate z, geometry is in cm, hits in mm... 
+    Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
+    localPosition[2] = (dd4hep::mm * oldPos - dd4hep::cm * origin).dot( surf->normal() ) / dd4hep::mm;
 
-
-
-
-/*
-    double RXY = sqrt(pow(xLab[0], 2) + pow(xLab[1], 2)) * dd4hep::mm;
-*/
-    _currentModule = (xLab[2] < 0.0 ) ? 1 : 2;
+    _currentModule = (hit->getPosition()[2] < 0.0 ) ? 1 : 2;
 
     double Momentum[3];
-    if (hit->getMCParticle())
-    {
-        for (int j = 0; j < 3; ++j)
-            Momentum[j] = hit->getMCParticle()->getMomentum()[j];
-    }
-    else
-    {
-        for (int j = 0; j < 3; ++j)
-            Momentum[j] = hit->getMomentum()[j];
-    }
+    for (int j = 0; j < 3; ++j) 
+      if (hit->getMCParticle())
+        Momentum[j] = hit->getMCParticle()->getMomentum()[j];
+      else
+        Momentum[j] = hit->getMomentum()[j];
 
     _currentParticleMass = 0.510e-3;
     if (hit->getMCParticle())
@@ -454,57 +434,6 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     localDirection[2] = Momentum * surf->normal();
 
     _currentPhi = _currentLadder * 2.0 * _layerHalfPhi[_currentLayer] + _layerPhiOffset[_currentLayer];
-
-/*
-    double PXY = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2));
-
-    double PhiInLab = atan2(xLab[1], xLab[0]);
-    
-    if (PhiInLab < 0.0) PhiInLab += 2*M_PI;
-
-    double PhiInLabMom = atan2(Momentum[1], Momentum[0]);
-    if (PhiInLabMom < 0.0) PhiInLabMom += 2*M_PI;
-
-    double Radius = _layerRadius[_currentLayer];
-
-    double Phi0 = _layerPhiOffset[_currentLayer];
-
-    int nLadders = _laddersInLayer[_currentLayer];
-
-
-    if (nLadders > 2) // laddered structure
-    {
-        bool ladder_missing = true;
-
-        for (int ic = 0; ic < nLadders; ++ic)
-        {
-            double PhiLadder = double(ic) * 2.0 * _layerHalfPhi[_currentLayer] + Phi0;
-            double PhiInLocal = PhiInLab - PhiLadder;
-            double delta_radius = RXY * cos(PhiInLocal) - Radius;
-
-            if (abs(delta_radius) <= _layerHalfThickness[_currentLayer])
-            {
-                streamlog_out( DEBUG1 ) << "ALE: layer " << _currentLayer
-                            << " ladder " << _currentLadder
-                            << " ic " << ic
-                            << std::endl ;
-                double PhiLocalMom = PhiInLabMom - PhiLadder;
-                localPosition[0] = RXY / dd4hep::mm * sin(PhiInLocal);
-                localPosition[1] = xLab[2];
-                localPosition[2] = delta_radius;
-                localDirection[0]= PXY * sin(PhiLocalMom);
-                localDirection[1]= Momentum[2];
-                localDirection[2]= PXY * cos(PhiLocalMom);
-                _currentPhi = PhiLadder;
-                ladder_missing = false;
-            }
-        }
-        if (ladder_missing)
-            streamlog_out(DEBUG) << "Hit out of ladder" << std::endl;
-    }  
-*/
-
-    
 
 }
 
