@@ -571,6 +571,7 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
 void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
 {  
     simTrkVec.clear();
+    std::map<int, SimTrackerHitImpl*> hit_Dict;
 
     for (int i=0; i<_numberOfSegments; ++i)
     {
@@ -617,40 +618,34 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
 
                 float totCharge = float(spoint.charge * integralX * integralY);
 
-                int iexist = 0;
-                int cellID = PX_PER_ROW * ix + iy;                 // TODO check cellID
-                SimTrackerHitImpl *existingHit = nullptr;
-                for (int iHits = 0; iHits < int(simTrkVec.size()); ++iHits)
+                int pixelID = GetPixelsInaRow() * ix + iy;
+                auto item = hit_Dict.find(pixelID);
+                if (item == hit_Dict.end())
                 {
-                    existingHit = simTrkVec[iHits];
-                    int cellid = existingHit->getCellID0();
-                    if (cellid == cellID)
-                    {
-                        iexist = 1;
-                        break;
-                    }
-                }
-                if (iexist == 1)
-                {
-                    float edep = existingHit->getEDep();
-                    edep += totCharge;
-                    existingHit->setEDep( edep );
-                }
-                else 
-                {
-                    SimTrackerHitImpl * hit = new SimTrackerHitImpl();
+                    SimTrackerHitImpl *tmp_hit = new SimTrackerHitImpl();
                     double pos[3] = {
                         xCurrent,
                         yCurrent,
                         _layerHalfThickness[_currentLayer]
                     };
-                    hit->setPosition(pos);
-                    hit->setCellID0(cellID);
-                    hit->setEDep(totCharge);
-                    simTrkVec.push_back(hit);
+                    tmp_hit->setPosition(pos);
+                    //tmp_hit->setCellID0(pixelID);                    TODO put the currentCellID
+                    tmp_hit->setEDep(totCharge);
+                    hit_Dict.emplace(pixelID, tmp_hit);
+                }
+                else
+                {
+                    float edep = item->second->getEDep();
+                    edep += totCharge;
+                    item->second->setEDep(edep);
                 }
             }
         }
+    }
+
+    for(auto item : hit_Dict)
+    {
+        simTrkVec.push_back(item.second);
     }
 }
 
@@ -905,6 +900,16 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
     // ALE: put the point in the cell center
     y = ((0.5 + double(iy)) * _pixelSizeY) - _layerLadderLength[layer] / 2;
     x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
+}
+
+int MuonCVXDDigitiser::GetPixelsInaColumn()
+{
+    return ceil(_layerLadderWidth[_currentLayer] / _pixelSizeX);
+}
+
+int MuonCVXDDigitiser::GetPixelsInaRow()
+{
+    return ceil(_layerLadderLength[_currentLayer] / _pixelSizeY);
 }
 
 void MuonCVXDDigitiser::PrintGeometryInfo()

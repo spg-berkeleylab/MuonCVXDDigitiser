@@ -202,6 +202,8 @@ protected:
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
     void TransformXYToCellID(double x, double y, int & ix, int & iy);
     void TransformCellIDToXY(int ix, int iy, double & x, double & y);
+    int GetPixelsInaRow();
+    int GetPixelsInaColumn();
 
     void PrintGeometryInfo();
     void PrintInfo(SimTrackerHit *simTrkHit, TrackerHitImpl *recoHit);
