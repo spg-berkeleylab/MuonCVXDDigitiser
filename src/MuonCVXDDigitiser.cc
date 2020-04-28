@@ -223,19 +223,19 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]);   // TODO investigate
 
-        _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm ;
+        _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 
         _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 
-        _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm  + _layerHalfThickness[curr_layer];
+        _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm ;
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
 
-        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm ;
+        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
 
         _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 
-        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm ;
+        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
 
         //_layerLadderGap[curr_layer] = laddergaps[curr_layer];
 
@@ -353,7 +353,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
         }
 
         streamlog_out(DEBUG) << "ALE >>> Number of output  hits: " << THcol->getNumberOfElements()  << std::endl;
-        // ALE: Collection need to update here!
+
         evt->addCollection(THcol, _outputCollectionName.c_str());
         if (_produceFullPattern != 0)
         {
@@ -406,14 +406,14 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     const dd4hep::rec::ISurface* surf = sI->second ;
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
     Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
+    // ALE store local position in mm
     localPosition[0] = lv[0] / dd4hep::mm ;
     localPosition[1] = lv[1] / dd4hep::mm ;
 
     // ALE: calculate z, geometry is in cm, hits in mm... 
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
-    localPosition[2] = (dd4hep::mm * oldPos - dd4hep::cm * origin).dot( surf->normal() ) / dd4hep::mm;
+    localPosition[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
 
-    _currentModule = (hit->getPosition()[2] < 0.0 ) ? 1 : 2;
 
     double Momentum[3];
     for (int j = 0; j < 3; ++j) 
@@ -444,6 +444,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double entry[3];
     double exit[3];
 
+    // ALE hit and pos should be in mm
     FindLocalPosition(hit, pos, dir);
 
     // ALE: DEBUG
@@ -455,7 +456,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
                             << " computed to: " << compPos
                             << " with direction " << compDir
                             << std::endl ;
-    // ALE end
+    // ALE end DEBUG
 
     if (_currentLayer < 0 || _currentLayer > _numberOfLayers) 
     return;
@@ -474,8 +475,19 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         _currentExitPoint[i] = exit[i];
     }
 
+    // ALE: DEBUG
+    Vector3D inPos( _currentEntryPoint[0], _currentEntryPoint[1], _currentEntryPoint[2] );
+    Vector3D outPos( _currentExitPoint[0], _currentExitPoint[1], _currentExitPoint[2] );
+
+    streamlog_out( DEBUG1 ) << "ALE: hit at    : " << oldPos
+                            << " entry " << inPos
+                            << " exit " << outPos
+                            << std::endl ;
+    // ALE end DEBUG
+
     double tanx = dir[0] / dir[2];
     double tany = dir[1] / dir[2];  
+    // ALE why 1.0e+3 ???
     double trackLength = std::min(1.0e+3,
         _layerThickness[_currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
     _numberOfSegments = ceil(trackLength / _segmentLength);
@@ -489,11 +501,22 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double segmentLength = trackLength / ((double)_numberOfSegments);
     _segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
 
+    // ALE: DEBUG
+    streamlog_out( DEBUG1 ) << "ALE: track length: " << trackLength
+                            << " _numberOfSegments " << _numberOfSegments
+                            << " segmentLength " << segmentLength
+                            << " _segmentDepth " << _segmentDepth
+                            << " _segmentLength " << _segmentLength
+                            << " _layerThickness " << _layerThickness[_currentLayer]
+                            << std::endl ;
+    // ALE end DEBUG
+
+
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         double z = -_layerHalfThickness[_currentLayer] + ((double)(i) + 0.5) * _segmentDepth;
-        double x = pos[0] + dir[0] * (z - pos[2]) / dir[2];
-        double y = pos[1] + dir[1] * (z - pos[2]) / dir[2];
+        double x = pos[0] + tanx * (z - pos[2]);
+        double y = pos[1] + tany * (z - pos[2]);
         double de = _fluctuate->SampleFluctuations(double(1000. * _currentParticleMomentum),
                                                    double(1000. * _currentParticleMass),
                                                    _cutOnDeltaRays,
@@ -770,7 +793,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         }
         aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
         aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
-        streamlog_out(DEBUG) << "ALE >>> centre " << aXCentre << "," << aXCentre << std::endl;
+        streamlog_out(DEBUG) << "ALE >>> centre " << aXCentre << "," << aYCentre << std::endl;
 
         double aTot = 0;
         for (int i = ixmin; i < ixmax + 1; ++i)
@@ -863,26 +886,13 @@ void MuonCVXDDigitiser::TransformToLab(double *xLoc, double *xLab)
 void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & iy)
 {
     int layer = _currentLayer;
-    int nladders = _laddersInLayer[layer];
-    //double ladderGap = _layerLadderGap[layer];
-    double ladderGap = 0;                             // TODO investigate
-    double ladderLength = _layerLadderLength[layer];
 
-    double yInLadder = (y < 0.0) ? y + ladderLength : y - ladderGap;
+    // ALE: Shift all of L/2 so that all numbers are positive
+    double yInLadder = y + _layerLadderLength[layer] / 2;
+    iy = int(yInLadder / _pixelSizeY);
 
-    iy = (yInLadder < 0.0) ? -1 : int(yInLadder / _pixelSizeY);
-
-    double xInLadder = x;
-    if (nladders > 2) // laddered structure
-    {
-        xInLadder += _layerLadderHalfWidth[layer] + _layerActiveSiOffset[layer];
-    }
-    else // cyllindrical structure  TODO is it necessary
-    {
-        xInLadder += (_layerRadius[layer] + _layerHalfThickness[layer]) * _currentPhi;
-    }
-
-    ix = (xInLadder < 0.0) ? -1 : int(xInLadder / _pixelSizeX);
+    double xInLadder = x + _layerLadderHalfWidth[layer];
+    ix = int(xInLadder / _pixelSizeX);
 }
 
 /**
@@ -892,24 +902,9 @@ void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & 
 void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double & y)
 {
     int layer = _currentLayer;
-    int nladders = _laddersInLayer[layer];
-    //double ladderGap = _layerLadderGap[layer];
-    double ladderGap = 0;                             // TODO investigate
-    double ladderLength = _layerLadderLength[layer];
-
-    y = (0.5 + double(iy)) * _pixelSizeY;
-
-    if (_currentModule == 1) 
-        y -= ladderLength;
-    else
-        y += ladderGap;
-
-    x = (0.5 + double(ix)) * _pixelSizeX;
-
-    if (nladders > 2) // laddered structure
-        x -= _layerLadderHalfWidth[layer] + _layerActiveSiOffset[layer];
-    else // cyllindrical structure TODO is it necessary
-        x -= (_layerRadius[layer] + _layerHalfThickness[layer]) * _currentPhi;
+    // ALE: put the point in the cell center
+    y = ((0.5 + double(iy)) * _pixelSizeY) - _layerLadderLength[layer] / 2;
+    x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
 }
 
 void MuonCVXDDigitiser::PrintGeometryInfo()

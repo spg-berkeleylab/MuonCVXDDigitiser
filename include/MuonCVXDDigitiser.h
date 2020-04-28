@@ -178,7 +178,6 @@ protected:
 
     // internal state
     int _currentLayer;
-    int _currentModule;
     int _currentLadder;
     int _numberOfSegments;
     double _currentParticleMass;
