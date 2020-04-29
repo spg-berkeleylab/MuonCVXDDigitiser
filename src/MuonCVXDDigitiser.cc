@@ -221,7 +221,7 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
         // ALE: Geometry is in cm, convert all lenght in mm
         _laddersInLayer[curr_layer] = z_layout.ladderNumber;
 
-        _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]);   // TODO investigate
+        _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]);
 
         _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 
@@ -326,6 +326,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                         TransformToLab(spos,sLab);
                         newsth->setPosition(sLab);
                         newsth->setEDep(charge);
+                        // TODO cellID0 is not set, is it required by next processors in the pipeline?
                         STHLocCol->addElement(newsth);
                         recoHit->rawHits().push_back(newsth);
                     }
@@ -629,7 +630,7 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
                         _layerHalfThickness[_currentLayer]
                     };
                     tmp_hit->setPosition(pos);
-                    //tmp_hit->setCellID0(pixelID);                    TODO put the currentCellID
+                    tmp_hit->setCellID0(pixelID); // workaround: cellID used for pixel index
                     tmp_hit->setEDep(totCharge);
                     hit_Dict.emplace(pixelID, tmp_hit);
                 }
@@ -697,7 +698,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
     double pos[3] = {0, 0, 0};
     double charge = 0;
 
-    /* Simple center-of-gravity
+    /* Simple center-of-gravity */
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
@@ -720,11 +721,11 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
 
         recoHit->setPosition(pos);
+        streamlog_out(DEBUG) << "ALE >>> hit position (x,y) " << pos[0] << "," << pos[1] << std::endl;
         return recoHit;
     }
-    */
 
-    /* Partial histogram */
+    /* Partial histogram
     int nPixels = 0;
     int ixmin =  1000000;
     int ixmax = -1000000;
@@ -738,9 +739,9 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
 
         nPixels++;
         charge += hit->getEDep();
-        int cellID = hit->getCellID0();
-        int ix = cellID / PX_PER_ROW ;
-        int iy = cellID - PX_PER_ROW * ix;      
+        int pixelID = hit->getCellID0();         // workaround: cellID used for pixel index
+        int ix = pixelID / GetPixelsInaRow();
+        int iy = pixelID % GetPixelsInaRow();
 
         if (ix > ixmax) ixmax = ix;
         if (ix < ixmin) ixmin = ix;
@@ -767,9 +768,9 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
             SimTrackerHit *hit = simTrkVec[iHit];
             if (hit->getEDep() <= _threshold) continue;
 
-            int cellID = hit->getCellID0();
-            int ix = cellID / PX_PER_ROW ;
-            int iy = cellID - PX_PER_ROW * ix;
+            int pixelID = hit->getCellID0(); // workaround: cellID used for pixel index
+            int ix = pixelID / GetPixelsInaRow();
+            int iy = pixelID % GetPixelsInaRow();
             if ((iy - iymin) < 20)
                 _amplY[iy - iymin] = _amplY[iy - iymin] + hit->getEDep();
             if ((ix - ixmin) < 20) 
@@ -780,11 +781,11 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         double aYCentre = 0;
         for (int i = ixmin + 1; i < ixmax; ++i)
         {
-            aXCentre += _amplX[i - ixmin];
+            aXCentre += _amplX[i - ixmin];         TODO bad index range
         }
         for (int i = iymin + 1; i < iymax; ++i)
         {
-            aYCentre += _amplY[i - iymin];
+            aYCentre += _amplY[i - iymin];         TODO bad index range
         }
         aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
         aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
@@ -830,6 +831,7 @@ TrackerHitImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &s
         streamlog_out(DEBUG) << "ALE >>> hit position (x,y) " << pos[0] << "," << pos[1] << std::endl;
         return recoHit;
     }
+    */
 
     return nullptr;
 }
