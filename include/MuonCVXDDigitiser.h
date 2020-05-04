@@ -9,6 +9,7 @@
 #include "EVENT/SimTrackerHit.h"
 #include "EVENT/LCIO.h"
 #include "IMPL/TrackerHitImpl.h"
+#include <IMPL/TrackerHitPlaneImpl.h>
 #include "IMPL/SimTrackerHitImpl.h"
 #include <IMPL/LCCollectionVec.h>
 #include "DDRec/Surface.h"
@@ -196,9 +197,8 @@ protected:
     void ProduceHits(SimTrackerHitImplVec &simTrkVec);
     void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
     void GainSmearer(SimTrackerHitImplVec &simTrkVec);
-    TrackerHitImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
-    void TrackerHitToLab(TrackerHitImpl *recoHit);
-    void TransformToLab(double *xLoc, double *xLab);
+    TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
+    void TransformToLab(const int cellID, const double *xLoc, double *xLab);
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
     void TransformXYToCellID(double x, double y, int & ix, int & iy);
     void TransformCellIDToXY(int ix, int iy, double & x, double & y);
