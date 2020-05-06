@@ -372,8 +372,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             //**************************************************************************    
 
             LCRelationImpl* rel = new LCRelationImpl;
-            rel->setFrom (simTrkHit);
-            rel->setTo (recoHit);
+            rel->setFrom (recoHit);
+            rel->setTo (simTrkHit);
             rel->setWeight( 1.0 );
             relCol->addElement(rel);
 
