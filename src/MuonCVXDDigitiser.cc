@@ -296,7 +296,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             SimTrackerHit * simTrkHit = 
                 dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
 
-            // use CellID0 to set layer and ladder numbers
+            // use CellID to set layer and ladder numbers
             _currentLayer  = cellid_decoder( simTrkHit )["layer"];
             _currentLadder = cellid_decoder( simTrkHit )["module"];
 
@@ -354,6 +354,18 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             recoHit->setU( u_direction ) ;
             recoHit->setV( v_direction ) ;
+            
+            // ALE Does this make sense??? TO CHECK
+            double sigmaX = 0;
+            double sigmaY = 0;
+            for (int s=0; s<_numberOfSegments; ++s)
+            {
+              SignalPoint spoint = _signalPoints[s];
+              sigmaX += spoint.sigmaX;
+              sigmaY += spoint.sigmaY;
+            }
+            recoHit->setdU( sigmaX/_numberOfSegments );
+            recoHit->setdV( sigmaY/_numberOfSegments );  
 
             //**************************************************************************
             // Set Relation to SimTrackerHit
@@ -453,7 +465,7 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
     const dd4hep::rec::ISurface* surf = sI->second ;
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
-    
+    // We need it?
     if ( ! surf->insideBounds( dd4hep::mm * oldPos ) ) {
 
         streamlog_out( DEBUG3 ) << "  hit at " << oldPos
@@ -599,7 +611,7 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         spoint.sigmaY = SigmaY;
         spoint.charge = charge; // electrons x KeV
         _signalPoints[i] = spoint;
-
+	         
     }
 }
 
@@ -750,7 +762,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     if (charge > 0.)
     {
         TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
-        recoHit->setEDep(charge/_electronsPerKeV * dd4hep::keV / dd4hep::GeV);
+        recoHit->setEDep(charge / _electronsPerKeV * dd4hep::keV / dd4hep::GeV );
 
         pos[0] /= charge;
         pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
