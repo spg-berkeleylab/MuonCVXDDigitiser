@@ -122,7 +122,7 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                bkgdHitsInLayer);
 
     registerProcessorParameter("SegmentLength",
-                               "Segment Length",
+                               "Segment Length in mm",
                                _segmentLength,
                                double(0.005));
 
@@ -356,16 +356,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             recoHit->setV( v_direction ) ;
             
             // ALE Does this make sense??? TO CHECK
-            double sigmaX = 0;
-            double sigmaY = 0;
-            for (int s=0; s<_numberOfSegments; ++s)
-            {
-              SignalPoint spoint = _signalPoints[s];
-              sigmaX += spoint.sigmaX;
-              sigmaY += spoint.sigmaY;
-            }
-            recoHit->setdU( sigmaX/_numberOfSegments );
-            recoHit->setdV( sigmaY/_numberOfSegments );  
+            recoHit->setdU( _pixelSizeX / sqrt(12) );
+            recoHit->setdV( _pixelSizeY / sqrt(12) );  
 
             //**************************************************************************
             // Set Relation to SimTrackerHit
@@ -543,7 +535,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double trackLength = std::min(1.0e+3,
          _layerThickness[_currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
   
-    _numberOfSegments = ceil(trackLength / (dd4hep::mm * _segmentLength) );
+    _numberOfSegments = ceil(trackLength / _segmentLength );
     double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
 
     _ionisationPoints.resize(_numberOfSegments);
