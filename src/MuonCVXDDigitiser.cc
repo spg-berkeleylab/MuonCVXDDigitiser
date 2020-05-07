@@ -566,7 +566,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
                                                    double(_currentParticleMass * dd4hep::keV / dd4hep::MeV),
                                                    _cutOnDeltaRays,
                                                    segmentLength,
-                                                   double(dEmean / dd4hep::MeV)) / dd4hep::keV;
+                                                   double(dEmean / dd4hep::MeV)) * dd4hep::MeV;
         _eSum = _eSum + de;
 
         IonisationPoint ipoint;
@@ -602,7 +602,7 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
 
         // energy is in keV       
-        double charge = ipoint.eloss * _electronsPerKeV;
+        double charge = (ipoint.eloss / dd4hep::keV) * _electronsPerKeV;
 
         SignalPoint  spoint;
         spoint.x = xOnPlane;
@@ -762,7 +762,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     if (charge > 0.)
     {
         TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
-        recoHit->setEDep(charge / _electronsPerKeV * dd4hep::keV / dd4hep::GeV );
+        recoHit->setEDep((charge / _electronsPerKeV) * dd4hep::keV);
 
         pos[0] /= charge;
         pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
