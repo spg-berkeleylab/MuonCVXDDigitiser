@@ -1,5 +1,7 @@
 #include "HitTemporalIndexes.h"
 
+using std::min;
+
 HitTemporalIndexes::HitTemporalIndexes(const LCCollection* STHcol):
     cellid_decoder(STHcol),
     htable()
@@ -52,6 +54,16 @@ void HitTemporalIndexes::DisposeHit(int layer, int ladder)
     {
         return item->second->pop();
     }
+}
+
+float HitTemporalIndexes::GetMinTime()
+{
+    float min_time{1.0e+12};
+    for (auto item : htable)
+    {
+        min_time = min(min_time, item.second->top()->getTime());
+    }
+    return min_time;
 }
 
 int HitTemporalIndexes::GetKey(int layer, int ladder)

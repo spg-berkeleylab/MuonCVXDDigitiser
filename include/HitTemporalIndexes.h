@@ -36,6 +36,7 @@ public:
     virtual ~HitTemporalIndexes();
     SimTrackerHit* CurrentHit(int layer, int ladder);
     void DisposeHit(int layer, int ladder);
+    float GetMinTime();
 
 private:
     inline int GetKey(int layer, int ladder);
