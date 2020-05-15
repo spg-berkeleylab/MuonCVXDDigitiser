@@ -56,17 +56,20 @@ void DetElemSlidingWindow::move_forward()
     curr_time += time_click;
 
     for(SimTrackerHit* hit = _htable.CurrentHit(_layer, _ladder);
-        hit->getTime() - curr_time < window_radius;
+        hit != nullptr && hit->getTime() - curr_time < window_radius;
         hit = _htable.CurrentHit(_layer, _ladder))
     {
         StoreSignalPoints(hit);
         _htable.DisposeHit(_layer, _ladder);
     }
+
+    if (signals.empty()) return;
     for(TimedSignalPoint spoint = signals.front();
         curr_time - spoint.time > window_radius;
         spoint = signals.front())
     {
         signals.pop_front();
+        if (signals.empty()) break;
     }
 }
 

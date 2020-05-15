@@ -67,8 +67,11 @@ INCLUDE_DIRECTORIES( ./include )
 #                   FILES_MATCHING PATTERN "*.h" )
 
 # add library
-FILE(GLOB_RECURSE library_sources "src/*.cc")
-ADD_SHARED_LIBRARY( ${PROJECT_NAME} ${library_sources} )
+ADD_SHARED_LIBRARY( ${PROJECT_NAME} src/DetElemSlidingWindow.cc
+                                    src/G4UniversalFluctuation.cc
+                                    src/HitTemporalIndexes.cc
+                                    src/MuonCVXDDigitiser.cc
+                                    src/MyG4UniversalFluctuationForSi.cc )
 INSTALL_SHARED_LIBRARY( ${PROJECT_NAME} DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
 
 # display some variables and write them to cache

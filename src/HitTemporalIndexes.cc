@@ -56,6 +56,13 @@ void HitTemporalIndexes::DisposeHit(int layer, int ladder)
     }
 }
 
+int HitTemporalIndexes::GetHitNumber(int layer, int ladder)
+{
+    int tkey = GetKey(layer, ladder);
+    auto item = htable.find(tkey);
+    return item != htable.end() ? item->second->size() : -1;
+}
+
 float HitTemporalIndexes::GetMinTime()
 {
     float min_time{1.0e+12};
@@ -68,6 +75,7 @@ float HitTemporalIndexes::GetMinTime()
 
 int HitTemporalIndexes::GetKey(int layer, int ladder)
 {
+    // TODO use cellID0 and/or cellID1
     return layer * 1000 + ladder;
 }
 
