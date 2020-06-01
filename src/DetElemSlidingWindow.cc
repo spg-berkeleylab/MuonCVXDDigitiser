@@ -73,6 +73,16 @@ void DetElemSlidingWindow::move_forward()
     }
 }
 
+PixelDigiMatrix DetElemSlidingWindow::getPixels()
+{
+    if (_htable.GetHitNumber(_layer, _ladder) == 0)
+    {
+        return PixelDigiMatrix();
+    }
+    
+    // TODO implement
+    return PixelDigiMatrix();
+}
 
 void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
 {

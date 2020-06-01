@@ -4,6 +4,7 @@
 #include <list>
 
 #include "HitTemporalIndexes.h"
+#include "PixelDigiMatrix.h"
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
@@ -41,6 +42,7 @@ public:
                          SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     void move_forward();
+    PixelDigiMatrix getPixels();
 
 private:
     void StoreSignalPoints(SimTrackerHit* hit);
