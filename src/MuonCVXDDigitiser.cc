@@ -21,12 +21,14 @@
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
+#include "CLHEP/Random/RandFlat.h" 
     
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
 
 using CLHEP::RandGauss;
 using CLHEP::RandPoisson;
+using CLHEP::RandFlat;
 
 using dd4hep::Detector;
 using dd4hep::DetElement;
@@ -101,26 +103,15 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _pixelSizeY,
                                (double)0.025);
 
-    registerProcessorParameter("Debug",
-                               "Debug option",
-                               _debug,
-                               int(0));
-
     registerProcessorParameter("ElectronsPerKeV",
                                "Electrons per keV",
                                _electronsPerKeV,
                                (double)270.3);
 
-    std::vector<float> bkgdHitsInLayer;
-    bkgdHitsInLayer.push_back(34400.);
-    bkgdHitsInLayer.push_back(23900.);
-    bkgdHitsInLayer.push_back(9600.);
-    bkgdHitsInLayer.push_back(5500.);
-    bkgdHitsInLayer.push_back(3100.);    
-    registerProcessorParameter("BackgroundHitsPerLayer",
-                               "Background Hits per Layer",
-                               _bkgdHitsInLayer,
-                               bkgdHitsInLayer);
+    registerProcessorParameter("Threshold",
+                               "Cell Threshold in electrons",
+                               _threshold,
+                               200.);
 
     registerProcessorParameter("SegmentLength",
                                "Segment Length in mm",
@@ -131,11 +122,6 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "Width of cluster",
                                _widthOfCluster,
                                double(3.0));
-
-    registerProcessorParameter("Threshold",
-                               "Cell Threshold in electrons",
-                               _threshold,
-                               200.);
 
     registerProcessorParameter("PoissonSmearing",
                                "Apply Poisson smearing of electrons collected on pixels",
@@ -157,25 +143,21 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _produceFullPattern,
                                int(0));
 
-    registerProcessorParameter("UseMCPMomentum",
-                               "Use Particle Momentum",
-                               _useMCPMomentum,
-                               int(1));
-
     registerProcessorParameter("EnergyLoss",
                                "Energy Loss keV/mm",
                                _energyLoss,
                                double(280.0));
+                               
+    registerProcessorParameter("MaxEnergyDelta",
+                               "Max delta in energy for hit in electrons",
+                               _deltaEne,
+                               100.0);                               
 
-    registerProcessorParameter("RemoveDRayPixels",
-                               "Remove D-Ray Pixels",
-                               _removeDrays,
-                               int(1));
+    registerProcessorParameter("MaxTrackLength",
+                               "Maximum values for track length (in mm)",
+                               _maxTrkLen,
+                               10.0); 
 
-    registerProcessorParameter("GenerateBackground",
-                               "Generate Background",
-                               _generateBackground,
-                               int(0));
 }
 
 
@@ -213,6 +195,9 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     }
 
     _laddersInLayer.resize(_numberOfLayers);
+#ifdef ZSEGMENTED
+    _sensorsPerLadder.resize(_numberOfLayers);
+#endif
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
     _layerThickness.resize(_numberOfLayers);
@@ -237,8 +222,13 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+#ifdef ZSEGMENTED
+        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+#else
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+#endif
         _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
 
         _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
@@ -445,11 +435,6 @@ void MuonCVXDDigitiser::end()
  *    - y axis is perpendicular to the ladder plane <br>
  *    - z axis lies in the ladder plane and parallel to the beam axis <br>
  * 
- *    Encoding of modules: <br>
- *    ======================  <br>
- *    - 1 = left ladder in the barrel <br>
- *    - 2 = right ladder in the barrel <br>
- * 
  */
 void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit, 
                                           double *localPosition,
@@ -485,14 +470,14 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     double Momentum[3];
     for (int j = 0; j < 3; ++j) 
       if (hit->getMCParticle())
-        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV / dd4hep::keV;
+        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV;
       else
         Momentum[j] = hit->getMomentum()[j];
 
     // as default put electron's mass
-    _currentParticleMass = 0.510e-3 * dd4hep::GeV / dd4hep::keV;
+    _currentParticleMass = 0.510e-3 * dd4hep::GeV;
     if (hit->getMCParticle())
-        _currentParticleMass = std::max(hit->getMCParticle()->getMass() * dd4hep::GeV / dd4hep::keV, _currentParticleMass);
+        _currentParticleMass = std::max(hit->getMCParticle()->getMass() * dd4hep::GeV, _currentParticleMass);
 
     _currentParticleMomentum = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2) 
                                     + pow(Momentum[2], 2));                   
@@ -534,13 +519,12 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double tanx = dir[0] / dir[2];
     double tany = dir[1] / dir[2];  
     
-    // trackLength is in mm
-    double trackLength = std::min(1.0e+3,
+    // trackLength is in mm -> limit length at 1cm
+    double trackLength = std::min(_maxTrkLen,
          _layerThickness[_currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
   
     _numberOfSegments = ceil(trackLength / _segmentLength );
     double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
-
     _ionisationPoints.resize(_numberOfSegments);
 
     _eSum = 0.0;
@@ -549,7 +533,9 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double segmentLength = trackLength / ((double)_numberOfSegments);
     _segmentDepth = _layerThickness[_currentLayer] / ((double)_numberOfSegments);
 
-    double z = -_layerHalfThickness[_currentLayer] - 0.5 * _segmentDepth; 	
+    double z = -_layerHalfThickness[_currentLayer] - 0.5 * _segmentDepth;
+    
+    double hcharge = ( hit->getEDep() / dd4hep::GeV ); 	
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         z += _segmentDepth;
@@ -571,6 +557,16 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         ipoint.z = z;
         _ionisationPoints[i] = ipoint;
     }
+   
+    const double thr = _deltaEne/_electronsPerKeV * dd4hep::keV;
+    while ( hcharge > _eSum + thr ) {
+      // Add additional charge sampled from an 1 / n^2 distribution.
+      const double       q = randomTail( thr, hcharge - _eSum );
+      const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments ));
+      _ionisationPoints[h].eloss += q;
+      _eSum += q;
+    }
+    
 }
 
 void MuonCVXDDigitiser::ProduceSignalPoints()
@@ -604,7 +600,7 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         spoint.y = yOnPlane;
         spoint.sigmaX = SigmaX;
         spoint.sigmaY = SigmaY;
-        spoint.charge = charge; // electrons x KeV
+        spoint.charge = charge; // electrons x keV
         _signalPoints[i] = spoint;
 	         
     }
@@ -769,115 +765,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
           
         return recoHit;
     }
-    
-
-    /* Partial histogram 
-    int nPixels = 0;
-    int ixmin =  1000000;
-    int ixmax = -1000000;
-    int iymin =  1000000;
-    int iymax = -1000000;
-    
-    for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
-    {
-        SimTrackerHit *hit = simTrkVec[iHit];
-        if (hit->getEDep() <= _threshold) continue;
-
-        nPixels++;
-        charge += hit->getEDep();
-        int pixelID = hit->getCellID0();         // workaround: cellID used for pixel index
-        int ix = pixelID / GetPixelsInaRow();
-        int iy = pixelID % GetPixelsInaRow();    
-
-        if (ix > ixmax) ixmax = ix;
-        if (ix < ixmin) ixmin = ix;
-        if (iy > iymax) iymax = iy;
-        if (iy < iymin) iymin = iy;
-    }
-    
-    if (charge > 0. && nPixels > 0)
-    {
-        TrackerHitImpl *recoHit = new TrackerHitImpl();
-        recoHit->setEDep(charge);
-
-        double _amplX[20];
-        double _amplY[20];
-
-        for (int k = 0; k < 20; ++k)
-        {
-            _amplY[k] = 0.0;
-            _amplX[k] = 0.0;
-        }
-
-        for (int iHit = 0; iHit < int(simTrkVec.size()); ++iHit)
-        {
-            SimTrackerHit *hit = simTrkVec[iHit];
-            if (hit->getEDep() <= _threshold) continue;
-
-            int pixelID = hit->getCellID0(); // workaround: cellID used for pixel index
-            int ix = pixelID / GetPixelsInaRow();
-            int iy = pixelID % GetPixelsInaRow();
-            
-            if ((iy - iymin) < 20)
-                _amplY[iy - iymin] = _amplY[iy - iymin] + hit->getEDep();
-            if ((ix - ixmin) < 20) 
-                _amplX[ix - ixmin] = _amplX[ix - ixmin] + hit->getEDep();        
-
-        }
-        double aXCentre = 0;
-        double aYCentre = 0;
-        for (int i = ixmin + 1; i < ixmax; ++i)
-        {
-            aXCentre += _amplX[i - ixmin];             TODO bad index range
-        }
-        for (int i = iymin + 1; i < iymax; ++i)
-        {
-            aYCentre += _amplY[i - iymin];              TODO bad index range
-        }
-        aXCentre = aXCentre / std::max(1, ixmax - ixmin - 1);
-        aYCentre = aYCentre / std::max(1, iymax - iymin - 1);
-        
-        double aTot = 0;
-        for (int i = ixmin; i < ixmax + 1; ++i)
-        {
-            double xx, yy;
-            aTot += _amplX[i - ixmin];
-            TransformCellIDToXY(i, 2, xx, yy);
-            if (i != ixmin && i != ixmax)
-            {
-                pos[0] += xx * aXCentre;
-            }
-            else
-            {
-                pos[0] += xx * _amplX[i - ixmin];
-            }
-        }
-        pos[0] /= aTot;
-        pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
-
-        aTot = 0;
-        for (int i = iymin; i < iymax + 1 ;++i)
-        {
-            double xx, yy;
-            TransformCellIDToXY(i, i, xx, yy);
-            aTot += _amplY[i - iymin];
-            if (i != iymin && i != iymax)
-            {
-                pos[1] += yy * aYCentre;
-            }
-            else
-            {
-                pos[1] += yy * _amplY[i-iymin];
-            }
-        }
-        pos[1] /= aTot;
-        pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
-
-        recoHit->setPosition(pos);
-        
-        return recoHit;
-    }
-    */    
+   
     return nullptr;
 }
 
@@ -958,6 +846,16 @@ void MuonCVXDDigitiser::PrintGeometryInfo()
 }
 
 
+//=============================================================================
+// Sample charge from 1 / n^2 distribution.
+//=============================================================================
+double MuonCVXDDigitiser::randomTail( const double qmin, const double qmax ) {
+
+  const double offset = 1. / qmax;
+  const double range  = ( 1. / qmin ) - offset;
+  const double u      = offset + RandFlat::shoot() * range;
+  return 1. / u;
+}
 
 
 
