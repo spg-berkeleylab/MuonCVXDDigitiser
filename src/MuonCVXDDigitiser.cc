@@ -194,6 +194,9 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     }
 
     _laddersInLayer.resize(_numberOfLayers);
+#ifdef ZSEGMENTED
+    _sensorsPerLadder.resize(_numberOfLayers);
+#endif
     _layerHalfPhi.resize(_numberOfLayers);
     _layerHalfThickness.resize(_numberOfLayers);
     _layerThickness.resize(_numberOfLayers);
@@ -218,8 +221,13 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
         _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+#ifdef ZSEGMENTED
+        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+#else
+        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+#endif
         _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
 
         _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
