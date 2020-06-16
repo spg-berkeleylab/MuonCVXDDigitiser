@@ -52,7 +52,7 @@ void HitTemporalIndexes::DisposeHit(int layer, int ladder)
     auto item = htable.find(tkey);
     if (item != htable.end() && !item->second->empty())
     {
-        return item->second->pop();
+        item->second->pop();
     }
 }
 

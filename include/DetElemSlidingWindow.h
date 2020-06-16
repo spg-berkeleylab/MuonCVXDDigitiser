@@ -27,11 +27,9 @@ class DetElemSlidingWindow
 {
 public:
     DetElemSlidingWindow(HitTemporalIndexes& htable,
-                         int layer,
-                         int ladder,
+                         PixelDigiMatrix& sensor,
                          float tclick,
                          float wsize,
-                         float thickness,
                          double tanLorentzAngleX,
                          double tanLorentzAngleY,
                          double cutOnDeltaRays,
@@ -39,23 +37,21 @@ public:
                          double electronsPerKeV,
                          double segmentLength,
                          double energyLoss,
+                         double widthOfCluster,
                          SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
-    void move_forward();
-    PixelDigiMatrix getPixels();
+    bool move_forward();
 
 private:
     void StoreSignalPoints(SimTrackerHit* hit);
+    void UpdatePixels();
 
     float curr_time;
     float time_click;
     float window_radius;
 
     HitTemporalIndexes& _htable;
-    int _layer;
-    int _ladder;
-    float _layerThickness;
-    float _layerHalfThickness;
+    PixelDigiMatrix& _sensor;
     double _tanLorentzAngleX;
     double _tanLorentzAngleY;
     double _cutOnDeltaRays;
@@ -63,7 +59,7 @@ private:
     double _electronsPerKeV;
     double _segmentLength;
     double _energyLoss;
-
+    double _widthOfCluster;
     TimedSignalPointList signals;
     SurfaceMap* surf_map;
     G4UniversalFluctuation* _fluctuate;

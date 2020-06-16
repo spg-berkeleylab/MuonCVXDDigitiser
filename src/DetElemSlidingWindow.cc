@@ -4,6 +4,9 @@
 #include "DD4hep/DD4hepUnits.h"
 #include "marlin/VerbosityLevels.h"
 
+#include "gsl/gsl_sf_erf.h"
+#include "gsl/gsl_math.h"
+
 using std::max;
 using std::min;
 using dd4hep::rec::ISurface;
@@ -11,11 +14,9 @@ using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
 
 DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
-                                           int layer,
-                                           int ladder,
+                                           PixelDigiMatrix& sensor,
                                            float tclick,
                                            float wrad,
-                                           float thickness,
                                            double tanLorentzAngleX,
                                            double tanLorentzAngleY,
                                            double cutOnDeltaRays,
@@ -23,15 +24,13 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            double electronsPerKeV,
                                            double segmentLength,
                                            double energyLoss,
+                                           double widthOfCluster,
                                            SurfaceMap* s_map):
     curr_time(htable.GetMinTime() - wrad - tclick),
     time_click(tclick),
     window_radius(wrad),
     _htable(htable),
-    _layer(layer),
-    _ladder(ladder),
-    _layerThickness(thickness),
-    _layerHalfThickness(thickness * 0.5),
+    _sensor(sensor),
     _tanLorentzAngleX(tanLorentzAngleX),
     _tanLorentzAngleY(tanLorentzAngleY),
     _cutOnDeltaRays(cutOnDeltaRays),
@@ -39,6 +38,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     _electronsPerKeV(electronsPerKeV),
     _segmentLength(segmentLength),
     _energyLoss(energyLoss),
+    _widthOfCluster(widthOfCluster),
     signals(),
     surf_map(s_map)
 {
@@ -51,37 +51,81 @@ DetElemSlidingWindow::~DetElemSlidingWindow()
 }
 
 
-void DetElemSlidingWindow::move_forward()
+bool DetElemSlidingWindow::move_forward()
 {
     curr_time += time_click;
 
-    for(SimTrackerHit* hit = _htable.CurrentHit(_layer, _ladder);
-        hit != nullptr && hit->getTime() - curr_time < window_radius;
-        hit = _htable.CurrentHit(_layer, _ladder))
+    for (SimTrackerHit* hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
+         hit != nullptr && hit->getTime() - curr_time < window_radius;
+         hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder()))
     {
         StoreSignalPoints(hit);
-        _htable.DisposeHit(_layer, _ladder);
+        _htable.DisposeHit(_sensor.GetLayer(), _sensor.GetLadder());
     }
 
-    if (signals.empty()) return;
-    for(TimedSignalPoint spoint = signals.front();
-        curr_time - spoint.time > window_radius;
-        spoint = signals.front())
+    if (!signals.empty())
     {
-        signals.pop_front();
-        if (signals.empty()) break;
+        for (TimedSignalPoint spoint = signals.front();
+             curr_time - spoint.time > window_radius;
+             spoint = signals.front())
+        {
+            signals.pop_front();
+            if (signals.empty()) break;
+        }
     }
+
+    UpdatePixels();
+
+    return _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder()) > 0;
 }
 
-PixelDigiMatrix DetElemSlidingWindow::getPixels()
+void DetElemSlidingWindow::UpdatePixels()
 {
-    if (_htable.GetHitNumber(_layer, _ladder) == 0)
+    _sensor.Reset();
+
+    for (auto spoint : signals)
     {
-        return PixelDigiMatrix();
+        if (spoint.time > curr_time + window_radius) break;
+
+        double xHFrame = _widthOfCluster * spoint.sigmaX;
+        double yHFrame = _widthOfCluster * spoint.sigmaY;
+        
+        int ixLo, ixUp, iyLo, iyUp;
+        _sensor.TransformXYToCellID(spoint.x - xHFrame, spoint.y - yHFrame, ixLo, iyLo);
+        _sensor.TransformXYToCellID(spoint.x + xHFrame, spoint.y + yHFrame, ixUp, iyUp);
+
+        for (int ix = ixLo; ix < ixUp + 1; ++ix)
+        {
+            if (ix < 0) continue;
+
+            for (int iy = iyLo; iy < iyUp + 1; ++iy)
+            {
+                if (iy < 0) continue;
+
+                double xCurrent, yCurrent;
+                _sensor.TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
+                
+                gsl_sf_result result;
+                int status = gsl_sf_erf_Q_e((xCurrent - 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);
+                double LowerBound = 1 - result.val;
+
+                status = gsl_sf_erf_Q_e((xCurrent + 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);
+                double UpperBound = 1 - result.val;
+                double integralX = UpperBound - LowerBound;
+
+                status = gsl_sf_erf_Q_e((yCurrent - 0.5 * _sensor.GetPixelSizeY() - spoint.y) / spoint.sigmaY, &result);
+                LowerBound = 1 - result.val;
+
+                status = gsl_sf_erf_Q_e((yCurrent + 0.5 * _sensor.GetPixelSizeY() - spoint.y) / spoint.sigmaY, &result);
+                UpperBound = 1 - result.val;
+                double integralY = UpperBound - LowerBound;
+
+                float totCharge = float(spoint.charge * integralX * integralY);
+
+                _sensor.UpdatePixel(ix, iy, { totCharge, 0 });
+            }
+        }
     }
-    
-    // TODO implement
-    return PixelDigiMatrix();
 }
 
 void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
@@ -138,8 +182,8 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
 
     // ************************************************************************
 
-    entry[2] = -_layerHalfThickness; 
-    exit[2] = _layerHalfThickness;
+    entry[2] = -_sensor.GetHalfThickness(); 
+    exit[2] = _sensor.GetHalfThickness();
 
     for (int i = 0; i < 2; ++i) {
         entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
@@ -150,16 +194,16 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double tany = dir[1] / dir[2];  
     
     // trackLength is in mm
-    double trackLength = min(1.0e+3, _layerThickness * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
+    double trackLength = min(1.0e+3, _sensor.GetThickness() * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
   
     int _numberOfSegments = ceil(trackLength / _segmentLength );
     double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
 
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
-    double _segmentDepth = _layerThickness / ((double)_numberOfSegments);
+    double _segmentDepth = _sensor.GetThickness() / ((double)_numberOfSegments);
 
-    double z = -_layerHalfThickness - 0.5 * _segmentDepth; 	
+    double z = -_sensor.GetHalfThickness() - 0.5 * _segmentDepth; 	
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         // ionization point
@@ -174,13 +218,13 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
                                                       segmentLength,
                                                       dEmean / dd4hep::MeV) * dd4hep::MeV;
 
-        double DistanceToPlane = _layerHalfThickness - z;
+        double DistanceToPlane = _sensor.GetHalfThickness() - z;
         double xOnPlane = x + _tanLorentzAngleX * DistanceToPlane;
         double yOnPlane = y + _tanLorentzAngleY * DistanceToPlane;
         double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
                                                         + pow(_tanLorentzAngleY, 2));
 
-        double SigmaDiff = sqrt(DriftLength / _layerThickness) * _diffusionCoefficient;
+        double SigmaDiff = sqrt(DriftLength / _sensor.GetThickness()) * _diffusionCoefficient;
 
         double SigmaX = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleX, 2));
         double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
@@ -199,3 +243,4 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
         signals.push_back(spoint);
     }
 }
+
