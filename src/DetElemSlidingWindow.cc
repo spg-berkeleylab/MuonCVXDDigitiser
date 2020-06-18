@@ -6,12 +6,16 @@
 
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
+#include "CLHEP/Random/RandGauss.h"
+#include "CLHEP/Random/RandPoisson.h" 
 
 using std::max;
 using std::min;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
+using CLHEP::RandGauss;
+using CLHEP::RandPoisson;
 
 DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            PixelDigiMatrix& sensor,
@@ -25,6 +29,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            double segmentLength,
                                            double energyLoss,
                                            double widthOfCluster,
+                                           double electronicNoise,
                                            SurfaceMap* s_map):
     curr_time(htable.GetMinTime() - wrad - tclick),
     time_click(tclick),
@@ -39,6 +44,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     _segmentLength(segmentLength),
     _energyLoss(energyLoss),
     _widthOfCluster(widthOfCluster),
+    _electronicNoise(electronicNoise),
     signals(),
     surf_map(s_map)
 {
@@ -125,6 +131,24 @@ void DetElemSlidingWindow::UpdatePixels()
                 _sensor.UpdatePixel(ix, iy, { totCharge, 0 });
             }
         }
+    }
+
+    _sensor.Apply([](PixelData data) -> PixelData {
+        if (data.charge > 1e+03) // assume Gaussian
+        {
+            return { float(RandGauss::shoot(data.charge, sqrt(data.charge))), data.time };
+        }
+        else // assume Poisson
+        {
+            return { float(RandPoisson::shoot(data.charge)), data.time };
+        }
+    });
+
+    if (_electronicNoise > 0)
+    {
+        _sensor.Apply([&, this](PixelData data) -> PixelData {
+            return { data.charge + float(RandGauss::shoot(0., this->_electronicNoise)), data.time };
+        });
     }
 }
 

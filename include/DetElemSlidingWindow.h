@@ -38,6 +38,7 @@ public:
                          double segmentLength,
                          double energyLoss,
                          double widthOfCluster,
+                         double electronicNoise,
                          SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     bool move_forward();
@@ -60,6 +61,7 @@ private:
     double _segmentLength;
     double _energyLoss;
     double _widthOfCluster;
+    double _electronicNoise;
     TimedSignalPointList signals;
     SurfaceMap* surf_map;
     G4UniversalFluctuation* _fluctuate;

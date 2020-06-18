@@ -2,14 +2,16 @@
 #define PixelDigiMatrix_h 1
 
 #include <vector>
+#include <functional>
 
 struct PixelData
 {
-    float edep;
+    float charge;
     float time;
 };
 
 typedef std::vector<PixelData> EnergyMatrix;
+typedef std::function<PixelData(PixelData pIn)> PixelTransformation;
 
 class PixelDigiMatrix
 {
@@ -36,8 +38,11 @@ public:
     inline int GetSizeX() { return x_size; }
     inline int GetSizeY() { return y_size; }
 
+    inline int index(int x, int y) { return x * x_size + y_size; }
+
     void Reset();
     void UpdatePixel(int x, int y, PixelData data);
+    void Apply(PixelTransformation l_expr);
     PixelData GetPixel(int x, int y);
     void TransformXYToCellID(double x, double y, int & ix, int & iy);
     void TransformCellIDToXY(int ix, int iy, double & x, double & y);

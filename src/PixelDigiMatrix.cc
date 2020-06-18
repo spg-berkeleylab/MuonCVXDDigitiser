@@ -24,13 +24,27 @@ PixelDigiMatrix::~PixelDigiMatrix()
 {}
 
 void PixelDigiMatrix::Reset()
-{}
+{
+    pixels.assign(pixels.size(), {0, 0});
+}
 
 void PixelDigiMatrix::UpdatePixel(int x, int y, PixelData data)
-{}
+{
+    pixels[index(x, y)] = data;
+}
+
+void PixelDigiMatrix::Apply(PixelTransformation l_expr)
+{
+    for (long unsigned int k = 0; k < pixels.size(); k++)
+    {
+        pixels[k] = l_expr(pixels[k]);
+    }
+}
 
 PixelData PixelDigiMatrix::GetPixel(int x, int y)
-{}
+{
+    return pixels[index(x, y)];
+}
 
 void PixelDigiMatrix::TransformXYToCellID(double x, double y, int & ix, int & iy)
 {
