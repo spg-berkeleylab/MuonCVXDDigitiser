@@ -53,6 +53,7 @@ public:
     inline double GetPixelSizeY() { return _pixelSizeY; }
     inline int GetSizeX() { return x_size; }
     inline int GetSizeY() { return y_size; }
+    inline MatrixStatus GetStatus() { return status; }
 
     void Reset();
     void UpdatePixel(int x, int y, PixelData data);

@@ -30,6 +30,7 @@ public:
                          PixelDigiMatrix& sensor,
                          float tclick,
                          float wsize,
+                         float starttime,
                          double tanLorentzAngleX,
                          double tanLorentzAngleY,
                          double cutOnDeltaRays,
@@ -41,7 +42,7 @@ public:
                          double electronicNoise,
                          double maxTrkLen,
                          double maxEnergyDelta,
-                         SurfaceMap* s_map);
+                         const SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     bool move_forward();
 
@@ -68,7 +69,7 @@ private:
     double _maxTrkLen;
     double _deltaEne;
     TimedSignalPointList signals;
-    SurfaceMap* surf_map;
+    const SurfaceMap* surf_map;
     G4UniversalFluctuation* _fluctuate;
 };
 

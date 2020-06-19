@@ -1,5 +1,4 @@
 #include "MuonCVXDDigitiser.h"
-#include "HitTemporalIndexes.h"
 #include <iostream>
 #include <algorithm>
 
@@ -260,8 +259,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
     if( STHcol != nullptr )
     {
-        HitTemporalIndexes my_index{STHcol};
-
         LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
         CellIDEncoder<TrackerHitPlaneImpl> cellid_encoder( lcio::LCTrackerCellID::encoding_string(), THcol ) ;
 
