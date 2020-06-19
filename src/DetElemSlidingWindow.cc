@@ -7,15 +7,18 @@
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
-#include "CLHEP/Random/RandPoisson.h" 
+#include "CLHEP/Random/RandPoisson.h"
+#include "CLHEP/Random/RandFlat.h"
 
 using std::max;
 using std::min;
+using std::vector;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
 using CLHEP::RandGauss;
 using CLHEP::RandPoisson;
+using CLHEP::RandFlat;
 
 DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            PixelDigiMatrix& sensor,
@@ -30,6 +33,8 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            double energyLoss,
                                            double widthOfCluster,
                                            double electronicNoise,
+                                           double maxTrkLen,
+                                           double maxEnergyDelta,
                                            SurfaceMap* s_map):
     curr_time(htable.GetMinTime() - wrad - tclick),
     time_click(tclick),
@@ -45,6 +50,8 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     _energyLoss(energyLoss),
     _widthOfCluster(widthOfCluster),
     _electronicNoise(electronicNoise),
+    _maxTrkLen(maxTrkLen),
+    _deltaEne(maxEnergyDelta),
     signals(),
     surf_map(s_map)
 {
@@ -195,14 +202,14 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double Momentum[3];
     for (int j = 0; j < 3; ++j) 
       if (hit->getMCParticle())
-        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV / dd4hep::keV;
+        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV;
       else
         Momentum[j] = hit->getMomentum()[j];
 
     // as default put electron's mass
-    double particleMass = 0.510e-3 * dd4hep::GeV / dd4hep::keV;
+    double particleMass = 0.510e-3 * dd4hep::GeV;
     if (hit->getMCParticle())
-        particleMass = max(hit->getMCParticle()->getMass() * dd4hep::GeV / dd4hep::keV, particleMass);
+        particleMass = max(hit->getMCParticle()->getMass() * dd4hep::GeV, particleMass);
 
     double particleMomentum = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2) + pow(Momentum[2], 2));                   
                          
@@ -224,7 +231,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double tany = dir[1] / dir[2];  
     
     // trackLength is in mm
-    double trackLength = min(1.0e+3, _sensor.GetThickness() * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
+    double trackLength = min(_maxTrkLen, _sensor.GetThickness() * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
   
     int _numberOfSegments = ceil(trackLength / _segmentLength );
     double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
@@ -233,7 +240,11 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double segmentLength = trackLength / ((double)_numberOfSegments);
     double _segmentDepth = _sensor.GetThickness() / ((double)_numberOfSegments);
 
-    double z = -_sensor.GetHalfThickness() - 0.5 * _segmentDepth; 	
+    double z = -_sensor.GetHalfThickness() - 0.5 * _segmentDepth;
+
+    double eSum = 0.0;
+    vector<TimedSignalPoint> signal_buffer{_numberOfSegments};
+
     for (int i = 0; i < _numberOfSegments; ++i)
     {
         // ionization point
@@ -262,15 +273,44 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
         // energy is in keV       
         double charge = (eloss / dd4hep::keV) * _electronsPerKeV;
 
-        TimedSignalPoint spoint {
+        signal_buffer.push_back({
             xOnPlane,
             yOnPlane,
             SigmaX,
             SigmaY,
-            charge, // electrons x KeV
+            charge,
             hit->getTime()
-        };
+        });
+
+        eSum += eloss;
+    }
+
+    double hEdep = hit->getEDep() / dd4hep::GeV;
+    // deltaEne is a charge??
+    const double thr = _deltaEne / _electronsPerKeV * dd4hep::keV;
+    while (hEdep > eSum + thr) {
+      // Add additional charge sampled from an 1 / n^2 distribution.
+      const double       q = randomTail( thr, hEdep - eSum );
+      const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments));
+      signal_buffer[h].charge += q * _electronsPerKeV / dd4hep::keV;
+      eSum += q;
+    }
+
+    for(auto spoint : signal_buffer)
+    {
         signals.push_back(spoint);
     }
 }
+
+//=============================================================================
+// Sample charge from 1 / n^2 distribution.
+//=============================================================================
+double DetElemSlidingWindow::randomTail( const double qmin, const double qmax )
+{
+    const double offset = 1. / qmax;
+    const double range  = ( 1. / qmin ) - offset;
+    const double u      = offset + RandFlat::shoot() * range;
+    return 1. / u;
+}
+
 

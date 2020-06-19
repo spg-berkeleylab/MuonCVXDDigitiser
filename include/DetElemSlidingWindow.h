@@ -39,6 +39,8 @@ public:
                          double energyLoss,
                          double widthOfCluster,
                          double electronicNoise,
+                         double maxTrkLen,
+                         double maxEnergyDelta,
                          SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     bool move_forward();
@@ -46,6 +48,7 @@ public:
 private:
     void StoreSignalPoints(SimTrackerHit* hit);
     void UpdatePixels();
+    double randomTail( const double qmin, const double qmax );
 
     float curr_time;
     float time_click;
@@ -62,6 +65,8 @@ private:
     double _energyLoss;
     double _widthOfCluster;
     double _electronicNoise;
+    double _maxTrkLen;
+    double _deltaEne;
     TimedSignalPointList signals;
     SurfaceMap* surf_map;
     G4UniversalFluctuation* _fluctuate;
