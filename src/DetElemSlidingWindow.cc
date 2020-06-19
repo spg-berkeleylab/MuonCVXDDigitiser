@@ -128,26 +128,32 @@ void DetElemSlidingWindow::UpdatePixels()
 
                 float totCharge = float(spoint.charge * integralX * integralY);
 
-                _sensor.UpdatePixel(ix, iy, { totCharge, 0 });
+                _sensor.UpdatePixel(ix, iy, { totCharge, spoint.time, PixelStatus::ok });
             }
         }
     }
 
     _sensor.Apply([](PixelData data) -> PixelData {
+        float new_charge = 0;
         if (data.charge > 1e+03) // assume Gaussian
         {
-            return { float(RandGauss::shoot(data.charge, sqrt(data.charge))), data.time };
+            new_charge += float(RandGauss::shoot(data.charge, sqrt(data.charge)));
         }
         else // assume Poisson
         {
-            return { float(RandPoisson::shoot(data.charge)), data.time };
+            new_charge += float(RandPoisson::shoot(data.charge));
         }
+        return { new_charge, data.time, PixelStatus::ok };
     });
 
     if (_electronicNoise > 0)
     {
         _sensor.Apply([&, this](PixelData data) -> PixelData {
-            return { data.charge + float(RandGauss::shoot(0., this->_electronicNoise)), data.time };
+            return {
+                data.charge + float(RandGauss::shoot(0., this->_electronicNoise)), 
+                data.time,
+                PixelStatus::ok
+            };
         });
     }
 }
