@@ -1,5 +1,6 @@
 #include "PixelDigiMatrix.h"
 #include <cmath>
+#include "streamlog/streamlog.h"
 
 PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  int ladder,
@@ -18,13 +19,18 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
     _ladderWidth(ladderWidth > 0 ? ladderWidth : 0)
 {
-    x_size = ceil(ladderWidth / pixelSizeX);
-    y_size = ceil(ladderLength / pixelSizeY);
+    int lwid = floor(ladderWidth * 1e4);
+    int psx = floor(pixelSizeX * 1e4);
+    int llen = floor(ladderLength * 1e4);
+    int psy = floor(pixelSizeY * 1e4);
+
+    x_size = lwid / psx;
+    y_size = llen / psy;
 
     x_segsize = xsegmentNumber > 0 ? x_size / xsegmentNumber : 1;
     y_segsize = ysegmentNumber > 0 ? y_size / ysegmentNumber : 1;
-
-    if (fmod(ladderWidth, pixelSizeX) != 0 || fmod(ladderLength, pixelSizeY) != 0)
+    
+    if (lwid % psx > 0 || llen % psy > 0)
     {
         status = MatrixStatus::pixel_number_error;
     }
