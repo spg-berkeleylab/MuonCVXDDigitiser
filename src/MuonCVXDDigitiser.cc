@@ -20,7 +20,11 @@
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
-#include "CLHEP/Random/RandFlat.h" 
+#include "CLHEP/Random/RandFlat.h"
+
+#ifdef TIME_PROCESS
+#include "DetElemSlidingWindow.h" 
+#endif
     
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
@@ -156,7 +160,16 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "Maximum values for track length (in mm)",
                                _maxTrkLen,
                                10.0); 
-
+#ifdef TIME_PROCESS
+    registerProcessorParameter("TimeClick",
+                               "Time step",
+                               _tclick,
+                               (float)1000);     // TODO set a default value
+    registerProcessorParameter("WindowSize",
+                               "Window size",
+                               _window_size,
+                               (float)1000);     // TODO set a default value
+#endif
 }
 
 
@@ -243,7 +256,91 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 } 
 
 
+/******************************************************************************
+    Time window implementatin
+ ******************************************************************************/
+#ifdef TIME_PROCESS
+void MuonCVXDDigitiser::processEvent(LCEvent * evt)
+{ 
+    LCCollection* STHcol = nullptr;
+    try
+    {
+        STHcol = evt->getCollection(_colName);
+    }
+    catch( lcio::DataNotAvailableException ex )
+    {
+        streamlog_out(ERROR) << _colName << " collection not available" << std::endl;
+        STHcol = nullptr;
+    }
 
+    if( STHcol == nullptr ) return;
+
+    HitTemporalIndexes t_index{STHcol};
+    float start_time = t_index.GetMinTime() - _window_size / 2 - _tclick;
+
+    // TODO pragma omp here
+    for (int layer = 0; layer < _numberOfLayers; layer++)
+    {
+        for (int ladder = 0; ladder < _laddersInLayer[layer]; ladder++)
+        {
+#ifdef ZSEGMENTED
+            int nun_segment = _sensorsPerLadder[layer];
+#else
+            int nun_segment = 1;
+#endif
+            PixelDigiMatrix sensor {
+                layer, ladder,
+                1, nun_segment,
+                _layerLadderLength[layer],
+                _layerLadderWidth[layer],
+                _layerThickness[layer],
+                _pixelSizeX, _pixelSizeY 
+            };
+
+            if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
+            {
+                streamlog_out(ERROR) << "Pixel number error for layer " << layer
+                                     << " ladder " << ladder << std::endl;
+                continue;
+            }
+            if (sensor.GetStatus() == MatrixStatus::segment_number_error)
+            {
+                streamlog_out(ERROR) << "Segment number error for layer " << layer
+                                     << " ladder " << ladder << std::endl;
+                continue;
+            }
+
+            DetElemSlidingWindow t_window {
+                t_index, sensor,
+                _tclick, _window_size, start_time,
+                _tanLorentzAngleX, _tanLorentzAngleY,
+                _cutOnDeltaRays,
+                _diffusionCoefficient,
+                _electronsPerKeV,
+                _segmentLength,
+                _energyLoss,
+                _widthOfCluster,
+                _electronicNoise,
+                _maxTrkLen,
+                _deltaEne,
+                _map
+            };
+            
+            int counter = 0;
+            for(bool goon = true; goon; goon = t_window.move_forward())
+            {
+                // TODO implement clustering algorithm
+                counter++;
+            }
+        }
+    }
+}
+
+
+/******************************************************************************
+    First implementation (no time window)
+ ******************************************************************************/
+#else
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
     LCCollection * STHcol = nullptr;
@@ -413,6 +510,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
     _nEvt ++ ;
 }
+#endif // First implementation
 
 void MuonCVXDDigitiser::check(LCEvent *evt)
 {}

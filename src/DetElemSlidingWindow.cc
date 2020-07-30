@@ -3,6 +3,7 @@
 #include "DDRec/DetectorData.h"
 #include "DD4hep/DD4hepUnits.h"
 #include "marlin/VerbosityLevels.h"
+#include "streamlog/streamlog.h"
 
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
@@ -69,6 +70,11 @@ DetElemSlidingWindow::~DetElemSlidingWindow()
 bool DetElemSlidingWindow::move_forward()
 {
     curr_time += time_click;
+    streamlog_out(DEBUG) << "Time window centered in " << curr_time << std::endl;
+
+    streamlog_out(DEBUG) << "Hits available for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
+                           << " = " << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
+                           << std::endl;
 
     for (SimTrackerHit* hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
          hit != nullptr && hit->getTime() - curr_time < window_radius;
@@ -77,7 +83,7 @@ bool DetElemSlidingWindow::move_forward()
         StoreSignalPoints(hit);
         _htable.DisposeHit(_sensor.GetLayer(), _sensor.GetLadder());
     }
-
+    
     if (!signals.empty())
     {
         for (TimedSignalPoint spoint = signals.front();
@@ -183,7 +189,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     // We need it?
     if ( ! surf->insideBounds( dd4hep::mm * oldPos ) ) {
 
-        streamlog_out( DEBUG3 ) << "  hit at " << oldPos
+        streamlog_out( DEBUG ) << "  hit at " << oldPos
                                 << " is not on surface "
                                 << *surf
                                 << " distance: " << surf->distance(  dd4hep::mm * oldPos )

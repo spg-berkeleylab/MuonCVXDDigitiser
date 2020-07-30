@@ -196,6 +196,12 @@ protected:
 
     void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax );
+
+#ifdef TIME_PROCESS
+    float _tclick;
+    float _window_size;
+#endif
+
 };
 
 #endif
