@@ -278,9 +278,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     HitTemporalIndexes t_index{STHcol};
     float start_time = t_index.GetMinTime() - _window_size / 2 - _tclick;
 
-    // TODO pragma omp here
     for (int layer = 0; layer < _numberOfLayers; layer++)
     {
+#pragma omp parallel for
         for (int ladder = 0; ladder < _laddersInLayer[layer]; ladder++)
         {
 #ifdef ZSEGMENTED

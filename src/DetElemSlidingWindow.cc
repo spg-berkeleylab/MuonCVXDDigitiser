@@ -83,9 +83,12 @@ bool DetElemSlidingWindow::move_forward()
         StoreSignalPoints(hit);
         _htable.DisposeHit(_sensor.GetLayer(), _sensor.GetLadder());
     }
-    
+
     if (!signals.empty())
     {
+        streamlog_out(DEBUG) << "Signal points for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
+                               << " = " << signals.size() << std::endl;
+
         for (TimedSignalPoint spoint = signals.front();
              curr_time - spoint.time > window_radius;
              spoint = signals.front())
@@ -196,7 +199,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
                                 << std::endl;
         return;
     }    
-    
+  
     
     Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
     // Store local position in mm

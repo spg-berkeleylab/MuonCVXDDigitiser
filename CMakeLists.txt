@@ -48,6 +48,13 @@ find_package( DD4hep REQUIRED COMPONENTS DDRec)
 INCLUDE_DIRECTORIES( SYSTEM ${DD4hep_INCLUDE_DIRS} )
 LINK_LIBRARIES( ${DD4hep_LIBRARIES} ${DD4hep_COMPONENT_LIBRARIES}  )
 
+find_package(OpenMP)
+option(OPENMP_ENABLED "Activate OpenMP parallel compilation" ON)
+if(OPENMP_FOUND AND OPENMP_ENABLED)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" )
+endif()
+
 ### DOCUMENTATION ###########################################################
 
 OPTION( INSTALL_DOC "Set to OFF to skip build/install Documentation" OFF )
