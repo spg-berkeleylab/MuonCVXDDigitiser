@@ -82,7 +82,8 @@ endif()
 INCLUDE_DIRECTORIES( ./include )
 
 # add library
-ADD_SHARED_LIBRARY( ${PROJECT_NAME} src/DetElemSlidingWindow.cc
+ADD_SHARED_LIBRARY( ${PROJECT_NAME} src/ChargeClustersBuilder.cc
+                                    src/DetElemSlidingWindow.cc
                                     src/G4UniversalFluctuation.cc
                                     src/HitTemporalIndexes.cc
                                     src/MuonCVXDDigitiser.cc

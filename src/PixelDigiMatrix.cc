@@ -27,6 +27,9 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     x_size = lwid / psx;
     y_size = llen / psy;
 
+    x_segnum = xsegmentNumber;
+    y_segnum = ysegmentNumber;
+
     x_segsize = xsegmentNumber > 0 ? x_size / xsegmentNumber : 1;
     y_segsize = ysegmentNumber > 0 ? y_size / ysegmentNumber : 1;
     

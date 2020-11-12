@@ -53,6 +53,10 @@ public:
     inline double GetPixelSizeY() { return _pixelSizeY; }
     inline int GetSizeX() { return x_size; }
     inline int GetSizeY() { return y_size; }
+    inline int GetSegSizeX() { return x_segsize; }
+    inline int GetSegSizeY() { return y_segsize; }
+    inline int GetSegNumX() { return x_segnum; }
+    inline int GetSegNumY() { return y_segnum; }
     inline MatrixStatus GetStatus() { return status; }
 
     void Reset();
@@ -78,6 +82,8 @@ private:
     int y_size;
     int x_segsize;
     int y_segsize;
+    int x_segnum;
+    int y_segnum;
     EnergyMatrix pixels;
     MatrixStatus status;
 };
