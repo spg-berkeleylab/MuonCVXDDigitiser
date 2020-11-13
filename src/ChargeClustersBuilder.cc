@@ -1,5 +1,9 @@
 #include "ChargeClustersBuilder.h"
 
+#include <algorithm>
+
+using std::sort;
+
 /* ****************************************************************************
 
     Find-Union Algorithm
@@ -9,21 +13,24 @@
 GridPartitionedSet::GridPartitionedSet(int x_s, int y_s) :
     x_size(x_s),
     y_size(y_s),
-    data(x_size * y_size, 0)
-{
-    reset();
-}
+    valid_cells(0),
+    c_curr(0),
+    c_next(0),
+    data(x_size * y_size, 0),
+    c_buffer(0)
+{}
 
-void GridPartitionedSet::reset()
+void GridPartitionedSet::init()
 {
     for (size_t k = 0; k < data.size(); k++) data[k] = k;
+    valid_cells = data.size();
 }
 
-/*
- * Remove internal references in the grid, each cell contains the cluster ID
- */
-void GridPartitionedSet::collapse()
+void GridPartitionedSet::close()
 {
+    /*
+     * Remove internal references in the grid, each cell contains the cluster ID
+     */
     for (int h = 0; h < x_size; h++)
     {
         for (int k = 0; k < y_size; k++)
@@ -31,6 +38,24 @@ void GridPartitionedSet::collapse()
             if (data[k] >= 0) find(h, k);
         }
     }
+
+    /*
+     * Prepare the ordered set of clusters
+     */
+    c_buffer.resize(valid_cells);
+    int c_id = 0;
+    for (size_t k = 0; k < data.size(); k++)
+    {
+        if (data[k] >= 0)
+        {
+            c_buffer[c_id] = { k, data[k] };
+            c_id++;
+        }
+    }
+    sort(c_buffer.begin(), c_buffer.end(), CmpClusterData);
+    
+    c_curr = -1;
+    c_next = 0;
 }
 
 int GridPartitionedSet::find(int x, int y)
@@ -72,8 +97,29 @@ void GridPartitionedSet::merge(int x1, int y1, int x2, int y2)
 void GridPartitionedSet::invalidate(int x, int y)
 {
     data[index(x, y)] = -1;
+    valid_cells--;
 }
 
+vector<GridCoordinate> GridPartitionedSet::next()
+{
+    c_curr = c_next;
+    if (c_curr == c_buffer.size())
+    {
+        vector<GridCoordinate> empty {};
+        return empty;
+    }
+
+    while (c_next < c_buffer.size() && c_buffer[c_next].label == c_buffer[c_curr].label) c_next++;
+
+    int res_size = c_next - c_curr;
+    vector<GridCoordinate> result(res_size, { 0, 0 });
+
+    for (int k = 0; k < res_size; k++)
+    {
+        result[k] = coordinate(c_buffer[c_curr + k].pos);
+    }
+    return result;
+}
 
 /* ****************************************************************************
 
@@ -97,7 +143,7 @@ void ChargeClustersBuilder::buildHits(TrackerHitList& output)
             //Hoshen-Kopelman Algorithm:
             //  https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
 
-            _gridSet.reset();
+            _gridSet.init();
 
             for (int i = 0; i < _sensor.GetSegSizeX(); i++)
             {
@@ -128,7 +174,9 @@ void ChargeClustersBuilder::buildHits(TrackerHitList& output)
                 }
             }
             
-            _gridSet.collapse();
+            _gridSet.close();
+
+            // TODO calculate tracker hits
         }
     }
 }

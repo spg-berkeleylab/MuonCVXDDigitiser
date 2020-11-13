@@ -9,6 +9,20 @@ using IMPL::TrackerHitPlaneImpl;
 
 typedef vector<TrackerHitPlaneImpl> TrackerHitList;
 
+struct ClusterData
+{
+    int label;
+    int pos;
+};
+
+bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
+
+struct GridCoordinate
+{
+    int x;
+    int y;
+};
+
 class GridPartitionedSet
 {
 public:
@@ -16,16 +30,22 @@ public:
     virtual ~GridPartitionedSet() {}
     int find(int x, int y);
     void merge(int x1, int y1, int x2, int y2);
-    void reset();
-    void collapse();
+    void init();
+    void close();
     void invalidate(int x, int y);
+    vector<GridCoordinate> next();
 
 private:
     inline int index(int x, int y) { return x * x_size + y; }
+    inline GridCoordinate coordinate(int p) { return { p / x_size, p % x_size }; }
 
     int x_size;
     int y_size;
+    int valid_cells;
+    int c_curr;
+    int c_next;
     vector<int> data;
+    vector<ClusterData> c_buffer;
 };
 
 class ChargeClustersBuilder
