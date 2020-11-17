@@ -7,7 +7,7 @@
 using std::vector;
 using IMPL::TrackerHitPlaneImpl;
 
-typedef vector<TrackerHitPlaneImpl> TrackerHitList;
+typedef vector<TrackerHitPlaneImpl*> TrackerHitList;
 
 struct ClusterData
 {
@@ -15,7 +15,7 @@ struct ClusterData
     int pos;
 };
 
-bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
+static bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
 
 struct GridCoordinate
 {
@@ -62,6 +62,9 @@ protected:
 
     PixelDigiMatrix& _sensor;
     GridPartitionedSet _gridSet;
+
+private:
+    float getGridCharge(int seg_x, int seg_y, int pos_x, int pos_y);
 };
 
 #endif //ChargeClustersBuilder_h

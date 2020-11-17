@@ -23,7 +23,8 @@
 #include "CLHEP/Random/RandFlat.h"
 
 #ifdef TIME_PROCESS
-#include "DetElemSlidingWindow.h" 
+#include "DetElemSlidingWindow.h"
+#include "ChargeClustersBuilder.h"
 #endif
     
 // ----- include for verbosity dependend logging ---------
@@ -257,7 +258,7 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
 
 /******************************************************************************
-    Time window implementatin
+    Time window implementation
  ******************************************************************************/
 #ifdef TIME_PROCESS
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
@@ -274,6 +275,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     }
 
     if( STHcol == nullptr ) return;
+
+    LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
+    CellIDEncoder<TrackerHitPlaneImpl> cellid_encoder( lcio::LCTrackerCellID::encoding_string(), THcol ) ;
 
     HitTemporalIndexes t_index{STHcol};
     float start_time = t_index.GetMinTime() - _window_size / 2 - _tclick;
@@ -296,7 +300,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _layerThickness[layer],
                 _pixelSizeX, _pixelSizeY 
             };
-
+            
             if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
             {
                 streamlog_out(ERROR) << "Pixel number error for layer " << layer
@@ -309,6 +313,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                                      << " ladder " << ladder << std::endl;
                 continue;
             }
+
+            ChargeClustersBuilder cluster_builder { sensor };
 
             DetElemSlidingWindow t_window {
                 t_index, sensor,
@@ -329,7 +335,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             int counter = 0;
             for(bool goon = true; goon; goon = t_window.move_forward())
             {
-                // TODO implement clustering algorithm
+                TrackerHitList hit_buffer {};
+                cluster_builder.buildHits(hit_buffer);
+                
+                // TODO adjust values in hit_buffer items
+                
+#pragma omp critical               
+                {
+                    for(TrackerHitPlaneImpl* recoHit : hit_buffer) THcol->addElement(recoHit);
+                }
+
                 counter++;
             }
         }

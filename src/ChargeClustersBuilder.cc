@@ -176,7 +176,29 @@ void ChargeClustersBuilder::buildHits(TrackerHitList& output)
             
             _gridSet.close();
 
-            // TODO calculate tracker hits
+            vector<GridCoordinate> c_item = _gridSet.next();
+            while (c_item.size() > 0)
+            {
+                // Very simple implemetation: center-of-gravity
+                float tot_charge = 0;
+                float x_acc = 0;
+                float y_acc = 0;
+                for (GridCoordinate p_coord : c_item)
+                {
+                    float tmpc = getGridCharge(h, k, p_coord.x, p_coord.y);
+                    tot_charge += tmpc;
+                    x_acc += tmpc * p_coord.x;
+                    y_acc += tmpc * p_coord.y;
+                }
+
+                TrackerHitPlaneImpl* recoHit = new TrackerHitPlaneImpl();
+                recoHit->setEDep(tot_charge);
+                double pos[3] = { x_acc / tot_charge, y_acc / tot_charge, 0 };
+                recoHit->setPosition(pos);
+                output.push_back(recoHit);
+
+                c_item = _gridSet.next();
+            }
         }
     }
 }
@@ -190,10 +212,16 @@ float ChargeClustersBuilder::getThreshold(int segid_x, int segid_y)
 
 bool ChargeClustersBuilder::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
 {
+    return getGridCharge(seg_x, seg_y, pos_x, pos_y) > charge;
+}
+
+float ChargeClustersBuilder::getGridCharge(int seg_x, int seg_y, int pos_x, int pos_y)
+{
     int global_x = seg_x * _sensor.GetSegSizeX() + pos_x;
     int global_y = seg_y * _sensor.GetSegSizeY() + pos_y;
-    return _sensor.GetPixel(global_x, global_y).charge > charge;
+    return _sensor.GetPixel(global_x, global_y).charge;
 }
+
 
 
 
