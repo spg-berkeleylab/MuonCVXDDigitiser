@@ -132,7 +132,7 @@ ChargeClustersBuilder::ChargeClustersBuilder(PixelDigiMatrix& sensor) :
     _gridSet(_sensor.GetSegSizeX(), _sensor.GetSegSizeY())
 {}
 
-void ChargeClustersBuilder::buildHits(TrackerHitList& output)
+void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
 {
     for (int h = 0; h < _sensor.GetSegNumX(); h++)
     {
@@ -155,8 +155,8 @@ void ChargeClustersBuilder::buildHits(TrackerHitList& output)
                         continue;
                     }
 
-                    bool up_is_above = i == 0 ? false : aboveThreshold(charge_thr, h, k, i - 1, j);
-                    bool left_is_above = j == 0 ? false : aboveThreshold(charge_thr, h, k, i, j - 1);
+                    bool up_is_above = aboveThreshold(charge_thr, h, k, i - 1, j);
+                    bool left_is_above = aboveThreshold(charge_thr, h, k, i, j - 1);
 
                     if (up_is_above && left_is_above)
                     {
@@ -185,17 +185,21 @@ void ChargeClustersBuilder::buildHits(TrackerHitList& output)
                 float y_acc = 0;
                 for (GridCoordinate p_coord : c_item)
                 {
-                    float tmpc = getGridCharge(h, k, p_coord.x, p_coord.y);
+                    int global_x = sensor_posx(h, p_coord.x);
+                    int global_y = sensor_posy(k, p_coord.y);
+                    float tmpc = _sensor.GetPixel(global_x, global_y).charge;
+                    double pos_x = 0;
+                    double pos_y = 0;
+
+                    _sensor.TransformCellIDToXY(global_x, global_y, pos_x, pos_y);
+
                     tot_charge += tmpc;
-                    x_acc += tmpc * p_coord.x;
-                    y_acc += tmpc * p_coord.y;
+                    x_acc += tmpc * pos_x;
+                    y_acc += tmpc * pos_y;
                 }
 
-                TrackerHitPlaneImpl* recoHit = new TrackerHitPlaneImpl();
-                recoHit->setEDep(tot_charge);
-                double pos[3] = { x_acc / tot_charge, y_acc / tot_charge, 0 };
-                recoHit->setPosition(pos);
-                output.push_back(recoHit);
+                SegmentDigiHit digiHit = { x_acc / tot_charge, y_acc / tot_charge, tot_charge };
+                output.push_back(digiHit);
 
                 c_item = _gridSet.next();
             }
@@ -212,14 +216,10 @@ float ChargeClustersBuilder::getThreshold(int segid_x, int segid_y)
 
 bool ChargeClustersBuilder::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
 {
-    return getGridCharge(seg_x, seg_y, pos_x, pos_y) > charge;
-}
+    if (pos_x < 0 || pos_x >= _sensor.GetSegSizeX()) return false;
+    if (pos_y < 0 || pos_y >= _sensor.GetSegSizeY()) return false;
 
-float ChargeClustersBuilder::getGridCharge(int seg_x, int seg_y, int pos_x, int pos_y)
-{
-    int global_x = seg_x * _sensor.GetSegSizeX() + pos_x;
-    int global_y = seg_y * _sensor.GetSegSizeY() + pos_y;
-    return _sensor.GetPixel(global_x, global_y).charge;
+    return _sensor.GetPixel(sensor_posx(seg_x, pos_x), sensor_posy(seg_y, pos_y)).charge > charge;
 }
 
 

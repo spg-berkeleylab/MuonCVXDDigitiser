@@ -2,12 +2,8 @@
 #define ChargeClustersBuilder_h 1
 
 #include "PixelDigiMatrix.h"
-#include <IMPL/TrackerHitPlaneImpl.h>
 
 using std::vector;
-using IMPL::TrackerHitPlaneImpl;
-
-typedef vector<TrackerHitPlaneImpl*> TrackerHitList;
 
 struct ClusterData
 {
@@ -22,6 +18,15 @@ struct GridCoordinate
     int x;
     int y;
 };
+
+struct SegmentDigiHit
+{
+    float x;
+    float y;
+    float charge;
+};
+
+typedef vector<SegmentDigiHit> SegmentDigiHitList;
 
 class GridPartitionedSet
 {
@@ -54,7 +59,7 @@ public:
     ChargeClustersBuilder(PixelDigiMatrix& sensor);
     virtual ~ChargeClustersBuilder() {}
 
-    virtual void buildHits(TrackerHitList& output);
+    virtual void buildHits(SegmentDigiHitList& output);
 
 protected:
     virtual float getThreshold(int segid_x, int segid_y);
@@ -64,7 +69,8 @@ protected:
     GridPartitionedSet _gridSet;
 
 private:
-    float getGridCharge(int seg_x, int seg_y, int pos_x, int pos_y);
+    inline int sensor_posx(int seg_x, int pos_x) { return seg_x * _sensor.GetSegSizeX() + pos_x; }
+    inline int sensor_posy(int seg_y, int pos_y) { return seg_y * _sensor.GetSegSizeY() + pos_y; }
 };
 
 #endif //ChargeClustersBuilder_h

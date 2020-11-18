@@ -335,14 +335,32 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             int counter = 0;
             for(bool goon = true; goon; goon = t_window.move_forward())
             {
-                TrackerHitList hit_buffer {};
+                SegmentDigiHitList hit_buffer {};
                 cluster_builder.buildHits(hit_buffer);
                 
-                // TODO adjust values in hit_buffer items
-                
+                vector<TrackerHitPlaneImpl*> reco_buffer { hit_buffer.size(), nullptr };
+                int idx = 0;
+                for (SegmentDigiHit digiHit : hit_buffer)
+                {
+                    TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
+                    recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
+
+                    double pos[3] = { 
+                        digiHit.x - _layerHalfThickness[_currentLayer] * _tanLorentzAngleX,
+                        digiHit.y - _layerHalfThickness[_currentLayer] * _tanLorentzAngleY,
+                        0
+                    };
+                    recoHit->setPosition(pos);
+
+                    // TODO adjust recoHit
+
+                    reco_buffer[idx] = recoHit;
+                    idx++;
+                }
+
 #pragma omp critical               
                 {
-                    for(TrackerHitPlaneImpl* recoHit : hit_buffer) THcol->addElement(recoHit);
+                    for(TrackerHitPlaneImpl* recoHit : reco_buffer) THcol->addElement(recoHit);
                 }
 
                 counter++;
