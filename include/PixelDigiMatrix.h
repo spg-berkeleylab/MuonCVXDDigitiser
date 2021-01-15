@@ -4,6 +4,8 @@
 #include <vector>
 #include <functional>
 
+using std::string;
+
 enum class PixelStatus : char {
     ok,
     undefined,
@@ -24,8 +26,17 @@ enum class MatrixStatus : char {
     segment_number_error
 };
 
+struct SegmentDigiHit
+{
+    float x;
+    float y;
+    float charge;
+    int cellID0;
+};
+
 typedef std::vector<PixelData> EnergyMatrix;
 typedef std::function<PixelData(PixelData pIn)> PixelTransformation;
+typedef std::vector<SegmentDigiHit> SegmentDigiHitList;
 
 class PixelDigiMatrix
 {
@@ -38,8 +49,11 @@ public:
                     float ladderWidth,
                     float thickness,
                     double pixelSizeX,
-                    double pixelSizeY);
+                    double pixelSizeY,
+                    string enc_str);
     virtual ~PixelDigiMatrix();
+
+    virtual void buildHits(SegmentDigiHitList& output) = 0;
 
     inline int GetLayer() { return _layer; }
     inline int GetLadder() { return _ladder; }
@@ -59,6 +73,8 @@ public:
     inline int GetSegNumY() { return y_segnum; }
     inline MatrixStatus GetStatus() { return status; }
 
+    inline string GetCellIDFormatStr() { return cellFmtStr; }
+
     void Reset();
     void UpdatePixel(int x, int y, PixelData data);
     void Apply(PixelTransformation l_expr);
@@ -71,6 +87,7 @@ private:
     inline int index(int x, int y) { return x * x_size + y; }
     bool check(int x, int y);
 
+protected:
     int _layer;
     int _ladder;
     float _thickness;
@@ -86,6 +103,7 @@ private:
     int y_segnum;
     EnergyMatrix pixels;
     MatrixStatus status;
+    string cellFmtStr;
 };
 
 #endif //PixelDigiMatrix_h

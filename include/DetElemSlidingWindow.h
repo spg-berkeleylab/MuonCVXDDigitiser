@@ -9,7 +9,10 @@
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
 
+#include <UTIL/CellIDDecoder.h>
+
 using dd4hep::rec::SurfaceMap;
+using UTIL::CellIDDecoder;
 
 struct TimedSignalPoint
 {
@@ -70,6 +73,7 @@ private:
     double _deltaEne;
     TimedSignalPointList signals;
     const SurfaceMap* surf_map;
+    CellIDDecoder<SimTrackerHit> cell_decoder;
     G4UniversalFluctuation* _fluctuate;
 };
 

@@ -16,8 +16,8 @@ SET( ${PROJECT_NAME}_VERSION_PATCH 0 )
 
 set(PACKAGE_INSTALL_LIB_DIR lib CACHE PATH "Installation directory for libraries")
 set(PACKAGE_INSTALL_INC_DIR include CACHE PATH "Installation directory for headers")
-option(ZSEGMENTED "Sensitives are segmented along z")
-option(TIME_PROCESS "Enable time window")
+option(ZSEGMENTED "Sensitives are segmented along z" ON)
+option(TIME_PROCESS "Enable time window" OFF)
 
 ### DEPENDENCIES ############################################################
 

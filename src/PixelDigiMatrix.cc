@@ -10,14 +10,16 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  float ladderWidth,
                                  float thickness,
                                  double pixelSizeX,
-                                 double pixelSizeY):
+                                 double pixelSizeY,
+                                 string enc_str):
     _layer(layer),
     _ladder(ladder),
     _thickness(thickness),
     _pixelSizeX(abs(pixelSizeX)),
     _pixelSizeY(abs(pixelSizeY)),
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
-    _ladderWidth(ladderWidth > 0 ? ladderWidth : 0)
+    _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
+    cellFmtStr(enc_str)
 {
     int lwid = floor(ladderWidth * 1e4);
     int psx = floor(pixelSizeX * 1e4);

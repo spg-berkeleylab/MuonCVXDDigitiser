@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 
+#include <EVENT/LCIO.h>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
 
@@ -275,9 +276,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     }
 
     if( STHcol == nullptr ) return;
+    std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
 
     LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
-    CellIDEncoder<TrackerHitPlaneImpl> cellid_encoder( lcio::LCTrackerCellID::encoding_string(), THcol ) ;
 
     HitTemporalIndexes t_index{STHcol};
     float start_time = t_index.GetMinTime() - _window_size / 2 - _tclick;
@@ -288,17 +289,20 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
         for (int ladder = 0; ladder < _laddersInLayer[layer]; ladder++)
         {
 #ifdef ZSEGMENTED
-            int nun_segment = _sensorsPerLadder[layer];
+            int num_segment_x = 1;
+            int nun_segment_y = _sensorsPerLadder[layer];
 #else
-            int nun_segment = 1;
+            int num_segment_x = 1;
+            int nun_segment_y = 1;
 #endif
-            PixelDigiMatrix sensor {
+            ChargeClustersBuilder sensor {
                 layer, ladder,
-                1, nun_segment,
+                num_segment_x, nun_segment_y,
                 _layerLadderLength[layer],
                 _layerLadderWidth[layer],
                 _layerThickness[layer],
-                _pixelSizeX, _pixelSizeY 
+                _pixelSizeX, _pixelSizeY,
+                encoder_str
             };
             
             if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
@@ -313,8 +317,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                                      << " ladder " << ladder << std::endl;
                 continue;
             }
-
-            ChargeClustersBuilder cluster_builder { sensor };
 
             DetElemSlidingWindow t_window {
                 t_index, sensor,
@@ -336,7 +338,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             for(bool goon = true; goon; goon = t_window.move_forward())
             {
                 SegmentDigiHitList hit_buffer {};
-                cluster_builder.buildHits(hit_buffer);
+                sensor.buildHits(hit_buffer);
                 
                 vector<TrackerHitPlaneImpl*> reco_buffer { hit_buffer.size(), nullptr };
                 int idx = 0;
@@ -345,14 +347,44 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
                     recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
 
-                    double pos[3] = { 
-                        digiHit.x - _layerHalfThickness[_currentLayer] * _tanLorentzAngleX,
-                        digiHit.y - _layerHalfThickness[_currentLayer] * _tanLorentzAngleY,
+                    double loc_pos[3] = { 
+                        digiHit.x - _layerHalfThickness[layer] * _tanLorentzAngleX,
+                        digiHit.y - _layerHalfThickness[layer] * _tanLorentzAngleY,
                         0
                     };
-                    recoHit->setPosition(pos);
 
-                    // TODO adjust recoHit
+                    recoHit->setCellID0(digiHit.cellID0);
+                    recoHit->setCellID1(0);
+
+                    double xLab[3];
+                    TransformToLab(digiHit.cellID0, loc_pos, xLab);
+                    recoHit->setPosition(xLab);
+                    // TODO missing segmentation correction
+
+            //**************************************************************************
+            // Store hit variables to TrackerHitImpl
+            //**************************************************************************
+
+            // hit's layer/ladder position does not change
+
+                    recoHit->setTime(0);  // TODO missing sampling time
+/*
+            SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0) ;
+            const dd4hep::rec::ISurface* surf = sI->second ;
+
+            dd4hep::rec::Vector3D u = surf->u() ;
+            dd4hep::rec::Vector3D v = surf->v() ;
+            
+            float u_direction[2] = { u.theta(), u.phi() };
+            float v_direction[2] = { v.theta(), v.phi() };
+
+            recoHit->setU( u_direction ) ;
+            recoHit->setV( v_direction ) ;
+            
+            // ALE Does this make sense??? TO CHECK
+            recoHit->setdU( _pixelSizeX / sqrt(12) );
+            recoHit->setdV( _pixelSizeY / sqrt(12) );  
+*/
 
                     reco_buffer[idx] = recoHit;
                     idx++;

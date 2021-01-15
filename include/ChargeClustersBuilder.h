@@ -19,15 +19,6 @@ struct GridCoordinate
     int y;
 };
 
-struct SegmentDigiHit
-{
-    float x;
-    float y;
-    float charge;
-};
-
-typedef vector<SegmentDigiHit> SegmentDigiHitList;
-
 class GridPartitionedSet
 {
 public:
@@ -53,24 +44,32 @@ private:
     vector<ClusterData> c_buffer;
 };
 
-class ChargeClustersBuilder
+class ChargeClustersBuilder : public PixelDigiMatrix
 {
 public:
-    ChargeClustersBuilder(PixelDigiMatrix& sensor);
+    ChargeClustersBuilder(int layer,
+                          int ladder,
+                          int xsegmentNumber,
+                          int ysegmentNumber,
+                          float ladderLength,
+                          float ladderWidth,
+                          float thickness,
+                          double pixelSizeX,
+                          double pixelSizeY,
+                          string enc_str);
     virtual ~ChargeClustersBuilder() {}
 
-    virtual void buildHits(SegmentDigiHitList& output);
+    void buildHits(SegmentDigiHitList& output);
 
 protected:
     virtual float getThreshold(int segid_x, int segid_y);
     virtual bool aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y);
 
-    PixelDigiMatrix& _sensor;
     GridPartitionedSet _gridSet;
 
 private:
-    inline int sensor_posx(int seg_x, int pos_x) { return seg_x * _sensor.GetSegSizeX() + pos_x; }
-    inline int sensor_posy(int seg_y, int pos_y) { return seg_y * _sensor.GetSegSizeY() + pos_y; }
+    inline int sensor_posx(int seg_x, int pos_x) { return seg_x * this->GetSegSizeX() + pos_x; }
+    inline int sensor_posy(int seg_y, int pos_y) { return seg_y * this->GetSegSizeY() + pos_y; }
 };
 
 #endif //ChargeClustersBuilder_h

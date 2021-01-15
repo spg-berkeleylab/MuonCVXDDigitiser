@@ -1,8 +1,14 @@
 #include "ChargeClustersBuilder.h"
+#include <UTIL/BitField64.h>
+#include <UTIL/LCTrackerConf.h>
+#include <UTIL/ILDConf.h>
 
 #include <algorithm>
 
 using std::sort;
+using UTIL::BitField64;
+using lcio::LCTrackerCellID;
+using lcio::ILDDetID;
 
 /* ****************************************************************************
 
@@ -127,16 +133,41 @@ vector<GridCoordinate> GridPartitionedSet::next()
 
    ************************************************************************* */
 
-ChargeClustersBuilder::ChargeClustersBuilder(PixelDigiMatrix& sensor) :
-    _sensor(sensor),
-    _gridSet(_sensor.GetSegSizeX(), _sensor.GetSegSizeY())
+ChargeClustersBuilder::ChargeClustersBuilder(int layer,
+                                             int ladder,
+                                             int xsegmentNumber,
+                                             int ysegmentNumber,
+                                             float ladderLength,
+                                             float ladderWidth,
+                                             float thickness,
+                                             double pixelSizeX,
+                                             double pixelSizeY,
+                                             string enc_str) :
+    PixelDigiMatrix(layer,
+                    ladder,
+                    xsegmentNumber,
+                    ysegmentNumber,
+                    ladderLength,
+                    ladderWidth,
+                    thickness,
+                    pixelSizeX,
+                    pixelSizeY,
+                    enc_str),
+    _gridSet(x_segsize, y_segsize)
 {}
 
 void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
 {
-    for (int h = 0; h < _sensor.GetSegNumX(); h++)
+    BitField64 bf_encoder(this->GetCellIDFormatStr());
+    bf_encoder.reset();
+    bf_encoder[LCTrackerCellID::subdet()] = 0;                   // TODO missing barrel ID
+    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
+    bf_encoder[LCTrackerCellID::layer()] = this->GetLayer();
+    bf_encoder[LCTrackerCellID::module()] = this->GetLadder();
+
+    for (int h = 0; h < this->GetSegNumX(); h++)
     {
-        for (int k = 0; k < _sensor.GetSegNumY(); k++)
+        for (int k = 0; k < this->GetSegNumY(); k++)
         {
             float charge_thr = getThreshold(h, k);
 
@@ -145,9 +176,9 @@ void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
 
             _gridSet.init();
 
-            for (int i = 0; i < _sensor.GetSegSizeX(); i++)
+            for (int i = 0; i < this->GetSegSizeX(); i++)
             {
-                for (int j = 0; j < _sensor.GetSegSizeY(); j++)
+                for (int j = 0; j < this->GetSegSizeY(); j++)
                 {
                     if (!aboveThreshold(charge_thr, h, k, i, j))
                     {
@@ -187,18 +218,26 @@ void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
                 {
                     int global_x = sensor_posx(h, p_coord.x);
                     int global_y = sensor_posy(k, p_coord.y);
-                    float tmpc = _sensor.GetPixel(global_x, global_y).charge;
+                    float tmpc = this->GetPixel(global_x, global_y).charge;
                     double pos_x = 0;
                     double pos_y = 0;
 
-                    _sensor.TransformCellIDToXY(global_x, global_y, pos_x, pos_y);
+                    this->TransformCellIDToXY(global_x, global_y, pos_x, pos_y);
 
                     tot_charge += tmpc;
                     x_acc += tmpc * pos_x;
                     y_acc += tmpc * pos_y;
                 }
 
-                SegmentDigiHit digiHit = { x_acc / tot_charge, y_acc / tot_charge, tot_charge };
+                //Sensor segments ordered row first
+                bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumX() + k;
+
+                SegmentDigiHit digiHit = {
+                    x_acc / tot_charge,
+                    y_acc / tot_charge,
+                    tot_charge,
+                    bf_encoder.lowWord()
+                };
                 output.push_back(digiHit);
 
                 c_item = _gridSet.next();
@@ -216,10 +255,10 @@ float ChargeClustersBuilder::getThreshold(int segid_x, int segid_y)
 
 bool ChargeClustersBuilder::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
 {
-    if (pos_x < 0 || pos_x >= _sensor.GetSegSizeX()) return false;
-    if (pos_y < 0 || pos_y >= _sensor.GetSegSizeY()) return false;
+    if (pos_x < 0 || pos_x >= this->GetSegSizeX()) return false;
+    if (pos_y < 0 || pos_y >= this->GetSegSizeY()) return false;
 
-    return _sensor.GetPixel(sensor_posx(seg_x, pos_x), sensor_posy(seg_y, pos_y)).charge > charge;
+    return this->GetPixel(sensor_posx(seg_x, pos_x), sensor_posy(seg_y, pos_y)).charge > charge;
 }
 
 

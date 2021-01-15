@@ -56,7 +56,8 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     _maxTrkLen(maxTrkLen),
     _deltaEne(maxEnergyDelta),
     signals(),
-    surf_map(s_map)
+    surf_map(s_map),
+    cell_decoder(sensor.GetCellIDFormatStr())
 {
     _fluctuate = new G4UniversalFluctuation();
 }
@@ -120,11 +121,11 @@ void DetElemSlidingWindow::UpdatePixels()
 
         for (int ix = ixLo; ix < ixUp + 1; ++ix)
         {
-            if (ix < 0) continue;
+            if (ix < 0 || ix >= _sensor.GetSizeX()) continue;
 
             for (int iy = iyLo; iy < iyUp + 1; ++iy)
             {
-                if (iy < 0) continue;
+                if (iy < 0 || iy >= _sensor.GetSizeY()) continue;
 
                 double xCurrent, yCurrent;
                 _sensor.TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
@@ -199,12 +200,20 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
                                 << std::endl;
         return;
     }    
-  
-    
+
+
     Vector2D lv = surf->globalToLocal( dd4hep::mm * oldPos  ) ;
     // Store local position in mm
-    pos[0] = lv[0] / dd4hep::mm ;
-    pos[1] = lv[1] / dd4hep::mm ;
+    pos[0] = lv[0] / dd4hep::mm;
+#ifdef ZSEGMENTED
+    int segment_id = cell_decoder(hit)["sensor"];
+
+    float s_offset = _sensor.GetSegSizeY() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
+    s_offset -= _sensor.GetHalfLength();
+    pos[1] = (lv[1] + s_offset)/ dd4hep::mm;
+#else
+    pos[1] = lv[1] / dd4hep::mm;
+#endif
 
     // Add also z ccordinate
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
