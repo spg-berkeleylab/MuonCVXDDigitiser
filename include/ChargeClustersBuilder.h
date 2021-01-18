@@ -56,7 +56,8 @@ public:
                           float thickness,
                           double pixelSizeX,
                           double pixelSizeY,
-                          string enc_str);
+                          string enc_str,
+                          int barrel_id);
     virtual ~ChargeClustersBuilder() {}
 
     void buildHits(SegmentDigiHitList& output);

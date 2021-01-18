@@ -11,7 +11,9 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  float thickness,
                                  double pixelSizeX,
                                  double pixelSizeY,
-                                 string enc_str):
+                                 string enc_str,
+                                 int barrel_id):
+    _barrel_id(barrel_id),
     _layer(layer),
     _ladder(ladder),
     _thickness(thickness),

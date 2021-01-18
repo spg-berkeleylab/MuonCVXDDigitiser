@@ -206,6 +206,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     // Store local position in mm
     pos[0] = lv[0] / dd4hep::mm;
 #ifdef ZSEGMENTED
+    // See MuonCVXDDigitiser::processEvent
     int segment_id = cell_decoder(hit)["sensor"];
 
     float s_offset = _sensor.GetSegSizeY() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);

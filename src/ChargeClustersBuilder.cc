@@ -142,7 +142,8 @@ ChargeClustersBuilder::ChargeClustersBuilder(int layer,
                                              float thickness,
                                              double pixelSizeX,
                                              double pixelSizeY,
-                                             string enc_str) :
+                                             string enc_str,
+                                             int barrel_id) :
     PixelDigiMatrix(layer,
                     ladder,
                     xsegmentNumber,
@@ -152,7 +153,8 @@ ChargeClustersBuilder::ChargeClustersBuilder(int layer,
                     thickness,
                     pixelSizeX,
                     pixelSizeY,
-                    enc_str),
+                    enc_str,
+                    barrel_id),
     _gridSet(x_segsize, y_segsize)
 {}
 
@@ -160,7 +162,7 @@ void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
 {
     BitField64 bf_encoder(this->GetCellIDFormatStr());
     bf_encoder.reset();
-    bf_encoder[LCTrackerCellID::subdet()] = 0;                   // TODO missing barrel ID
+    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
     bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
     bf_encoder[LCTrackerCellID::layer()] = this->GetLayer();
     bf_encoder[LCTrackerCellID::module()] = this->GetLadder();
@@ -236,7 +238,9 @@ void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
                     x_acc / tot_charge,
                     y_acc / tot_charge,
                     tot_charge,
-                    bf_encoder.lowWord()
+                    0,                    // TODO missing sampling time
+                    bf_encoder.lowWord(),
+                    h, k
                 };
                 output.push_back(digiHit);
 

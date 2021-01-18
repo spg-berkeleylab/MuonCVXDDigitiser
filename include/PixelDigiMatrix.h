@@ -31,7 +31,10 @@ struct SegmentDigiHit
     float x;
     float y;
     float charge;
+    float time;
     int cellID0;
+    int segment_x;  // redundant information
+    int segment_y;  // redundant information
 };
 
 typedef std::vector<PixelData> EnergyMatrix;
@@ -50,7 +53,8 @@ public:
                     float thickness,
                     double pixelSizeX,
                     double pixelSizeY,
-                    string enc_str);
+                    string enc_str,
+                    int barrel_id);
     virtual ~PixelDigiMatrix();
 
     virtual void buildHits(SegmentDigiHitList& output) = 0;
@@ -88,6 +92,7 @@ private:
     bool check(int x, int y);
 
 protected:
+    int _barrel_id;
     int _layer;
     int _ladder;
     float _thickness;

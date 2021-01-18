@@ -208,6 +208,7 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
       throw Exception( err.str() ) ;
     }
 
+    _barrelID = vxBarrel.id();
     _laddersInLayer.resize(_numberOfLayers);
 #ifdef ZSEGMENTED
     _sensorsPerLadder.resize(_numberOfLayers);
@@ -302,7 +303,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _layerLadderWidth[layer],
                 _layerThickness[layer],
                 _pixelSizeX, _pixelSizeY,
-                encoder_str
+                encoder_str, _barrelID
             };
             
             if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
@@ -356,35 +357,45 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                     recoHit->setCellID0(digiHit.cellID0);
                     recoHit->setCellID1(0);
 
+                    SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0);
+                    const ISurface* surf = sI->second;
+
+#ifdef ZSEGMENTED
+                    // See DetElemSlidingWindow::StoreSignalPoints
+                    float s_offset = sensor.GetSegSizeY() * sensor.GetPixelSizeY();
+                    s_offset *= (float(digiHit.segment_y) + 0.5);
+                    s_offset -= sensor.GetHalfLength();
+
+                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, (loc_pos[1] - s_offset) * dd4hep::mm);
+                    Vector3D lv = surf->localToGlobal(oldPos);
+
+                    double xLab[3];
+                    for ( int i = 0; i < 3; i++ )
+                    {
+                        xLab[i] = lv[i] / dd4hep::mm;
+                    }
+
+                    recoHit->setPosition(xLab);
+#else
                     double xLab[3];
                     TransformToLab(digiHit.cellID0, loc_pos, xLab);
                     recoHit->setPosition(xLab);
-                    // TODO missing segmentation correction
+#endif
 
-            //**************************************************************************
-            // Store hit variables to TrackerHitImpl
-            //**************************************************************************
+                    recoHit->setTime(digiHit.time);
 
-            // hit's layer/ladder position does not change
+                    Vector3D u = surf->u() ;
+                    Vector3D v = surf->v() ;
 
-                    recoHit->setTime(0);  // TODO missing sampling time
-/*
-            SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0) ;
-            const dd4hep::rec::ISurface* surf = sI->second ;
+                    float u_direction[2] = { u.theta(), u.phi() };
+                    float v_direction[2] = { v.theta(), v.phi() };
 
-            dd4hep::rec::Vector3D u = surf->u() ;
-            dd4hep::rec::Vector3D v = surf->v() ;
-            
-            float u_direction[2] = { u.theta(), u.phi() };
-            float v_direction[2] = { v.theta(), v.phi() };
+                    recoHit->setU( u_direction ) ;
+                    recoHit->setV( v_direction ) ;
 
-            recoHit->setU( u_direction ) ;
-            recoHit->setV( v_direction ) ;
-            
-            // ALE Does this make sense??? TO CHECK
-            recoHit->setdU( _pixelSizeX / sqrt(12) );
-            recoHit->setdV( _pixelSizeY / sqrt(12) );  
-*/
+                    // ALE Does this make sense??? TO CHECK
+                    recoHit->setdU( _pixelSizeX / sqrt(12) );
+                    recoHit->setdV( _pixelSizeY / sqrt(12) );  
 
                     reco_buffer[idx] = recoHit;
                     idx++;

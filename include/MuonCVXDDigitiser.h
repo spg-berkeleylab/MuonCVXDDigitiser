@@ -167,6 +167,7 @@ protected:
 
 
     // internal state
+    int _barrelID;
     int _currentLayer;
     int _currentLadder;
     int _numberOfSegments;
