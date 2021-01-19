@@ -1,4 +1,4 @@
-#include "ChargeClustersBuilder.h"
+#include "HKOSensor.h"
 #include <UTIL/BitField64.h>
 #include <UTIL/LCTrackerConf.h>
 #include <UTIL/ILDConf.h>
@@ -129,11 +129,11 @@ vector<GridCoordinate> GridPartitionedSet::next()
 
 /* ****************************************************************************
 
-    Cluster builder
+    Hoshen-Kopelman-Otsu sensor
 
    ************************************************************************* */
 
-ChargeClustersBuilder::ChargeClustersBuilder(int layer,
+HKOSensor::HKOSensor(int layer,
                                              int ladder,
                                              int xsegmentNumber,
                                              int ysegmentNumber,
@@ -158,7 +158,7 @@ ChargeClustersBuilder::ChargeClustersBuilder(int layer,
     _gridSet(x_segsize, y_segsize)
 {}
 
-void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
+void HKOSensor::buildHits(SegmentDigiHitList& output)
 {
     BitField64 bf_encoder(this->GetCellIDFormatStr());
     bf_encoder.reset();
@@ -250,14 +250,14 @@ void ChargeClustersBuilder::buildHits(SegmentDigiHitList& output)
     }
 }
 
-float ChargeClustersBuilder::getThreshold(int segid_x, int segid_y)
+float HKOSensor::getThreshold(int segid_x, int segid_y)
 {
     // TODO implement Otsu algorithm
     //   https://en.wikipedia.org/wiki/Otsu%27s_method
     return 0;
 }
 
-bool ChargeClustersBuilder::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
+bool HKOSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
 {
     if (pos_x < 0 || pos_x >= this->GetSegSizeX()) return false;
     if (pos_y < 0 || pos_y >= this->GetSegSizeY()) return false;

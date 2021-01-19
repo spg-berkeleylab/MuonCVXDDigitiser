@@ -1,5 +1,5 @@
-#ifndef ChargeClustersBuilder_h
-#define ChargeClustersBuilder_h 1
+#ifndef HKOSensor_h
+#define HKOSensor_h 1
 
 #include "PixelDigiMatrix.h"
 
@@ -44,10 +44,10 @@ private:
     vector<ClusterData> c_buffer;
 };
 
-class ChargeClustersBuilder : public PixelDigiMatrix
+class HKOSensor : public PixelDigiMatrix
 {
 public:
-    ChargeClustersBuilder(int layer,
+    HKOSensor(int layer,
                           int ladder,
                           int xsegmentNumber,
                           int ysegmentNumber,
@@ -58,7 +58,7 @@ public:
                           double pixelSizeY,
                           string enc_str,
                           int barrel_id);
-    virtual ~ChargeClustersBuilder() {}
+    virtual ~HKOSensor() {}
 
     void buildHits(SegmentDigiHitList& output);
 
@@ -73,5 +73,5 @@ private:
     inline int sensor_posy(int seg_y, int pos_y) { return seg_y * this->GetSegSizeY() + pos_y; }
 };
 
-#endif //ChargeClustersBuilder_h
+#endif //HKOSensor_h
 
