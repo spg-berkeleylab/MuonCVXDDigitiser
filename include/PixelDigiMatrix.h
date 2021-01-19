@@ -84,14 +84,22 @@ public:
     void Apply(PixelTransformation l_expr);
     PixelData GetPixel(int x, int y);
 
-    void TransformXYToCellID(double x, double y, int & ix, int & iy);
-    void TransformCellIDToXY(int ix, int iy, double & x, double & y);
+    inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
+    inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
+
+    inline double PixelRowToX(int ix) { return ((0.5 + double(ix)) * _pixelSizeX) - _ladderWidth / 2; }
+    inline double PixelColToY(int iy) { return ((0.5 + double(iy)) * _pixelSizeY) - _ladderLength / 2; }
 
 private:
     inline int index(int x, int y) { return x * x_size + y; }
     bool check(int x, int y);
 
 protected:
+
+    inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * x_segsize + pos_x; }
+    inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * y_segsize + pos_y; }
+    PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
+
     int _barrel_id;
     int _layer;
     int _ladder;

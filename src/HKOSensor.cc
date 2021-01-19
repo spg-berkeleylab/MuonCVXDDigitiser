@@ -221,13 +221,11 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
                 float y_acc = 0;
                 for (GridCoordinate p_coord : c_item)
                 {
-                    int global_x = sensor_posx(h, p_coord.x);
-                    int global_y = sensor_posy(k, p_coord.y);
-                    float tmpc = this->GetPixel(global_x, global_y).charge;
-                    double pos_x = 0;
-                    double pos_y = 0;
-
-                    this->TransformCellIDToXY(global_x, global_y, pos_x, pos_y);
+                    int global_x = SensorRowToLadderRow(h, p_coord.x);
+                    int global_y = SensorColToLadderCol(k, p_coord.y);
+                    float tmpc = GetPixel(global_x, global_y).charge;
+                    double pos_x = PixelRowToX(global_x);
+                    double pos_y = PixelColToY(global_y);
 
                     tot_charge += tmpc;
                     x_acc += tmpc * pos_x;
@@ -265,7 +263,7 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     {
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
-            float tmpchrg = this->GetPixel(sensor_posx(segid_x, h), sensor_posy(segid_y, k)).charge;
+            float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
             if (tmpchrg > max_charge) max_charge = tmpchrg;
         }
     }
@@ -279,7 +277,7 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     {
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
-            float tmpchrg = this->GetPixel(sensor_posx(segid_x, h), sensor_posy(segid_y, k)).charge;
+            float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
             int slot = (int) floorf(tmpchrg / chrg_step);
             histo[slot]++;
         }
@@ -327,7 +325,7 @@ bool HKOSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, in
     if (pos_x < 0 || pos_x >= this->GetSegSizeX()) return false;
     if (pos_y < 0 || pos_y >= this->GetSegSizeY()) return false;
 
-    return this->GetPixel(sensor_posx(seg_x, pos_x), sensor_posy(seg_y, pos_y)).charge > charge;
+    return GetPixel(seg_x, seg_y, pos_x, pos_y).charge > charge;
 }
 
 

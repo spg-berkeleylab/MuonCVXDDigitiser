@@ -115,9 +115,11 @@ void DetElemSlidingWindow::UpdatePixels()
         double xHFrame = _widthOfCluster * spoint.sigmaX;
         double yHFrame = _widthOfCluster * spoint.sigmaY;
         
-        int ixLo, ixUp, iyLo, iyUp;
-        _sensor.TransformXYToCellID(spoint.x - xHFrame, spoint.y - yHFrame, ixLo, iyLo);
-        _sensor.TransformXYToCellID(spoint.x + xHFrame, spoint.y + yHFrame, ixUp, iyUp);
+        int ixLo = _sensor.XToPixelRow(spoint.x - xHFrame);
+        int iyLo = _sensor.YToPixelCol(spoint.y - yHFrame);
+
+        int ixUp = _sensor.XToPixelRow(spoint.x + xHFrame);
+        int iyUp = _sensor.YToPixelCol(spoint.y + yHFrame);
 
         for (int ix = ixLo; ix < ixUp + 1; ++ix)
         {
@@ -127,8 +129,8 @@ void DetElemSlidingWindow::UpdatePixels()
             {
                 if (iy < 0 || iy >= _sensor.GetSizeY()) continue;
 
-                double xCurrent, yCurrent;
-                _sensor.TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
+                double xCurrent = _sensor.PixelRowToX(ix);
+                double yCurrent = _sensor.PixelColToY(iy);
                 
                 gsl_sf_result result;
                 int status = gsl_sf_erf_Q_e((xCurrent - 0.5 * _sensor.GetPixelSizeX() - spoint.x) / spoint.sigmaX, &result);

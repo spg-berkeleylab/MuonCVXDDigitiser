@@ -69,10 +69,6 @@ protected:
 
     int _q_level;
     GridPartitionedSet _gridSet;
-
-private:
-    inline int sensor_posx(int seg_x, int pos_x) { return seg_x * this->GetSegSizeX() + pos_x; }
-    inline int sensor_posy(int seg_y, int pos_y) { return seg_y * this->GetSegSizeY() + pos_y; }
 };
 
 #endif //HKOSensor_h

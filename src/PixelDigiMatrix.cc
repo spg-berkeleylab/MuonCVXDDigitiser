@@ -89,19 +89,9 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     return { 0, 0, PixelStatus::out_of_bounds };
 }
 
-void PixelDigiMatrix::TransformXYToCellID(double x, double y, int & ix, int & iy)
+PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
 {
-    double yInLadder = y + _ladderLength / 2;
-    iy = int(yInLadder / _pixelSizeY);
-
-    double xInLadder = x + _ladderWidth / 2;
-    ix = int(xInLadder / _pixelSizeX);
-}
-
-void PixelDigiMatrix::TransformCellIDToXY(int ix, int iy, double & x, double & y)
-{
-    y = ((0.5 + double(iy)) * _pixelSizeY) - _ladderLength / 2;
-    x = ((0.5 + double(ix)) * _pixelSizeX) - _ladderWidth / 2;
+    return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
 }
 
 bool PixelDigiMatrix::check(int x, int y)
