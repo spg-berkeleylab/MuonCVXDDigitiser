@@ -145,6 +145,7 @@ protected:
     int _PoissonSmearing;
     int _electronicEffects;
     int _produceFullPattern;
+    int _q_level;
 
     MyG4UniversalFluctuationForSi *_fluctuate;
 

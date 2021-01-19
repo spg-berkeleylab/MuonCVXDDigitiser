@@ -3,6 +3,7 @@
 #include <UTIL/LCTrackerConf.h>
 #include <UTIL/ILDConf.h>
 
+#include <math.h>
 #include <algorithm>
 
 using std::sort;
@@ -134,16 +135,17 @@ vector<GridCoordinate> GridPartitionedSet::next()
    ************************************************************************* */
 
 HKOSensor::HKOSensor(int layer,
-                                             int ladder,
-                                             int xsegmentNumber,
-                                             int ysegmentNumber,
-                                             float ladderLength,
-                                             float ladderWidth,
-                                             float thickness,
-                                             double pixelSizeX,
-                                             double pixelSizeY,
-                                             string enc_str,
-                                             int barrel_id) :
+                     int ladder,
+                     int xsegmentNumber,
+                     int ysegmentNumber,
+                     float ladderLength,
+                     float ladderWidth,
+                     float thickness,
+                     double pixelSizeX,
+                     double pixelSizeY,
+                     string enc_str,
+                     int barrel_id,
+                     int q_level) :
     PixelDigiMatrix(layer,
                     ladder,
                     xsegmentNumber,
@@ -155,6 +157,7 @@ HKOSensor::HKOSensor(int layer,
                     pixelSizeY,
                     enc_str,
                     barrel_id),
+    _q_level(q_level),
     _gridSet(x_segsize, y_segsize)
 {}
 
@@ -254,7 +257,69 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
 {
     // TODO implement Otsu algorithm
     //   https://en.wikipedia.org/wiki/Otsu%27s_method
-    return 0;
+    //   http://www.labbookpages.co.uk/software/imgProc/otsuThreshold.html
+
+    // Quantization based on max charge value
+    float max_charge = 0;
+    for (int h = 0; h < this->GetSegNumX(); h++)
+    {
+        for (int k = 0; k < this->GetSegNumY(); k++)
+        {
+            float tmpchrg = this->GetPixel(sensor_posx(segid_x, h), sensor_posy(segid_y, k)).charge;
+            if (tmpchrg > max_charge) max_charge = tmpchrg;
+        }
+    }
+    float chrg_step = max_charge / _q_level;
+
+    // histogram
+    int histo[_q_level];
+    for (int j = 0; j < _q_level; j++) histo[j] = 0;
+
+    for (int h = 0; h < this->GetSegNumX(); h++)
+    {
+        for (int k = 0; k < this->GetSegNumY(); k++)
+        {
+            float tmpchrg = this->GetPixel(sensor_posx(segid_x, h), sensor_posy(segid_y, k)).charge;
+            int slot = (int) floorf(tmpchrg / chrg_step);
+            histo[slot]++;
+        }
+    }
+
+    // Otsu algorithm
+    int total_pixels = GetSizeX() * GetSizeY();
+    float w_sum = 0;
+    for (int j = 0; j < _q_level; j++) w_sum += j * histo[j];
+
+    int threshold = 0;
+    float varMax = 0;
+    float sumB = 0;
+    int wB = 0;
+    int wF = 0;
+
+    for (int j = 0; j < _q_level; j++)
+    {
+        wB += histo[j];
+        if (wB == 0) continue;
+
+        wF = total_pixels - wB;
+        if (wF == 0) break;
+
+        sumB += j * histo[j];
+
+        float mB = sumB / wB;
+        float mF = (w_sum - sumB) / wF;
+
+        // Calculate Between Class Variance
+        float varBetween = (float) wB * (float) wF * (mB - mF) * (mB - mF);
+
+        // Check if new maximum found
+        if (varBetween > varMax) {
+            varMax = varBetween;
+            threshold = j;
+        }
+    }
+
+    return chrg_step * (threshold + 1);
 }
 
 bool HKOSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)

@@ -57,7 +57,8 @@ public:
                           double pixelSizeX,
                           double pixelSizeY,
                           string enc_str,
-                          int barrel_id);
+                          int barrel_id,
+                          int q_level);
     virtual ~HKOSensor() {}
 
     void buildHits(SegmentDigiHitList& output);
@@ -66,6 +67,7 @@ protected:
     virtual float getThreshold(int segid_x, int segid_y);
     virtual bool aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y);
 
+    int _q_level;
     GridPartitionedSet _gridSet;
 
 private:

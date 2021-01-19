@@ -162,6 +162,12 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "Maximum values for track length (in mm)",
                                _maxTrkLen,
                                10.0); 
+
+    registerProcessorParameter("QuantizationLevels",
+                               "Number of levels for charge quantization",
+                               _q_level,
+                               int(256)); 
+
 #ifdef TIME_PROCESS
     registerProcessorParameter("TimeClick",
                                "Time step",
@@ -303,7 +309,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _layerLadderWidth[layer],
                 _layerThickness[layer],
                 _pixelSizeX, _pixelSizeY,
-                encoder_str, _barrelID
+                encoder_str, _barrelID,
+                _q_level
             };
             
             if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
