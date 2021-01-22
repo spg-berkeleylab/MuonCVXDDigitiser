@@ -175,6 +175,7 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
             float charge_thr = getThreshold(h, k);
+            if (charge_thr == 0) continue;
 
             //Hoshen-Kopelman Algorithm:
             //  https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
@@ -253,32 +254,25 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
 
 float HKOSensor::getThreshold(int segid_x, int segid_y)
 {
-    // TODO implement Otsu algorithm
+    // Otsu algorithm
     //   https://en.wikipedia.org/wiki/Otsu%27s_method
     //   http://www.labbookpages.co.uk/software/imgProc/otsuThreshold.html
 
     // Quantization based on max charge value
-    float max_charge = 0;
-    for (int h = 0; h < this->GetSegNumX(); h++)
-    {
-        for (int k = 0; k < this->GetSegNumY(); k++)
-        {
-            float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
-            if (tmpchrg > max_charge) max_charge = tmpchrg;
-        }
-    }
-    float chrg_step = max_charge / _q_level;
+    float max_chrg = GetMaxCharge();
+    if (max_chrg == 0) return 0;
+
+    float chrg_step = max_chrg / _q_level;
 
     // histogram
-    int histo[_q_level];
-    for (int j = 0; j < _q_level; j++) histo[j] = 0;
+    vector<int> histo { _q_level, 0 };
 
     for (int h = 0; h < this->GetSegNumX(); h++)
     {
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
             float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
-            int slot = (int) floorf(tmpchrg / chrg_step);
+            int slot = int(floorf(tmpchrg / chrg_step));
             histo[slot]++;
         }
     }

@@ -172,11 +172,11 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("TimeClick",
                                "Time step",
                                _tclick,
-                               (float)1000);     // TODO set a default value
+                               (float)0.1);
     registerProcessorParameter("WindowSize",
                                "Window size",
                                _window_size,
-                               (float)1000);     // TODO set a default value
+                               (float)0.1);
 #endif
 }
 
@@ -288,7 +288,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
 
     HitTemporalIndexes t_index{STHcol};
-    float start_time = t_index.GetMinTime() - _window_size / 2 - _tclick;
+    float start_time = t_index.GetMinTime() - _window_size / 2;  // TODO check border condition
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
     {
@@ -341,13 +341,12 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _deltaEne,
                 _map
             };
-            
-            int counter = 0;
-            for(bool goon = true; goon; goon = t_window.move_forward())
+
+            while(t_window.move_forward())
             {
                 SegmentDigiHitList hit_buffer {};
                 sensor.buildHits(hit_buffer);
-                
+
                 vector<TrackerHitPlaneImpl*> reco_buffer { hit_buffer.size(), nullptr };
                 int idx = 0;
                 for (SegmentDigiHit digiHit : hit_buffer)
@@ -410,13 +409,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
 #pragma omp critical               
                 {
-                    for(TrackerHitPlaneImpl* recoHit : reco_buffer) THcol->addElement(recoHit);
+                    for(TrackerHitPlaneImpl* recoHit : reco_buffer)
+                    {
+                        if (recoHit != nullptr) THcol->addElement(recoHit);
+                    }
                 }
-
-                counter++;
             }
         }
     }
+
+    evt->addCollection(THcol, _outputCollectionName.c_str());
 }
 
 

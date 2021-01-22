@@ -70,7 +70,6 @@ DetElemSlidingWindow::~DetElemSlidingWindow()
 
 bool DetElemSlidingWindow::move_forward()
 {
-    curr_time += time_click;
     streamlog_out(DEBUG) << "Time window centered in " << curr_time << std::endl;
 
     streamlog_out(DEBUG) << "Hits available for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
@@ -100,8 +99,14 @@ bool DetElemSlidingWindow::move_forward()
     }
 
     UpdatePixels();
+    curr_time += time_click;
 
     return _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder()) > 0;
+}
+
+float DetElemSlidingWindow::get_time()
+{
+    return curr_time;
 }
 
 void DetElemSlidingWindow::UpdatePixels()

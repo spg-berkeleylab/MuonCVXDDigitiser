@@ -83,16 +83,13 @@ public:
     void UpdatePixel(int x, int y, PixelData data);
     void Apply(PixelTransformation l_expr);
     PixelData GetPixel(int x, int y);
+    float GetMaxCharge();
 
     inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
     inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
 
     inline double PixelRowToX(int ix) { return ((0.5 + double(ix)) * _pixelSizeX) - _ladderWidth / 2; }
     inline double PixelColToY(int iy) { return ((0.5 + double(iy)) * _pixelSizeY) - _ladderLength / 2; }
-
-private:
-    inline int index(int x, int y) { return x * x_size + y; }
-    bool check(int x, int y);
 
 protected:
 
@@ -114,9 +111,16 @@ protected:
     int y_segsize;
     int x_segnum;
     int y_segnum;
+    string cellFmtStr;
+
+private:
+    inline int index(int x, int y) { return x * x_size + y; }
+    bool check(int x, int y);
+    
     EnergyMatrix pixels;
     MatrixStatus status;
-    string cellFmtStr;
+    float max_charge;
+    bool  charge_valid;
 };
 
 #endif //PixelDigiMatrix_h

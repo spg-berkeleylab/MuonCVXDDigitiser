@@ -21,7 +21,9 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     _pixelSizeY(abs(pixelSizeY)),
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
     _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
-    cellFmtStr(enc_str)
+    cellFmtStr(enc_str),
+    max_charge(0),
+    charge_valid(false)
 {
     int lwid = floor(ladderWidth * 1e4);
     int psx = floor(pixelSizeX * 1e4);
@@ -58,6 +60,8 @@ PixelDigiMatrix::~PixelDigiMatrix()
 void PixelDigiMatrix::Reset()
 {
     pixels.assign(pixels.size(), {0, 0, PixelStatus::undefined});
+
+    charge_valid = false;
 }
 
 void PixelDigiMatrix::UpdatePixel(int x, int y, PixelData data)
@@ -66,6 +70,8 @@ void PixelDigiMatrix::UpdatePixel(int x, int y, PixelData data)
     {
         pixels[index(x, y)] = data;
     }
+
+    charge_valid = false;
 }
 
 void PixelDigiMatrix::Apply(PixelTransformation l_expr)
@@ -74,6 +80,8 @@ void PixelDigiMatrix::Apply(PixelTransformation l_expr)
     {
         pixels[k] = l_expr(pixels[k]);
     }
+
+    charge_valid = false;
 }
 
 PixelData PixelDigiMatrix::GetPixel(int x, int y)
@@ -87,6 +95,21 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
         return pixels[index(x, y)];
     }
     return { 0, 0, PixelStatus::out_of_bounds };
+}
+
+float PixelDigiMatrix::GetMaxCharge()
+{
+    if (charge_valid) return max_charge;
+
+    max_charge = 0;
+    for (long unsigned int k = 0; k < pixels.size(); k++)
+    {
+        float t_chrg = pixels[k].charge;
+        if (t_chrg > max_charge) max_charge = t_chrg;
+    }
+    charge_valid = true;
+
+    return max_charge;
 }
 
 PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)

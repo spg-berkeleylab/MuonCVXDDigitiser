@@ -48,6 +48,7 @@ public:
                          const SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     bool move_forward();
+    float get_time();
 
 private:
     void StoreSignalPoints(SimTrackerHit* hit);
