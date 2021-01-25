@@ -258,7 +258,7 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     //   https://en.wikipedia.org/wiki/Otsu%27s_method
     //   http://www.labbookpages.co.uk/software/imgProc/otsuThreshold.html
 
-    // Quantization based on max charge value
+    // Quantization based on max charge value over the ladder
     float max_chrg = GetMaxCharge();
     if (max_chrg == 0) return 0;
 
@@ -267,18 +267,19 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     // histogram
     vector<int> histo { _q_level, 0 };
 
-    for (int h = 0; h < this->GetSegNumX(); h++)
+    for (int h = 0; h < GetSegSizeX(); h++)
     {
-        for (int k = 0; k < this->GetSegNumY(); k++)
+        for (int k = 0; k < GetSegSizeY(); k++)
         {
             float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
+
             int slot = int(floorf(tmpchrg / chrg_step));
             histo[slot]++;
         }
     }
 
     // Otsu algorithm
-    int total_pixels = GetSizeX() * GetSizeY();
+    int total_pixels = GetSegSizeX() * GetSegSizeY();
     float w_sum = 0;
     for (int j = 0; j < _q_level; j++) w_sum += j * histo[j];
 
