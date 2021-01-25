@@ -11,6 +11,8 @@
 #include "CLHEP/Random/RandPoisson.h"
 #include "CLHEP/Random/RandFlat.h"
 
+#include <iostream>
+
 using std::max;
 using std::min;
 using std::vector;
@@ -169,8 +171,13 @@ void DetElemSlidingWindow::UpdatePixels()
         {
             new_charge += float(RandPoisson::shoot(data.charge));
         }
+
+        if (new_charge < 0) new_charge = 0;
+
         return { new_charge, data.time, PixelStatus::ok };
     });
+/*
+    * TODO charge can be negative
 
     if (_electronicNoise > 0)
     {
@@ -182,6 +189,7 @@ void DetElemSlidingWindow::UpdatePixels()
             };
         });
     }
+*/
 }
 
 void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
