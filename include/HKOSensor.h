@@ -22,7 +22,7 @@ struct GridCoordinate
 class GridPartitionedSet
 {
 public:
-    GridPartitionedSet(int x_s, int y_s);
+    GridPartitionedSet(int n_row, int n_col);
     virtual ~GridPartitionedSet() {}
     int find(int x, int y);
     void merge(int x1, int y1, int x2, int y2);
@@ -32,11 +32,11 @@ public:
     vector<GridCoordinate> next();
 
 private:
-    inline int index(int x, int y) { return x * x_size + y; }
-    inline GridCoordinate coordinate(int p) { return { p / x_size, p % x_size }; }
+    inline int index(int row, int col) { return row * columns + col; }
+    inline GridCoordinate coordinate(int p) { return { p / columns, p % columns }; }
 
-    int x_size;
-    int y_size;
+    int rows;
+    int columns;
     int valid_cells;
     int c_curr;
     int c_next;

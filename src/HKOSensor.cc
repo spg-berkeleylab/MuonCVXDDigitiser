@@ -17,13 +17,13 @@ using lcio::ILDDetID;
 
    ************************************************************************* */
 
-GridPartitionedSet::GridPartitionedSet(int x_s, int y_s) :
-    x_size(x_s),
-    y_size(y_s),
+GridPartitionedSet::GridPartitionedSet(int n_row, int n_col) :
+    rows(n_row),
+    columns(n_col),
     valid_cells(0),
     c_curr(0),
     c_next(0),
-    data(x_size * y_size, 0),
+    data(rows * columns, 0),
     c_buffer(0)
 {}
 
@@ -38,11 +38,11 @@ void GridPartitionedSet::close()
     /*
      * Remove internal references in the grid, each cell contains the cluster ID
      */
-    for (int h = 0; h < x_size; h++)
+    for (int h = 0; h < rows; h++)
     {
-        for (int k = 0; k < y_size; k++)
+        for (int k = 0; k < columns; k++)
         {
-            if (data[k] >= 0) find(h, k);
+            if (data[index(h, k)] >= 0) find(h, k);
         }
     }
 
@@ -55,12 +55,12 @@ void GridPartitionedSet::close()
     {
         if (data[k] >= 0)
         {
-            c_buffer[c_id] = { k, data[k] };
+            c_buffer[c_id] = { data[k], k };
             c_id++;
         }
     }
     sort(c_buffer.begin(), c_buffer.end(), CmpClusterData);
-    
+
     c_curr = -1;
     c_next = 0;
 }
@@ -91,7 +91,7 @@ void GridPartitionedSet::merge(int x1, int y1, int x2, int y2)
 
     if (pset1 < 0 || pset2 < 0) return;
 
-    if (pset1 < pset2)
+    if (pset1 >= pset2)
     {
         data[pset1] = pset2;
     }
