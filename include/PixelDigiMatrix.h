@@ -69,10 +69,10 @@ public:
     inline float GetHalfWidth() { return _ladderWidth / 2; }
     inline double GetPixelSizeX() { return _pixelSizeX; }
     inline double GetPixelSizeY() { return _pixelSizeY; }
-    inline int GetSizeX() { return x_size; }
-    inline int GetSizeY() { return y_size; }
-    inline int GetSegSizeX() { return x_segsize; }
-    inline int GetSegSizeY() { return y_segsize; }
+    inline int GetLadderRows() { return l_rows; }
+    inline int GetLadderCols() { return l_columns; }
+    inline int GetSensorRows() { return s_rows; }
+    inline int GetSensorCols() { return s_colums; }
     inline int GetSegNumX() { return x_segnum; }
     inline int GetSegNumY() { return y_segnum; }
     inline MatrixStatus GetStatus() { return status; }
@@ -93,8 +93,8 @@ public:
 
 protected:
 
-    inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * x_segsize + pos_x; }
-    inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * y_segsize + pos_y; }
+    inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
+    inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
 
     int _barrel_id;
@@ -105,16 +105,16 @@ protected:
     double _pixelSizeY;
     float _ladderLength;
     float _ladderWidth;
-    int x_size;
-    int y_size;
-    int x_segsize;
-    int y_segsize;
+    int l_rows;
+    int l_columns;
+    int s_rows;
+    int s_colums;
     int x_segnum;
     int y_segnum;
     string cellFmtStr;
 
 private:
-    inline int index(int x, int y) { return x * x_size + y; }
+    inline int index(int x, int y) { return x * l_columns + y; }
     bool check(int x, int y);
     
     EnergyMatrix pixels;

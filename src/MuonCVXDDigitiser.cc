@@ -368,7 +368,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
 #ifdef ZSEGMENTED
                     // See DetElemSlidingWindow::StoreSignalPoints
-                    float s_offset = sensor.GetSegSizeY() * sensor.GetPixelSizeY();
+                    float s_offset = sensor.GetSensorCols() * sensor.GetPixelSizeY();
                     s_offset *= (float(digiHit.segment_y) + 0.5);
                     s_offset -= sensor.GetHalfLength();
 

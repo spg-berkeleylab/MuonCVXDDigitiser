@@ -130,11 +130,11 @@ void DetElemSlidingWindow::UpdatePixels()
 
         for (int ix = ixLo; ix < ixUp + 1; ++ix)
         {
-            if (ix < 0 || ix >= _sensor.GetSizeX()) continue;
+            if (ix < 0 || ix >= _sensor.GetLadderRows()) continue;
 
             for (int iy = iyLo; iy < iyUp + 1; ++iy)
             {
-                if (iy < 0 || iy >= _sensor.GetSizeY()) continue;
+                if (iy < 0 || iy >= _sensor.GetLadderCols()) continue;
 
                 double xCurrent = _sensor.PixelRowToX(ix);
                 double yCurrent = _sensor.PixelColToY(iy);
@@ -224,7 +224,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     // See MuonCVXDDigitiser::processEvent
     int segment_id = cell_decoder(hit)["sensor"];
 
-    float s_offset = _sensor.GetSegSizeY() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
+    float s_offset = _sensor.GetSensorCols() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
     s_offset -= _sensor.GetHalfLength();
     pos[1] = (lv[1] + s_offset)/ dd4hep::mm;
 #else

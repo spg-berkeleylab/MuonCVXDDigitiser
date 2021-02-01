@@ -30,20 +30,20 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     int llen = floor(ladderLength * 1e4);
     int psy = floor(pixelSizeY * 1e4);
 
-    x_size = lwid / psx;
-    y_size = llen / psy;
+    l_rows = lwid / psx;
+    l_columns = llen / psy;
 
     x_segnum = xsegmentNumber;
     y_segnum = ysegmentNumber;
 
-    x_segsize = xsegmentNumber > 0 ? x_size / xsegmentNumber : 1;
-    y_segsize = ysegmentNumber > 0 ? y_size / ysegmentNumber : 1;
+    s_rows = xsegmentNumber > 0 ? l_rows / xsegmentNumber : 1;
+    s_colums = ysegmentNumber > 0 ? l_columns / ysegmentNumber : 1;
     
     if (lwid % psx > 0 || llen % psy > 0)
     {
         status = MatrixStatus::pixel_number_error;
     }
-    else if (x_size % xsegmentNumber > 0 || y_size % ysegmentNumber > 0)
+    else if (l_rows % xsegmentNumber > 0 || l_columns % ysegmentNumber > 0)
     {
         status = MatrixStatus::segment_number_error;
     }
@@ -51,7 +51,7 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     {
         status = MatrixStatus::ok;
     }
-    pixels = EnergyMatrix(x_size * y_size);
+    pixels = EnergyMatrix(l_rows * l_columns);
 }
 
 PixelDigiMatrix::~PixelDigiMatrix()
@@ -119,8 +119,8 @@ PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
 
 bool PixelDigiMatrix::check(int x, int y)
 {
-    if (x < 0 || x >= x_size) return false;
-    if (y < 0 || y >= y_size) return false;
+    if (x < 0 || x >= l_rows) return false;
+    if (y < 0 || y >= l_columns) return false;
     return true;
 }
 

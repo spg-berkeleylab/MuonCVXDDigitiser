@@ -158,7 +158,7 @@ HKOSensor::HKOSensor(int layer,
                     enc_str,
                     barrel_id),
     _q_level(q_level),
-    _gridSet(x_segsize, y_segsize)
+    _gridSet(s_rows, s_colums)
 {}
 
 void HKOSensor::buildHits(SegmentDigiHitList& output)
@@ -182,9 +182,9 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
 
             _gridSet.init();
 
-            for (int i = 0; i < this->GetSegSizeX(); i++)
+            for (int i = 0; i < this->GetSensorRows(); i++)
             {
-                for (int j = 0; j < this->GetSegSizeY(); j++)
+                for (int j = 0; j < this->GetSensorCols(); j++)
                 {
                     if (!aboveThreshold(charge_thr, h, k, i, j))
                     {
@@ -267,9 +267,9 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     // histogram
     vector<int> histo { _q_level, 0 };
 
-    for (int h = 0; h < GetSegSizeX(); h++)
+    for (int h = 0; h < GetSensorRows(); h++)
     {
-        for (int k = 0; k < GetSegSizeY(); k++)
+        for (int k = 0; k < GetSensorCols(); k++)
         {
             float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
 
@@ -279,7 +279,7 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     }
 
     // Otsu algorithm
-    int total_pixels = GetSegSizeX() * GetSegSizeY();
+    int total_pixels = GetSensorRows() * GetSensorCols();
     float w_sum = 0;
     for (int j = 0; j < _q_level; j++) w_sum += j * histo[j];
 
@@ -317,8 +317,8 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
 
 bool HKOSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
 {
-    if (pos_x < 0 || pos_x >= this->GetSegSizeX()) return false;
-    if (pos_y < 0 || pos_y >= this->GetSegSizeY()) return false;
+    if (pos_x < 0 || pos_x >= this->GetSensorRows()) return false;
+    if (pos_y < 0 || pos_y >= this->GetSensorCols()) return false;
 
     return GetPixel(seg_x, seg_y, pos_x, pos_y).charge > charge;
 }
