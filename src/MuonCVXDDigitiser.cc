@@ -372,7 +372,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                     s_offset *= (float(digiHit.segment_y) + 0.5);
                     s_offset -= sensor.GetHalfLength();
 
-                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, (loc_pos[1] - s_offset) * dd4hep::mm);
+                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, loc_pos[1] * dd4hep::mm - s_offset);
                     Vector3D lv = surf->localToGlobal(oldPos);
 
                     double xLab[3];
