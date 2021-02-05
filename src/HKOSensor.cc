@@ -202,11 +202,11 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
                     }
                     else if (!up_is_above && left_is_above)
                     {
-                        _gridSet.merge(i - 1, j, i, j);
+                        _gridSet.merge(i, j - 1, i, j);
                     }
                     else if (up_is_above && !left_is_above)
                     {
-                        _gridSet.merge(i, j - 1, i, j);
+                        _gridSet.merge(i - 1, j, i, j);
                     }
                 }
             }
