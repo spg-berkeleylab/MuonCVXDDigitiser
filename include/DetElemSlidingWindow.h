@@ -47,7 +47,8 @@ public:
                          double maxEnergyDelta,
                          const SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
-    bool move_forward();
+    bool active();
+    int process();
     float get_time();
 
 private:

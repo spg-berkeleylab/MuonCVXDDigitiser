@@ -342,8 +342,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _map
             };
 
-            while(t_window.move_forward())
+            while(t_window.active())
             {
+                if (t_window.process() == 0) continue;
+
                 SegmentDigiHitList hit_buffer {};
                 sensor.buildHits(hit_buffer);
 
