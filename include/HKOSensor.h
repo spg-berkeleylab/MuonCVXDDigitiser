@@ -58,6 +58,7 @@ public:
                           double pixelSizeY,
                           string enc_str,
                           int barrel_id,
+                          float s_level,
                           int q_level);
     virtual ~HKOSensor() {}
 

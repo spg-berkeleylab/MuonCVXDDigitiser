@@ -12,7 +12,8 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  double pixelSizeX,
                                  double pixelSizeY,
                                  string enc_str,
-                                 int barrel_id):
+                                 int barrel_id,
+                                 float s_level):
     _barrel_id(barrel_id),
     _layer(layer),
     _ladder(ladder),
@@ -22,6 +23,7 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
     _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
     cellFmtStr(enc_str),
+    _satur_level(s_level),
     max_charge(0),
     charge_valid(false)
 {
@@ -68,6 +70,7 @@ void PixelDigiMatrix::UpdatePixel(int x, int y, PixelData data)
 {
     if (check(x, y))
     {
+        data.charge = std::min(data.charge, _satur_level);
         pixels[index(x, y)] = data;
     }
 
@@ -78,7 +81,9 @@ void PixelDigiMatrix::Apply(PixelTransformation l_expr)
 {
     for (long unsigned int k = 0; k < pixels.size(); k++)
     {
-        pixels[k] = l_expr(pixels[k]);
+        PixelData tmpd = l_expr(pixels[k]);
+        tmpd.charge = std::min(tmpd.charge, _satur_level);
+        pixels[k] = tmpd;
     }
 
     charge_valid = false;

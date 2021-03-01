@@ -54,7 +54,8 @@ public:
                     double pixelSizeX,
                     double pixelSizeY,
                     string enc_str,
-                    int barrel_id);
+                    int barrel_id,
+                    float s_level);
     virtual ~PixelDigiMatrix();
 
     virtual void buildHits(SegmentDigiHitList& output) = 0;
@@ -112,6 +113,7 @@ protected:
     int x_segnum;
     int y_segnum;
     string cellFmtStr;
+    float _satur_level;
 
 private:
     inline int index(int x, int y) { return x * l_columns + y; }

@@ -168,6 +168,11 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _q_level,
                                int(256)); 
 
+    registerProcessorParameter("SaturationLevel",
+                               "Maximum charge on sensor in electrons",
+                               _satur_level,
+                               double(1024.0));
+
 #ifdef TIME_PROCESS
     registerProcessorParameter("TimeClick",
                                "Time step",
@@ -310,7 +315,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _layerThickness[layer],
                 _pixelSizeX, _pixelSizeY,
                 encoder_str, _barrelID,
-                _q_level
+                _satur_level, _q_level
             };
             
             if (sensor.GetStatus() == MatrixStatus::pixel_number_error)

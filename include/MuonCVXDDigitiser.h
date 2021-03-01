@@ -142,6 +142,7 @@ protected:
     double _energyLoss;
     double _deltaEne;
   	double _maxTrkLen;	
+    double _satur_level;
     int _PoissonSmearing;
     int _electronicEffects;
     int _produceFullPattern;

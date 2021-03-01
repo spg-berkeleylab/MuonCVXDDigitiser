@@ -3,6 +3,8 @@
 #include <UTIL/LCTrackerConf.h>
 #include <UTIL/ILDConf.h>
 
+#include "streamlog/streamlog.h"
+
 #include <math.h>
 #include <algorithm>
 
@@ -145,6 +147,7 @@ HKOSensor::HKOSensor(int layer,
                      double pixelSizeY,
                      string enc_str,
                      int barrel_id,
+                     float s_level,
                      int q_level) :
     PixelDigiMatrix(layer,
                     ladder,
@@ -156,14 +159,15 @@ HKOSensor::HKOSensor(int layer,
                     pixelSizeX,
                     pixelSizeY,
                     enc_str,
-                    barrel_id),
+                    barrel_id,
+                    s_level),
     _q_level(q_level),
     _gridSet(s_rows, s_colums)
 {}
 
 void HKOSensor::buildHits(SegmentDigiHitList& output)
 {
-    BitField64 bf_encoder(this->GetCellIDFormatStr());
+    BitField64 bf_encoder { cellFmtStr };
     bf_encoder.reset();
     bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
     bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
@@ -234,7 +238,7 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
                 }
 
                 //Sensor segments ordered row first
-                bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumX() + k;
+                bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumY() + k;
 
                 SegmentDigiHit digiHit = {
                     x_acc / tot_charge,
@@ -258,11 +262,7 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     //   https://en.wikipedia.org/wiki/Otsu%27s_method
     //   http://www.labbookpages.co.uk/software/imgProc/otsuThreshold.html
 
-    // Quantization based on max charge value over the ladder
-    float max_chrg = GetMaxCharge();
-    if (max_chrg == 0) return 0;
-
-    float chrg_step = max_chrg / _q_level;
+    float chrg_step = _satur_level / _q_level;
 
     // histogram
     vector<int> histo { _q_level, 0 };
@@ -274,7 +274,10 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
             float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
 
             int slot = int(floorf(tmpchrg / chrg_step));
-            histo[slot]++;
+            if (0 <= slot || slot < _q_level)
+            {
+                histo[slot]++;
+            }
         }
     }
 
