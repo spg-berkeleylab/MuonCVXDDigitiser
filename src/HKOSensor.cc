@@ -265,7 +265,8 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
     float chrg_step = _satur_level / _q_level;
 
     // histogram
-    vector<int> histo { _q_level, 0 };
+    int histo[_q_level];
+    for(int j = 0; j < _q_level; j++) histo[j] = 0;
 
     for (int h = 0; h < GetSensorRows(); h++)
     {
@@ -274,9 +275,9 @@ float HKOSensor::getThreshold(int segid_x, int segid_y)
             float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
 
             int slot = int(floorf(tmpchrg / chrg_step));
-            if (0 <= slot || slot < _q_level)
+            if (0 <= slot && slot < _q_level)
             {
-                histo[slot]++;
+                histo[slot] = histo[slot] + 1;
             }
         }
     }
