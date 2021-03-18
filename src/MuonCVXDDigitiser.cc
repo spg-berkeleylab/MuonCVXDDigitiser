@@ -334,7 +334,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             dd4hep::rec::Vector3D u = surf->u() ;
             dd4hep::rec::Vector3D v = surf->v() ;
             
+            double localPos[3];
+            double localDir[3];
+            FindLocalPosition(simTrkHit, localPos, localDir);
+            localPos[0] = localPos[0] / _pixelSizeX;
+            localPos[1] = localPos[1] / _pixelSizeY;
+            float incidentPhi = std::atan(localDir[0] / localDir[2]);
+            float incidentTheta = std::atan(localDir[1] / localDir[2]);
+            
             float u_direction[2] ;
+            //TODO HACK: Store incidence angle of particle instead!
             u_direction[0] = u.theta();
             u_direction[1] = u.phi();
 
@@ -369,15 +378,25 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 if (charge >_threshold)
                 {
                    SimTrackerHitImpl *newsth = new SimTrackerHitImpl();
-                   double sLab[3];
                    // hit's layer/ladder position is the same for all fired points 
                    newsth->setCellID0( cellid0 );
                    newsth->setCellID1( cellid1 );
-                   TransformToLab(cellid0, sth->getPosition(), sLab);
-                   newsth->setPosition(sLab);
+                   //Store local position in units of pixels instead
+                   const double *sLab;
+                   //TransformToLab(cellid0, sth->getPosition(), sLab);
+                   sLab = sth->getPosition();
+                   double localPos[3];
+                   localPos[0] = sLab[0] / _pixelSizeX;
+                   localPos[1] = sLab[1] / _pixelSizeY;
+                   newsth->setPosition(localPos);
                    newsth->setEDep(charge); // in unit of electrons x keV
                    // ALE Store also hit's time.. But can be fixed adding time to fly FIXED if needed
                    newsth->setTime(simTrkHit->getTime());
+                   newsth->setPathLength(simTrkHit->getPathLength());
+                   newsth->setMCParticle(simTrkHit->getMCParticle());
+                   newsth->setMomentum(simTrkHit->getMomentum());
+                   newsth->setProducedBySecondary(simTrkHit->isProducedBySecondary());
+                   newsth->setOverlay(simTrkHit->isOverlay());
                    STHLocCol->addElement(newsth);
                    recoHit->rawHits().push_back(newsth);
                 }
