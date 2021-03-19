@@ -87,10 +87,17 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _cutOnDeltaRays,
                                (double)0.030);
 
-    registerProcessorParameter("Diffusion",
-                               "Diffusion coefficient (in mm) for layer thickness",
+    // For diffusion-coeffieint calculation, see e.g. https://www.slac.stanford.edu/econf/C060717/papers/L008.PDF
+    // or directly Eq. 13 of https://cds.cern.ch/record/2161627/files/ieee-tns-07272141.pdf
+    // diffusionCoefficient = sqrt(2*D / mu / V), where
+    //  - D = 12 cm^2/s // diffusion constant
+    //  - mu = 450 cm^2/s/V // mobility
+    //  - V = 10-30 V // expected depletion voltage
+    //  => _diffusionCoefficient = 0.04-0.07
+    registerProcessorParameter("DiffusionCoefficient",
+                               "Diffusion coefficient, sqrt(D / mu / V).",
                                _diffusionCoefficient,
-                               (double)0.002);
+                               (double)0.07);
 
     registerProcessorParameter("PixelSizeX",
                                "Pixel Size X",
@@ -116,11 +123,6 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                "Segment Length in mm",
                                _segmentLength,
                                double(0.005));
-
-    registerProcessorParameter("WidthOfCluster",
-                               "Width of cluster in units of diffusion sigmas.",
-                               _widthOfCluster,
-                               double(3.0));
 
     registerProcessorParameter("PoissonSmearing",
                                "Apply Poisson smearing of electrons collected on pixels",
@@ -246,6 +248,13 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
+
+    //SP. few TODO items:
+    // - include noisy pixels (calculate rate from gaussian with unit sigma integral x > _electronicNoise / _threshold )
+    // - change logic in creating pixels from all SimTrkHits, then cluster them (incl. timing info)
+    // - include threshold dispersion effects?
+    // - add digi parametrization for time measurement
+
     LCCollection * STHcol = nullptr;
     try
     {
@@ -290,6 +299,16 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             _currentLayer  = cellid_decoder( simTrkHit )["layer"];
             _currentLadder = cellid_decoder( simTrkHit )["module"];
             streamlog_out( DEBUG7 ) << "Processing simHit #" << i << ", from layer=" << _currentLayer << ", module=" << _currentLadder << std::endl;
+            streamlog_out (DEBUG6) << "- EDep = " << simTrkHit->getEDep() *dd4hep::GeV / dd4hep::keV << " keV, path length = " << simTrkHit->getPathLength() * 1000. << " um" << std::endl;
+            float mcp_r = std::sqrt(simTrkHit->getPosition()[0]*simTrkHit->getPosition()[0]+simTrkHit->getPosition()[1]*simTrkHit->getPosition()[1]);
+            float mcp_phi = std::atan(simTrkHit->getPosition()[1]/simTrkHit->getPosition()[0]);
+            float mcp_theta = simTrkHit->getPosition()[2] == 0 ? 3.1416/2 : std::atan(mcp_r/simTrkHit->getPosition()[2]);
+            streamlog_out (DEBUG6) << "- Position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
+            streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta << std::endl;
+            streamlog_out (DEBUG6) << "- MC particle pdg = " << simTrkHit->getMCParticle()->getPDG() << std::endl;
+            streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
+            streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
+            streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
 
             ProduceIonisationPoints( simTrkHit );       
             if (_currentLayer == -1)
@@ -462,8 +481,8 @@ void MuonCVXDDigitiser::end()
  * Local coordinate system within the ladder 
  * is defined as following :  <br> 
  *    - x axis lies in the ladder plane and orthogonal to the beam axis <br>
- *    - y axis is perpendicular to the ladder plane <br>
- *    - z axis lies in the ladder plane and parallel to the beam axis <br>
+ *    - y axis lies in the ladder plane and parallel to the beam axis <br>
+ *    - z axis is perpendicular to the ladder plane <br>
  * 
  */
 void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit, 
@@ -560,7 +579,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double dEmean = (dd4hep::keV * _energyLoss * trackLength) / ((double)_numberOfSegments);
     _ionisationPoints.resize(_numberOfSegments);
 
-    streamlog_out( DEBUG6 ) <<  "Track path length: " << trackLength << ", calculated dEmean = " << dEmean << std::endl;
+    streamlog_out( DEBUG6 ) <<  "Track path length: " << trackLength << ", calculated dEmean * N_segment = " << dEmean << " * " << _numberOfSegments << " = " << dEmean*_numberOfSegments << std::endl;
     _eSum = 0.0;
 
     // TODO _segmentLength may be different from segmentLength, is it ok?
@@ -626,11 +645,19 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         double DistanceToPlane = _layerHalfThickness[_currentLayer] - z;
         double xOnPlane = x + _tanLorentzAngleX * DistanceToPlane;
         double yOnPlane = y + _tanLorentzAngleY * DistanceToPlane;
-        double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
-                                                        + pow(_tanLorentzAngleY, 2));
 
-        double SigmaDiff = sqrt(DriftLength / _layerThickness[_currentLayer])
-                           * _diffusionCoefficient;
+        // For diffusion-coeffieint calculation, see e.g. https://www.slac.stanford.edu/econf/C060717/papers/L008.PDF
+        // or directly Eq. 13 of https://cds.cern.ch/record/2161627/files/ieee-tns-07272141.pdf
+        // diffusionCoefficient = sqrt(2*D / mu / V), where
+        //  - D = 12 cm^2/s // diffusion constant
+        //  - mu = 450 cm^2/s/V // mobility
+        //  - V = 10-30 V // expected depletion voltage
+        //  => _diffusionCoefficient = 0.04-0.07
+        // and diffusion sigma = _diffusionCoefficient * DistanceToPlane
+        // e.g. fot 50um diffusion sigma = 2.1 - 3.7 um
+        //double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
+        //                                                + pow(_tanLorentzAngleY, 2));
+        double SigmaDiff = DistanceToPlane * _diffusionCoefficient;
 
         double SigmaX = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleX, 2));
         double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
@@ -646,8 +673,8 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
         spoint.charge = charge; // electrons x keV
         _signalPoints[i] = spoint;
 	    streamlog_out (DEBUG3) << "- " << i << ": charge=" << charge 
-            << ", x="<<xOnPlane << "(delta=" << xOnPlane - x 
-            << ", y="<<yOnPlane << "(delta=" << yOnPlane - y
+            << ", x="<<xOnPlane << "(delta=" << xOnPlane - x << ")"
+            << ", y="<<yOnPlane << "(delta=" << yOnPlane - y << ")"
             << ", sigmaDiff=" << SigmaDiff
             << ", sigmaX="<<SigmaX <<", sigmay="<<SigmaY << std::endl;
     }
@@ -666,25 +693,25 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
         double yCentre = spoint.y;
         double sigmaX = spoint.sigmaX;
         double sigmaY = spoint.sigmaY;
-        double xLo = spoint.x - _widthOfCluster * spoint.sigmaX;
-        double xUp = spoint.x + _widthOfCluster * spoint.sigmaX;
-        double yLo = spoint.y - _widthOfCluster * spoint.sigmaY;
-        double yUp = spoint.y + _widthOfCluster * spoint.sigmaY;
+        double xLo = spoint.x - 3 * spoint.sigmaX;
+        double xUp = spoint.x + 3 * spoint.sigmaX;
+        double yLo = spoint.y - 3 * spoint.sigmaY;
+        double yUp = spoint.y + 3 * spoint.sigmaY;
         
         int ixLo, ixUp, iyLo, iyUp;
 
         TransformXYToCellID(xLo, yLo, ixLo, iyLo);
         TransformXYToCellID(xUp, yUp, ixUp, iyUp);
-        streamlog_out (DEBUG5) << "Pixel idx boundaries: ixLo=" << ixLo << ", iyLo=" << iyLo  
+        streamlog_out (DEBUG5) << i << ": Pixel idx boundaries: ixLo=" << ixLo << ", iyLo=" << iyLo  
             <<  ", ixUp=" << ixUp << ", iyUp=" << iyUp << std::endl;
 
         for (int ix = ixLo; ix< ixUp + 1; ++ix)
         {
-            if (ix < 0) continue;
+            if ( (ix < 0) or (ix >= GetPixelsInaColumn()) ) continue;
 
             for (int iy = iyLo; iy < iyUp + 1; ++iy)
             {
-                if (iy < 0) continue;
+                if ( (iy < 0) or (iy >= GetPixelsInaRow()) ) continue;
 
                 double xCurrent, yCurrent;
                 TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
@@ -875,7 +902,7 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
     x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
 }
 
-int MuonCVXDDigitiser::GetPixelsInaColumn()
+int MuonCVXDDigitiser::GetPixelsInaColumn() //SP: why columns!?! I would have guess row..
 {
     return ceil(_layerLadderWidth[_currentLayer] / _pixelSizeX);
 }

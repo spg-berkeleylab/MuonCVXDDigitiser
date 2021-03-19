@@ -138,7 +138,6 @@ protected:
     double _pixelSizeY;
     double _electronsPerKeV;
     double _segmentLength;
-    double _widthOfCluster;
     double _threshold;
     double _electronicNoise;
     double _energyLoss;
