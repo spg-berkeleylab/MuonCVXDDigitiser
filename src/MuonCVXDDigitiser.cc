@@ -254,6 +254,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     // - change logic in creating pixels from all SimTrkHits, then cluster them (incl. timing info)
     // - include threshold dispersion effects?
     // - add digi parametrization for time measurement
+    // - change position determination of cluster to analog cluster (w-avg of corner hits)
 
     LCCollection * STHcol = nullptr;
     try
@@ -376,8 +377,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             recoHit->setV( v_direction ) ;
             
             // ALE Does this make sense??? TO CHECK
-            recoHit->setdU( _pixelSizeX / sqrt(12) );
-            recoHit->setdV( _pixelSizeY / sqrt(12) );  
+            // SP: need to set these inside ReconstructTrackerHit
+            //recoHit->setdU( _pixelSizeX / sqrt(12) );
+            //recoHit->setdV( _pixelSizeY / sqrt(12) );  
 
             //**************************************************************************
             // Set Relation to SimTrackerHit
@@ -418,7 +420,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                    localPos[0] = sLab[0] / _pixelSizeX;
                    localPos[1] = sLab[1] / _pixelSizeY;
                    newsth->setPosition(localPos);
-                   newsth->setEDep(charge); // in unit of electrons x keV
+                   newsth->setEDep(charge); // in unit of electrons
                    // ALE Store also hit's time.. But can be fixed adding time to fly FIXED if needed
                    newsth->setTime(simTrkHit->getTime());
                    newsth->setPathLength(simTrkHit->getPathLength());
@@ -822,18 +824,20 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
 {
     double pos[3] = {0, 0, 0};
     double charge = 0;
+    int size = 0;
     streamlog_out (DEBUG6) << "Creating reconstructed cluster" << std::endl;
 
-    /* Simple center-of-gravity */
+    /* Simple geometric mean */
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
         
         if (hit->getEDep() <= _threshold) continue;
 
+        size += 1;
         charge += hit->getEDep();
-        pos[0] += hit->getEDep() * hit->getPosition()[0];
-        pos[1] += hit->getEDep() * hit->getPosition()[1];
+        pos[0] += hit->getPosition()[0];
+        pos[1] += hit->getPosition()[1];
         streamlog_out (DEBUG0) << iHit << ": Averaging position, x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", weight(EDep)=" << hit->getEDep() << std::endl;
     }
 
@@ -842,16 +846,18 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
         TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
         recoHit->setEDep((charge / _electronsPerKeV) * dd4hep::keV);
 
-        pos[0] /= charge;
+        pos[0] /= size;
         streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
         pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
         streamlog_out (DEBUG1) << " = " << pos[0];
-        pos[1] /= charge;
+        pos[1] /= size;
         streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
         pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
         streamlog_out (DEBUG1) << " = " << pos[1] << std::endl;
 
         recoHit->setPosition(pos);
+        recoHit->setdU( _pixelSizeX / sqrt(12) );
+        recoHit->setdV( _pixelSizeY / sqrt(12) );
           
         return recoHit;
     }
