@@ -252,7 +252,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     //SP. few TODO items:
     // - include noisy pixels (calculate rate from gaussian with unit sigma integral x > _electronicNoise / _threshold )
     // - change logic in creating pixels from all SimTrkHits, then cluster them (incl. timing info)
-    // - include threshold dispersion effects?
+    // - include threshold dispersion effects
     // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
 
@@ -437,6 +437,11 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG7) << "- number of pixels: " << recoHit->getRawHits().size() << std::endl;
             streamlog_out (DEBUG7) << "- MC particle p=" << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG7) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
+            streamlog_out (DEBUG6) << "- List of constituents (pixels/strips):" << std::endl;
+            for (size_t iH = 0; iH < recoHit->rawHits().size(); ++iH) {
+                SimTrackerHit *hit = dynamic_cast<SimTrackerHit*>(recoHit->rawHits().at(iH));
+                streamlog_out (DEBUG6) << "  - " << iH << ": Edep (e-) = " << hit->getEDep() << std::endl;
+            }
             streamlog_out (DEBUG7) << "--------------------------------" << std::endl;
 
             THcol->addElement(recoHit);
