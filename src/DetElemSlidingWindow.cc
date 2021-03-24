@@ -119,6 +119,7 @@ float DetElemSlidingWindow::get_time()
 void DetElemSlidingWindow::UpdatePixels()
 {
     _sensor.Reset();
+    _sensor.SetTime(curr_time);
 
     for (auto spoint : signals)
     {
@@ -161,7 +162,7 @@ void DetElemSlidingWindow::UpdatePixels()
 
                 float totCharge = float(spoint.charge * integralX * integralY);
 
-                _sensor.UpdatePixel(ix, iy, { totCharge, spoint.time, PixelStatus::ok });
+                _sensor.UpdatePixel(ix, iy, totCharge);
             }
         }
     }

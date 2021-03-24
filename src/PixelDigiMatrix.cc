@@ -66,12 +66,19 @@ void PixelDigiMatrix::Reset()
     charge_valid = false;
 }
 
-void PixelDigiMatrix::UpdatePixel(int x, int y, PixelData data)
+void PixelDigiMatrix::SetTime(float time)
+{
+    for (long unsigned int k = 0; k < pixels.size(); k++) pixels[k].time = time;
+}
+
+void PixelDigiMatrix::UpdatePixel(int x, int y, float chrg)
 {
     if (check(x, y))
     {
-        data.charge = std::min(data.charge, _satur_level);
-        pixels[index(x, y)] = data;
+        // linear aggregation with threshold
+        int idx = index(x, y);
+        float new_chrg = pixels[idx].charge + chrg;
+        pixels[idx].charge = new_chrg > _satur_level ? _satur_level : new_chrg;
     }
 
     charge_valid = false;

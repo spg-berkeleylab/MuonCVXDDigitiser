@@ -81,7 +81,8 @@ public:
     inline string GetCellIDFormatStr() { return cellFmtStr; }
 
     void Reset();
-    void UpdatePixel(int x, int y, PixelData data);
+    void SetTime(float time);
+    void UpdatePixel(int x, int y, float chrg);
     void Apply(PixelTransformation l_expr);
     PixelData GetPixel(int x, int y);
     float GetMaxCharge();
