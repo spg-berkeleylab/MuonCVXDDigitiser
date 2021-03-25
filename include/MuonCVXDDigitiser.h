@@ -41,6 +41,8 @@ typedef std::vector<SignalPoint> SignalPointVec;
 
 /**  Digitizer for Simulated Hits in the Vertex Detector. <br>
  * Digitization follows the procedure adopted in the CMS software package. 
+ * See https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuidePixelDigitization
+ * 
  * @param CollectionName name of input SimTrackerHit collection <br>
  * (default parameter value : "VXDCollection")
  * @param OutputCollectionName name of output TrackerHitsPlane collection <br>
@@ -136,7 +138,6 @@ protected:
     double _pixelSizeY;
     double _electronsPerKeV;
     double _segmentLength;
-    double _widthOfCluster;
     double _threshold;
     double _electronicNoise;
     double _energyLoss;

@@ -24,7 +24,7 @@ option(TIME_PROCESS "Enable time window" OFF)
 FIND_PACKAGE( ILCUTIL REQUIRED COMPONENTS ILCSOFT_CMAKE_MODULES )
 
 # load default settings from ILCSOFT_CMAKE_MODULES
-INCLUDE( ilcsoft_default_settings )
+#INCLUDE( ilcsoft_default_settings )
 
 FIND_PACKAGE( Marlin 1.0 REQUIRED ) # minimum required Marlin version
 INCLUDE_DIRECTORIES( ${Marlin_INCLUDE_DIRS} )
