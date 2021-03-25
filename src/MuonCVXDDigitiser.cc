@@ -342,7 +342,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _electronsPerKeV,
                 _segmentLength,
                 _energyLoss,
-                _widthOfCluster,
+                3.0,
                 _electronicNoise,
                 _maxTrkLen,
                 _deltaEne,

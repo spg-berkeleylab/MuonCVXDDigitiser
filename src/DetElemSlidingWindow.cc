@@ -183,7 +183,7 @@ void DetElemSlidingWindow::UpdatePixels()
         return { new_charge, data.time, PixelStatus::ok };
     });
 /*
-    * TODO charge can be negative
+    * TODO move after charge aggregation (noise related to the entire process)
 
     if (_electronicNoise > 0)
     {
@@ -303,10 +303,20 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
         double DistanceToPlane = _sensor.GetHalfThickness() - z;
         double xOnPlane = x + _tanLorentzAngleX * DistanceToPlane;
         double yOnPlane = y + _tanLorentzAngleY * DistanceToPlane;
-        double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
-                                                        + pow(_tanLorentzAngleY, 2));
 
-        double SigmaDiff = sqrt(DriftLength / _sensor.GetThickness()) * _diffusionCoefficient;
+        // For diffusion-coeffieint calculation, see e.g. https://www.slac.stanford.edu/econf/C060717/papers/L008.PDF
+        // or directly Eq. 13 of https://cds.cern.ch/record/2161627/files/ieee-tns-07272141.pdf
+        // diffusionCoefficient = sqrt(2*D / mu / V), where
+        //  - D = 12 cm^2/s // diffusion constant
+        //  - mu = 450 cm^2/s/V // mobility
+        //  - V = 10-30 V // expected depletion voltage
+        //  => _diffusionCoefficient = 0.04-0.07
+        // and diffusion sigma = _diffusionCoefficient * DistanceToPlane
+        // e.g. fot 50um diffusion sigma = 2.1 - 3.7 um
+        //double DriftLength = DistanceToPlane * sqrt(1.0 + pow(_tanLorentzAngleX, 2) 
+        //                                                + pow(_tanLorentzAngleY, 2));
+        //double SigmaDiff = sqrt(DriftLength / _sensor.GetThickness()) * _diffusionCoefficient;
+        double SigmaDiff = DistanceToPlane * _diffusionCoefficient;
 
         double SigmaX = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleX, 2));
         double SigmaY = SigmaDiff * sqrt(1.0 + pow(_tanLorentzAngleY, 2));
