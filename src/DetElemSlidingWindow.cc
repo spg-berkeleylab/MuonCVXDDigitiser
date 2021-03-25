@@ -15,6 +15,8 @@
 
 using std::max;
 using std::min;
+using std::sqrt;
+using std::atan;
 using std::vector;
 using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
@@ -77,16 +79,39 @@ bool DetElemSlidingWindow::active()
 
 int DetElemSlidingWindow::process()
 {
-    streamlog_out(DEBUG) << "Time window centered in " << curr_time << std::endl;
-
-    streamlog_out(DEBUG) << "Hits available for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
-                           << " = " << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
-                           << std::endl;
-
     for (SimTrackerHit* hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
          hit != nullptr && hit->getTime() - curr_time < window_radius;
          hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder()))
     {
+        if (streamlog::out.write<streamlog::DEBUG6>())
+#pragma omp critical
+        {
+            float mcp_r = sqrt(pow(hit->getPosition()[0], 2) + pow(hit->getPosition()[1], 2));
+            float mcp_phi = atan(hit->getPosition()[1] / hit->getPosition()[0]);
+            float mcp_theta = hit->getPosition()[2] == 0 ? 3.1416/2 : atan(mcp_r / hit->getPosition()[2]);
+            double mom_norm = sqrt(pow(hit->getMomentum()[0], 2) + pow(hit->getMomentum()[1], 2)
+                                   + pow(hit->getMomentum()[2], 2));
+            streamlog::out() << "Processing simHit from layer =" << _sensor.GetLayer()
+                             << ", module =" << _sensor.GetLadder() << std::endl
+                             << "Time window centered in " << curr_time
+                             << ", Hits available = "
+                             << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
+                             << std::endl
+                             << "- EDep = " << hit->getEDep() * dd4hep::GeV / dd4hep::keV
+                             << " keV, path length = " << hit->getPathLength() * 1000.
+                             << " um" << std::endl
+                             << "- Position (mm) x,y,z,t = " << hit->getPosition()[0] << ", "
+                             << hit->getPosition()[1] << ", " << hit->getPosition()[2]
+                             << ", " << hit->getTime() << std::endl
+                             << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi
+                             << ", " << mcp_theta << std::endl
+                             << "- MC particle pdg = " << hit->getMCParticle()->getPDG() << std::endl
+                             << "- MC particle p (GeV) = " << mom_norm << std::endl
+                             << "- isSecondary = " << hit->isProducedBySecondary()
+                             << ", isOverlay = " << hit->isOverlay() << std::endl
+                             << "- Quality = " << hit->getQuality() << std::endl;
+        }
+
         StoreSignalPoints(hit);
         _htable.DisposeHit(_sensor.GetLayer(), _sensor.GetLadder());
     }

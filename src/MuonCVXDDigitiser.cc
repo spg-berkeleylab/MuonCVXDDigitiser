@@ -282,6 +282,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     try
     {
         STHcol = evt->getCollection(_colName);
+        streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with "
+                                <<  STHcol->getNumberOfElements()  << " hits ... " << std::endl ;
     }
     catch( lcio::DataNotAvailableException ex )
     {
