@@ -236,14 +236,15 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     const ISurface* surf = sI->second ;
 
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
-    // We need it?
-    if ( ! surf->insideBounds( dd4hep::mm * oldPos ) ) {
 
-        streamlog_out( DEBUG ) << "  hit at " << oldPos
-                                << " is not on surface "
-                                << *surf
-                                << " distance: " << surf->distance(  dd4hep::mm * oldPos )
-                                << std::endl;
+    if (!surf->insideBounds(dd4hep::mm * oldPos))
+    {
+        if (streamlog::out.write<streamlog::DEBUG6>())
+#pragma omp critical
+        {
+            streamlog::out() << "  hit at " << oldPos << " is not on surface " << *surf
+                             << " distance: " << surf->distance(dd4hep::mm * oldPos) << std::endl;
+        }
         return;
     }    
 
@@ -364,12 +365,34 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double hEdep = hit->getEDep() / dd4hep::GeV;
     // deltaEne is a charge??
     const double thr = _deltaEne / _electronsPerKeV * dd4hep::keV;
-    while (hEdep > eSum + thr) {
-      // Add additional charge sampled from an 1 / n^2 distribution.
-      const double       q = randomTail( thr, hEdep - eSum );
-      const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments));
-      signal_buffer[h].charge += q * _electronsPerKeV / dd4hep::keV;
-      eSum += q;
+    while (hEdep > eSum + thr)
+    {
+        // Add additional charge sampled from an 1 / n^2 distribution.
+        const double       q = randomTail( thr, hEdep - eSum );
+        const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments));
+        signal_buffer[h].charge += q * _electronsPerKeV / dd4hep::keV;
+        eSum += q;
+    }
+
+    if (streamlog::out.write<streamlog::DEBUG5>() || streamlog::out.write<streamlog::DEBUG6>())
+#pragma omp critical
+    {
+        streamlog::out() << "Ionization Points:" << std::endl;
+        if (streamlog::out.write<streamlog::DEBUG5>())
+        {
+            streamlog::out() << "Number of ionization points: " << _numberOfSegments
+                             << ", G4 EDep = "  << hEdep << std::endl
+                             << "Padding each segment charge (1/n^2 pdf) until total below "
+                             << _deltaEne << "e- threshold. New total energy: "
+                             << eSum << std::endl;
+        }
+        else
+        {
+            streamlog::out() <<  "Track path length: " << trackLength
+                             << ", calculated dEmean * N_segment = " << dEmean
+                             << " * " << _numberOfSegments << " = "
+                             << dEmean*_numberOfSegments << std::endl;
+        }
     }
 
     for(auto spoint : signal_buffer)
