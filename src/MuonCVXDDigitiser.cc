@@ -53,7 +53,7 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                            "CollectionName", 
                            "Name of the SimTrackerHit collection",
                            _colName,
-                           std::string("VXDCollection"));
+                           std::string("VertexBarrelCollection"));
 
     registerOutputCollection(LCIO::TRACKERHITPLANE,
                             "OutputCollectionName", 
@@ -117,7 +117,7 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("Threshold",
                                "Cell Threshold in electrons",
                                _threshold,
-                               200.);
+                               500.);
 
     registerProcessorParameter("SegmentLength",
                                "Segment Length in mm",
@@ -137,7 +137,7 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("ElectronicNoise",
                                "electronic noise in electrons",
                                _electronicNoise,
-                               100.);
+                               80.);
 
     registerProcessorParameter("StoreFiredPixels",
                                "Store fired pixels",
