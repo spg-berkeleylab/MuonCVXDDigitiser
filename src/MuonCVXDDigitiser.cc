@@ -307,10 +307,12 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (DEBUG6) << "- Position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
             streamlog_out (DEBUG6) << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta << std::endl;
             streamlog_out (DEBUG6) << "- MC particle pdg = ";
-            if (simTrkHit->getMCParticle()) {}
+            EVENT::MCParticle *mcp = simTrkHit->getMCParticle();
+            if (mcp) {
                 streamlog_out (DEBUG6) << simTrkHit->getMCParticle()->getPDG();
-            else    
+            } else {
                 streamlog_out (DEBUG6) << " N.A.";
+            }
             streamlog_out (DEBUG6) << std::endl;
             streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
@@ -529,11 +531,14 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     localPosition[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
 
     double Momentum[3];
-    for (int j = 0; j < 3; ++j) 
-      if (hit->getMCParticle())
-        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV;
-      else
+    EVENT::MCParticle *mcp = hit->getMCParticle();
+    for (int j = 0; j < 3; ++j) {
+      if (mcp) {
+        Momentum[j] = mcp->getMomentum()[j] * dd4hep::GeV;
+      } else {
         Momentum[j] = hit->getMomentum()[j];
+      }
+    }
 
     // as default put electron's mass
     _currentParticleMass = 0.510e-3 * dd4hep::GeV;
