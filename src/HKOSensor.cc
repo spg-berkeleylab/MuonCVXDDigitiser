@@ -220,31 +220,33 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
             vector<GridCoordinate> c_item = _gridSet.next();
             while (c_item.size() > 0)
             {
-                // Very simple implemetation: center-of-gravity
-                float tot_charge = 0;
+                // Very simple implementation: geometric mean
+                float n_acc = 0;
                 float x_acc = 0;
                 float y_acc = 0;
+                float t_acc = 0;
+                float tot_charge = 0;
                 for (GridCoordinate p_coord : c_item)
                 {
                     int global_x = SensorRowToLadderRow(h, p_coord.x);
                     int global_y = SensorColToLadderCol(k, p_coord.y);
-                    float tmpc = GetPixel(global_x, global_y).charge;
-                    double pos_x = PixelRowToX(global_x);
-                    double pos_y = PixelColToY(global_y);
 
-                    tot_charge += tmpc;
-                    x_acc += tmpc * pos_x;
-                    y_acc += tmpc * pos_y;
+                    n_acc += 1;
+                    x_acc += PixelRowToX(global_x);
+                    y_acc += PixelColToY(global_y);
+                    PixelData p_data = GetPixel(global_x, global_y);
+                    t_acc += p_data.time;
+                    tot_charge += p_data.charge;
                 }
 
                 //Sensor segments ordered row first
                 bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumY() + k;
 
                 SegmentDigiHit digiHit = {
-                    x_acc / tot_charge,
-                    y_acc / tot_charge,
+                    x_acc / n_acc,
+                    y_acc / n_acc,
                     tot_charge,
-                    0,                    // TODO missing sampling time
+                    t_acc / n_acc,
                     bf_encoder.lowWord(),
                     h, k
                 };
