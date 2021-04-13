@@ -1,5 +1,5 @@
-#ifndef HKOSensor_h
-#define HKOSensor_h 1
+#ifndef HKBaseSensor_h
+#define HKBaseSensor_h 1
 
 #include "PixelDigiMatrix.h"
 
@@ -44,10 +44,10 @@ private:
     vector<ClusterData> c_buffer;
 };
 
-class HKOSensor : public PixelDigiMatrix
+class HKBaseSensor : public PixelDigiMatrix
 {
 public:
-    HKOSensor(int layer,
+    HKBaseSensor(int layer,
                           int ladder,
                           int xsegmentNumber,
                           int ysegmentNumber,
@@ -58,19 +58,19 @@ public:
                           double pixelSizeY,
                           string enc_str,
                           int barrel_id,
+						  double thr,
                           float s_level,
                           int q_level);
-    virtual ~HKOSensor() {}
+    virtual ~HKBaseSensor() {}
 
-    void buildHits(SegmentDigiHitList& output);
+    void buildHits(SegmentDigiHitList& output) override;
 
 protected:
     virtual float getThreshold(int segid_x, int segid_y);
     virtual bool aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y);
 
-    int _q_level;
     GridPartitionedSet _gridSet;
 };
 
-#endif //HKOSensor_h
+#endif //HKBaseSensor_h
 

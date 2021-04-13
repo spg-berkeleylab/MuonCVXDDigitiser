@@ -13,7 +13,9 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  double pixelSizeY,
                                  string enc_str,
                                  int barrel_id,
-                                 float s_level):
+								 double thr,
+                                 float s_level,
+								 int q_level):
     _barrel_id(barrel_id),
     _layer(layer),
     _ladder(ladder),
@@ -23,7 +25,9 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
     _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
     cellFmtStr(enc_str),
+	_thr_level(thr),
     _satur_level(s_level),
+	_q_level(q_level),
     max_charge(0),
     charge_valid(false)
 {

@@ -1,4 +1,4 @@
-#include "HKOSensor.h"
+#include "HKBaseSensor.h"
 #include <UTIL/BitField64.h>
 #include <UTIL/LCTrackerConf.h>
 #include <UTIL/ILDConf.h>
@@ -136,7 +136,7 @@ vector<GridCoordinate> GridPartitionedSet::next()
 
    ************************************************************************* */
 
-HKOSensor::HKOSensor(int layer,
+HKBaseSensor::HKBaseSensor(int layer,
                      int ladder,
                      int xsegmentNumber,
                      int ysegmentNumber,
@@ -147,6 +147,7 @@ HKOSensor::HKOSensor(int layer,
                      double pixelSizeY,
                      string enc_str,
                      int barrel_id,
+					 double thr,
                      float s_level,
                      int q_level) :
     PixelDigiMatrix(layer,
@@ -160,12 +161,13 @@ HKOSensor::HKOSensor(int layer,
                     pixelSizeY,
                     enc_str,
                     barrel_id,
-                    s_level),
-    _q_level(q_level),
+					thr,
+                    s_level,
+					q_level),
     _gridSet(s_rows, s_colums)
 {}
 
-void HKOSensor::buildHits(SegmentDigiHitList& output)
+void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 {
     BitField64 bf_encoder { cellFmtStr };
     bf_encoder.reset();
@@ -258,70 +260,13 @@ void HKOSensor::buildHits(SegmentDigiHitList& output)
     }
 }
 
-float HKOSensor::getThreshold(int segid_x, int segid_y)
+float HKBaseSensor::getThreshold(int segid_x, int segid_y)
 {
-    // Otsu algorithm
-    //   https://en.wikipedia.org/wiki/Otsu%27s_method
-    //   http://www.labbookpages.co.uk/software/imgProc/otsuThreshold.html
-
-    float chrg_step = _satur_level / _q_level;
-
-    // histogram
-    int histo[_q_level];
-    for(int j = 0; j < _q_level; j++) histo[j] = 0;
-
-    for (int h = 0; h < GetSensorRows(); h++)
-    {
-        for (int k = 0; k < GetSensorCols(); k++)
-        {
-            float tmpchrg = GetPixel(segid_x, segid_y, h, k).charge;
-
-            int slot = int(floorf(tmpchrg / chrg_step));
-            if (0 <= slot && slot < _q_level)
-            {
-                histo[slot] = histo[slot] + 1;
-            }
-        }
-    }
-
-    // Otsu algorithm
-    int total_pixels = GetSensorRows() * GetSensorCols();
-    float w_sum = 0;
-    for (int j = 0; j < _q_level; j++) w_sum += j * histo[j];
-
-    int threshold = 0;
-    float varMax = 0;
-    float sumB = 0;
-    int wB = 0;
-    int wF = 0;
-
-    for (int j = 0; j < _q_level; j++)
-    {
-        wB += histo[j];
-        if (wB == 0) continue;
-
-        wF = total_pixels - wB;
-        if (wF == 0) break;
-
-        sumB += j * histo[j];
-
-        float mB = sumB / wB;
-        float mF = (w_sum - sumB) / wF;
-
-        // Calculate Between Class Variance
-        float varBetween = (float) wB * (float) wF * (mB - mF) * (mB - mF);
-
-        // Check if new maximum found
-        if (varBetween > varMax) {
-            varMax = varBetween;
-            threshold = j;
-        }
-    }
-
-    return chrg_step * (threshold + 1);
+	// TODO implement noisy pixels and threshold dispersion effects
+    return _thr_level;
 }
 
-bool HKOSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
+bool HKBaseSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
 {
     if (pos_x < 0 || pos_x >= this->GetSensorRows()) return false;
     if (pos_y < 0 || pos_y >= this->GetSensorCols()) return false;
