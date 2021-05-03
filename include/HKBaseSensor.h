@@ -15,8 +15,22 @@ static bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c
 
 struct GridCoordinate
 {
-    int x;
-    int y;
+    int row;
+    int col;
+};
+
+static inline bool operator==(GridCoordinate a, GridCoordinate b)
+{
+    return a.row == b.row && a.col == b.col;
+}
+
+struct ClusterOfPixel
+{
+    vector<GridCoordinate> pix;
+    int row_min;
+    int row_max;
+    int col_min;
+    int col_max;
 };
 
 class GridPartitionedSet
@@ -29,7 +43,7 @@ public:
     void init();
     void close();
     void invalidate(int x, int y);
-    vector<GridCoordinate> next();
+    ClusterOfPixel next();
 
 private:
     inline int index(int row, int col) { return row * columns + col; }
@@ -68,6 +82,7 @@ public:
 protected:
     virtual float getThreshold(int segid_x, int segid_y);
     virtual bool aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y);
+    virtual ClusterOfPixel processCluster(ClusterOfPixel in) { return in; };
 
     GridPartitionedSet _gridSet;
 };

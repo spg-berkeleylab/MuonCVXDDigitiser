@@ -88,7 +88,8 @@ ADD_SHARED_LIBRARY( ${PROJECT_NAME} src/DetElemSlidingWindow.cc
                                     src/HitTemporalIndexes.cc
                                     src/MuonCVXDDigitiser.cc
                                     src/MyG4UniversalFluctuationForSi.cc
-                                    src/PixelDigiMatrix.cc )
+                                    src/PixelDigiMatrix.cc
+                                    src/ShapeProcessingSensor.cc)
 INSTALL_SHARED_LIBRARY( ${PROJECT_NAME} DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
 
 # display some variables and write them to cache

@@ -109,30 +109,35 @@ void GridPartitionedSet::invalidate(int x, int y)
     valid_cells--;
 }
 
-vector<GridCoordinate> GridPartitionedSet::next()
+ClusterOfPixel GridPartitionedSet::next()
 {
     c_curr = c_next;
     if (c_curr == c_buffer.size())
     {
-        vector<GridCoordinate> empty {};
+        ClusterOfPixel empty { {}, 0, 0, 0, 0 };
         return empty;
     }
 
     while (c_next < c_buffer.size() && c_buffer[c_next].label == c_buffer[c_curr].label) c_next++;
 
     int res_size = c_next - c_curr;
-    vector<GridCoordinate> result(res_size, { 0, 0 });
+    ClusterOfPixel result { { res_size, { 0, 0 } }, rows + 1, -1, columns + 1, -1 };
 
     for (int k = 0; k < res_size; k++)
     {
-        result[k] = coordinate(c_buffer[c_curr + k].pos);
+        GridCoordinate coord = coordinate(c_buffer[c_curr + k].pos);
+        result.pix[k] = coord;
+        if (coord.row < result.row_min) result.row_min = coord.row;
+        if (coord.row > result.row_max) result.row_max = coord.row;
+        if (coord.col < result.col_min) result.col_min = coord.col;
+        if (coord.col > result.col_max) result.col_max = coord.col;
     }
     return result;
 }
 
 /* ****************************************************************************
 
-    Hoshen-Kopelman-Otsu sensor
+    Hoshen-Kopelman sensor
 
    ************************************************************************* */
 
@@ -147,7 +152,7 @@ HKBaseSensor::HKBaseSensor(int layer,
                      double pixelSizeY,
                      string enc_str,
                      int barrel_id,
-					 double thr,
+                     double thr,
                      float s_level,
                      int q_level) :
     PixelDigiMatrix(layer,
@@ -161,9 +166,9 @@ HKBaseSensor::HKBaseSensor(int layer,
                     pixelSizeY,
                     enc_str,
                     barrel_id,
-					thr,
+                    thr,
                     s_level,
-					q_level),
+                    q_level),
     _gridSet(s_rows, s_colums)
 {}
 
@@ -219,8 +224,9 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             
             _gridSet.close();
 
-            vector<GridCoordinate> c_item = _gridSet.next();
-            while (c_item.size() > 0)
+            for (ClusterOfPixel c_item = processCluster(_gridSet.next());
+                 c_item.pix.size() > 0;
+                 c_item = processCluster(_gridSet.next()))
             {
                 // Very simple implementation: geometric mean
                 float n_acc = 0;
@@ -228,10 +234,10 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 float y_acc = 0;
                 float t_acc = 0;
                 float tot_charge = 0;
-                for (GridCoordinate p_coord : c_item)
+                for (GridCoordinate p_coord : c_item.pix)
                 {
-                    int global_x = SensorRowToLadderRow(h, p_coord.x);
-                    int global_y = SensorColToLadderCol(k, p_coord.y);
+                    int global_x = SensorRowToLadderRow(h, p_coord.row);
+                    int global_y = SensorColToLadderCol(k, p_coord.col);
 
                     n_acc += 1;
                     x_acc += PixelRowToX(global_x);
@@ -253,8 +259,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     h, k
                 };
                 output.push_back(digiHit);
-
-                c_item = _gridSet.next();
             }
         }
     }

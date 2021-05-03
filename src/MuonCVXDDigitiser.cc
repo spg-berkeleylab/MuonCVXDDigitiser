@@ -25,7 +25,7 @@
 
 #ifdef TIME_PROCESS
 #include "DetElemSlidingWindow.h"
-#include "HKBaseSensor.h"
+#include "ShapeProcessingSensor.h"
 #endif
     
 // ----- include for verbosity dependend logging ---------
@@ -311,7 +311,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             int num_segment_x = 1;
             int nun_segment_y = 1;
 #endif
-            HKBaseSensor sensor {
+            ShapeProcessingSensor sensor {
                 layer, ladder,
                 num_segment_x, nun_segment_y,
                 _layerLadderLength[layer],
