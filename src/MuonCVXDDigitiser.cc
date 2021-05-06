@@ -359,7 +359,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 SegmentDigiHitList hit_buffer {};
                 sensor.buildHits(hit_buffer);
 
-                vector<TrackerHitPlaneImpl*> reco_buffer { hit_buffer.size(), nullptr };
+                vector<TrackerHitPlaneImpl*> reco_buffer;
+                reco_buffer.assign(hit_buffer.size(), nullptr);
+
                 int idx = 0;
                 for (SegmentDigiHit digiHit : hit_buffer)
                 {

@@ -7,11 +7,13 @@
 
 #include <math.h>
 #include <algorithm>
+#include <limits>
 
 using std::sort;
 using UTIL::BitField64;
 using lcio::LCTrackerCellID;
 using lcio::ILDDetID;
+using int_limits = std::numeric_limits<int>;
 
 /* ****************************************************************************
 
@@ -111,28 +113,41 @@ void GridPartitionedSet::invalidate(int x, int y)
 
 ClusterOfPixel GridPartitionedSet::next()
 {
+    ClusterOfPixel result;
+
     c_curr = c_next;
     if (c_curr == c_buffer.size())
     {
-        ClusterOfPixel empty { {}, 0, 0, 0, 0 };
-        return empty;
+        return result;
     }
 
     while (c_next < c_buffer.size() && c_buffer[c_next].label == c_buffer[c_curr].label) c_next++;
 
     int res_size = c_next - c_curr;
-    ClusterOfPixel result { { res_size, { 0, 0 } }, rows + 1, -1, columns + 1, -1 };
+    result.assign(res_size, { 0, 0 });
 
     for (int k = 0; k < res_size; k++)
     {
         GridCoordinate coord = coordinate(c_buffer[c_curr + k].pos);
-        result.pix[k] = coord;
-        if (coord.row < result.row_min) result.row_min = coord.row;
-        if (coord.row > result.row_max) result.row_max = coord.row;
-        if (coord.col < result.col_min) result.col_min = coord.col;
-        if (coord.col > result.col_max) result.col_max = coord.col;
+        result[k] = coord;
     }
     return result;
+}
+
+tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster)
+{
+    int row_min = int_limits::max();
+    int row_max = -1;
+    int col_min = int_limits::max();
+    int col_max = -1;
+    for (auto item : cluster)
+    {
+        if (item.row < row_min) row_min = item.row;
+        if (item.row > row_max) row_max = item.row;
+        if (item.col < col_min) col_min = item.col;
+        if (item.col > col_max) col_max = item.col;
+    }
+    return std::make_tuple(row_min, row_max, col_min, col_max);
 }
 
 /* ****************************************************************************
@@ -225,7 +240,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             _gridSet.close();
 
             for (ClusterOfPixel c_item = processCluster(_gridSet.next());
-                 c_item.pix.size() > 0;
+                 c_item.size() > 0;
                  c_item = processCluster(_gridSet.next()))
             {
                 // Very simple implementation: geometric mean
@@ -234,7 +249,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 float y_acc = 0;
                 float t_acc = 0;
                 float tot_charge = 0;
-                for (GridCoordinate p_coord : c_item.pix)
+                for (GridCoordinate p_coord : c_item)
                 {
                     int global_x = SensorRowToLadderRow(h, p_coord.row);
                     int global_y = SensorColToLadderCol(k, p_coord.col);

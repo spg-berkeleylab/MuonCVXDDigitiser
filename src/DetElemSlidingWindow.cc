@@ -310,7 +310,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double z = -_sensor.GetHalfThickness() - 0.5 * _segmentDepth;
 
     double eSum = 0.0;
-    vector<TimedSignalPoint> signal_buffer{_numberOfSegments};
+    vector<TimedSignalPoint> signal_buffer;
 
     for (int i = 0; i < _numberOfSegments; ++i)
     {

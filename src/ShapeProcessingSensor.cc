@@ -2,6 +2,9 @@
 
 #include "streamlog/streamlog.h"
 
+//TODO remove
+#include <sstream>
+
 ShapeProcessingSensor::ShapeProcessingSensor(int layer,
                                              int ladder,
                                              int xsegmentNumber,
@@ -65,56 +68,71 @@ GridCoordinate ShapeProcessingSensor::GetNextPoint(GridCoordinate c, GridCoordin
     return { 0, 0 };
 }
 
-vector<GridCoordinate> ShapeProcessingSensor::GetContour(ClusterOfPixel& spot)
+vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& spot)
 {
     vector<GridCoordinate> result;
+    std::stringstream logstr;
+
+    int row_min;
+    int row_max;
+    int col_min;
+    int col_max;
+    tie(row_min, row_max, col_min, col_max) = GetBound(spot);
+    logstr << "Box for cluster: " << row_min << ":" << col_min  << " " ;
+    logstr << row_max << ":" << col_max << " Size: " << spot.size() << std::endl;
 
     // It's better to put an empty frame around the spot
-    int b_rows = spot.row_max - spot.row_min + 3;
-    int b_cols = spot.col_max - spot.col_min + 3;
-    vector<bool> buffer { b_rows * b_cols, false };
+    int b_rows = row_max - row_min + 3;
+    int b_cols = col_max - col_min + 3;
+
+    vector<char> buffer;
+    buffer.assign(b_rows * b_cols, 0);
 
     GridCoordinate curr_p { 0, 0 };
     GridCoordinate prev_p { 0, 0 };
-    for (GridCoordinate a_coord : spot.pix)
+    for (GridCoordinate a_coord : spot)
     {
-        int l_row = a_coord.row - spot.row_min + 1;
-        int l_col = a_coord.col - spot.col_min + 1;
-        buffer[l_row * b_cols + l_col] = true;
+        int l_row = a_coord.row - row_min + 1;
+        int l_col = a_coord.col - col_min + 1;
+        buffer[l_row * b_cols + l_col] = 1;
 
         // Starting points
-        if (curr_p.row == 0 && a_coord.row == spot.row_min)
+        if (curr_p.row == 0 && a_coord.row == row_min)
         {
             curr_p = { l_row, l_col };
             prev_p = { l_row - 1, l_col };
         }
     }
 
-    // simple protection against infinite loop
-    int avail_cycle = 8 * b_rows * b_cols;
+    int v_cnt = 0;
     do
     {
-        result.push_back(curr_p);
-        avail_cycle--;
-        
-        if (avail_cycle == 0)
-        {
-            result.clear();
-            break;
-        }
+        logstr << "    " << curr_p.row << ":" << curr_p.col;
+        if (v_cnt % 10 == 9) logstr << std::endl ;
+        v_cnt++;
 
-        GridCoordinate next_p = GetNextPoint(curr_p, prev_p);
-        while (!buffer[next_p.row * b_cols + next_p.col])
+        result.push_back(curr_p);
+
+        GridCoordinate next_p = prev_p;
+        do
         {
             next_p = GetNextPoint(curr_p, next_p);
         }
-        
+        while (!buffer[next_p.row * b_cols + next_p.col]);
+
         prev_p = curr_p;
         curr_p = next_p;
     }
-    while (result.size() > 1 && result[0] == prev_p && result[1] == curr_p);
-    
-    //TODO last element is equal to the first
+    while (!(result.size() > 1 && result[0] == prev_p && result[1] == curr_p));
+
+    result.pop_back();
+    logstr << std::endl << "Contour size: " << result.size() << std::endl;
+
+    if(streamlog::out.write<streamlog::DEBUG7>())
+#pragma omp critical
+    {
+        streamlog::out() << logstr.str() << std::endl;
+    }
 
     return result;
 }
@@ -125,17 +143,11 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(ClusterOfPixel& spot)
  * Sub-clustering
  * 
  * ************************************************************************************ */
-ClusterOfPixel ShapeProcessingSensor::processCluster(ClusterOfPixel in)
+ClusterOfPixel ShapeProcessingSensor::processCluster(const ClusterOfPixel& in)
 {
-    if (in.pix.size() > 10)
+    if (in.size() > 200)
     {
-        if(streamlog::out.write<streamlog::MESSAGE>())
-#pragma omp critical
-        {
-            streamlog::out() << "Find big cluster: " << in.row_min << ":" << in.col_min 
-                             << " " << in.row_max << ":" << in.col_max << std::endl;
-        }
-
+        vector<GridCoordinate> contour = GetContour(in);
     }
 
     return in;

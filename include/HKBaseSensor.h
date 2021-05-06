@@ -2,8 +2,11 @@
 #define HKBaseSensor_h 1
 
 #include "PixelDigiMatrix.h"
+#include <tuple>
 
 using std::vector;
+using std::tuple;
+using std::tie;
 
 struct ClusterData
 {
@@ -24,14 +27,9 @@ static inline bool operator==(GridCoordinate a, GridCoordinate b)
     return a.row == b.row && a.col == b.col;
 }
 
-struct ClusterOfPixel
-{
-    vector<GridCoordinate> pix;
-    int row_min;
-    int row_max;
-    int col_min;
-    int col_max;
-};
+using ClusterOfPixel = vector<GridCoordinate>;
+
+tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster);
 
 class GridPartitionedSet
 {
@@ -82,7 +80,7 @@ public:
 protected:
     virtual float getThreshold(int segid_x, int segid_y);
     virtual bool aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y);
-    virtual ClusterOfPixel processCluster(ClusterOfPixel in) { return in; };
+    virtual ClusterOfPixel processCluster(const ClusterOfPixel& in) { return in; };
 
     GridPartitionedSet _gridSet;
 };
