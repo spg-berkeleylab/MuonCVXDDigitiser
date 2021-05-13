@@ -37,7 +37,6 @@ struct SegmentDigiHit
     int segment_y;  // redundant information
 };
 
-typedef std::vector<PixelData> EnergyMatrix;
 typedef std::function<PixelData(PixelData pIn)> PixelTransformation;
 typedef std::vector<SegmentDigiHit> SegmentDigiHitList;
 
@@ -83,11 +82,10 @@ public:
     inline string GetCellIDFormatStr() { return cellFmtStr; }
 
     void Reset();
-    void SetTime(float time);
+    void ClockSync(float time);
     void UpdatePixel(int x, int y, float chrg);
-    void Apply(PixelTransformation l_expr);
+    //void Apply(PixelTransformation l_expr);
     PixelData GetPixel(int x, int y);
-    float GetMaxCharge();
 
     inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
     inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
@@ -119,15 +117,21 @@ protected:
     double _thr_level;
     float _satur_level;
     int _q_level;
+    float clock_time;
+    float q_slope;
 
 private:
+    struct PixelRawData
+    {
+        float charge;
+        int counter;
+    };
+
     inline int index(int x, int y) { return x * l_columns + y; }
     bool check(int x, int y);
     
-    EnergyMatrix pixels;
+    std::vector<PixelRawData> pixels;
     MatrixStatus status;
-    float max_charge;
-    bool  charge_valid;
 };
 
 #endif //PixelDigiMatrix_h

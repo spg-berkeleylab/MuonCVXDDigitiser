@@ -64,6 +64,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     cell_decoder(sensor.GetCellIDFormatStr())
 {
     _fluctuate = new G4UniversalFluctuation();
+    _sensor.ClockSync(starttime);
 }
 
 DetElemSlidingWindow::~DetElemSlidingWindow()
@@ -143,8 +144,7 @@ float DetElemSlidingWindow::get_time()
 
 void DetElemSlidingWindow::UpdatePixels()
 {
-    _sensor.Reset();
-    _sensor.SetTime(curr_time);
+    _sensor.ClockSync(curr_time);
 
     for (auto spoint : signals)
     {
@@ -191,7 +191,7 @@ void DetElemSlidingWindow::UpdatePixels()
             }
         }
     }
-
+/*
     _sensor.Apply([](PixelData data) -> PixelData {
         float new_charge = 0;
         if (data.charge > 1e+03) // assume Gaussian
@@ -207,8 +207,6 @@ void DetElemSlidingWindow::UpdatePixels()
 
         return { new_charge, data.time, PixelStatus::ok };
     });
-/*
-    * TODO move after charge aggregation (noise related to the entire process)
 
     if (_electronicNoise > 0)
     {
@@ -218,7 +216,6 @@ void DetElemSlidingWindow::UpdatePixels()
                 data.time,
                 PixelStatus::ok
             };
-        });
     }
 */
 }

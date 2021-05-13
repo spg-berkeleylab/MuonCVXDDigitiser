@@ -28,8 +28,8 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
 	_thr_level(thr),
     _satur_level(s_level),
 	_q_level(q_level),
-    max_charge(0),
-    charge_valid(false)
+    clock_time(0),
+    q_slope(0)   // TODO read from config
 {
     int lwid = floor(ladderWidth * 1e4);
     int psx = floor(pixelSizeX * 1e4);
@@ -57,7 +57,10 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     {
         status = MatrixStatus::ok;
     }
-    pixels = EnergyMatrix(l_rows * l_columns);
+
+    pixels = std::vector<PixelRawData>(l_rows * l_columns);
+    pixels.assign(pixels.size(), {0, 0});
+
 }
 
 PixelDigiMatrix::~PixelDigiMatrix()
@@ -65,29 +68,42 @@ PixelDigiMatrix::~PixelDigiMatrix()
 
 void PixelDigiMatrix::Reset()
 {
-    pixels.assign(pixels.size(), {0, 0, PixelStatus::undefined});
-
-    charge_valid = false;
+    pixels.assign(pixels.size(), {0, 0});
 }
 
-void PixelDigiMatrix::SetTime(float time)
+void PixelDigiMatrix::ClockSync(float time)
 {
-    for (long unsigned int k = 0; k < pixels.size(); k++) pixels[k].time = time;
+    float delta_c = (time - clock_time) * q_slope;
+
+    for (long unsigned int k = 0; k < pixels.size(); k++)
+    {
+        if (pixels[k].charge == 0) continue;
+
+        pixels[k].charge = std::max(pixels[k].charge - delta_c, 0.f);
+        if (pixels[k].charge < _thr_level)
+        {
+            // TODO store the TOT
+        }
+        else
+        {
+            pixels[k].counter += 1;
+        }
+    }
+
+    clock_time = time;
 }
 
 void PixelDigiMatrix::UpdatePixel(int x, int y, float chrg)
 {
     if (check(x, y))
     {
-        // linear aggregation with threshold
         int idx = index(x, y);
         float new_chrg = pixels[idx].charge + chrg;
-        pixels[idx].charge = new_chrg > _satur_level ? _satur_level : new_chrg;
+        pixels[idx].charge = new_chrg;
+        if (new_chrg > _thr_level) pixels[idx].counter = 0;
     }
-
-    charge_valid = false;
 }
-
+/*
 void PixelDigiMatrix::Apply(PixelTransformation l_expr)
 {
     for (long unsigned int k = 0; k < pixels.size(); k++)
@@ -96,10 +112,8 @@ void PixelDigiMatrix::Apply(PixelTransformation l_expr)
         tmpd.charge = std::min(tmpd.charge, _satur_level);
         pixels[k] = tmpd;
     }
-
-    charge_valid = false;
 }
-
+*/
 PixelData PixelDigiMatrix::GetPixel(int x, int y)
 {
     if (status != MatrixStatus::ok)
@@ -108,24 +122,10 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     }
     if (check(x, y))
     {
-        return pixels[index(x, y)];
+        // TODO implement
+        //return pixels[index(x, y)];
     }
     return { 0, 0, PixelStatus::out_of_bounds };
-}
-
-float PixelDigiMatrix::GetMaxCharge()
-{
-    if (charge_valid) return max_charge;
-
-    max_charge = 0;
-    for (long unsigned int k = 0; k < pixels.size(); k++)
-    {
-        float t_chrg = pixels[k].charge;
-        if (t_chrg > max_charge) max_charge = t_chrg;
-    }
-    charge_valid = true;
-
-    return max_charge;
 }
 
 PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
