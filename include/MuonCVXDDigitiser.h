@@ -142,12 +142,10 @@ protected:
     double _electronicNoise;
     double _energyLoss;
     double _deltaEne;
-  	double _maxTrkLen;	
-    double _satur_level;
+  	double _maxTrkLen;
     int _PoissonSmearing;
     int _electronicEffects;
     int _produceFullPattern;
-    int _q_level;
 
     MyG4UniversalFluctuationForSi *_fluctuate;
 
@@ -202,8 +200,8 @@ protected:
     double randomTail( const double qmin, const double qmax );
 
 #ifdef TIME_PROCESS
-    float _tclick;
     float _window_size;
+    float _fe_slope;
 #endif
 
 };

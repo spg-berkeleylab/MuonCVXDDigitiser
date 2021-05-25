@@ -31,7 +31,6 @@ class DetElemSlidingWindow
 public:
     DetElemSlidingWindow(HitTemporalIndexes& htable,
                          PixelDigiMatrix& sensor,
-                         float tclick,
                          float wsize,
                          float starttime,
                          double tanLorentzAngleX,

@@ -13,9 +13,10 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  double pixelSizeY,
                                  string enc_str,
                                  int barrel_id,
-								 double thr,
-                                 float s_level,
-								 int q_level):
+                                 double thr,
+                                 float fe_slope,
+                                 float starttime,
+                                 float t_step):
     _barrel_id(barrel_id),
     _layer(layer),
     _ladder(ladder),
@@ -25,11 +26,10 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     _ladderLength(ladderLength > 0 ? ladderLength : 0),
     _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
     cellFmtStr(enc_str),
-	_thr_level(thr),
-    _satur_level(s_level),
-	_q_level(q_level),
-    clock_time(0),
-    q_slope(0)   // TODO read from config
+    _thr_level(thr),
+    clock_time(starttime),
+    clock_step(t_step),
+    q_slope(fe_slope)
 {
     int lwid = floor(ladderWidth * 1e4);
     int psx = floor(pixelSizeX * 1e4);
@@ -59,7 +59,7 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     }
 
     pixels = std::vector<PixelRawData>(l_rows * l_columns);
-    pixels.assign(pixels.size(), {0, 0});
+    pixels.assign(pixels.size(), {0, 0, false});
 
 }
 
@@ -68,29 +68,23 @@ PixelDigiMatrix::~PixelDigiMatrix()
 
 void PixelDigiMatrix::Reset()
 {
-    pixels.assign(pixels.size(), {0, 0});
+    pixels.assign(pixels.size(), {0, 0, false});
 }
 
-void PixelDigiMatrix::ClockSync(float time)
+void PixelDigiMatrix::ClockSync()
 {
-    float delta_c = (time - clock_time) * q_slope;
+    float delta_c = clock_step * q_slope;
 
     for (long unsigned int k = 0; k < pixels.size(); k++)
     {
         if (pixels[k].charge == 0) continue;
 
         pixels[k].charge = std::max(pixels[k].charge - delta_c, 0.f);
-        if (pixels[k].charge < _thr_level)
-        {
-            // TODO store the TOT
-        }
-        else
-        {
-            pixels[k].counter += 1;
-        }
+        pixels[k].counter += 1;
+        pixels[k].thr_down = (pixels[k].charge < getThreshold()  and not pixels[k].thr_down);
     }
 
-    clock_time = time;
+    clock_time += clock_step;
 }
 
 void PixelDigiMatrix::UpdatePixel(int x, int y, float chrg)
@@ -99,21 +93,12 @@ void PixelDigiMatrix::UpdatePixel(int x, int y, float chrg)
     {
         int idx = index(x, y);
         float new_chrg = pixels[idx].charge + chrg;
+
         pixels[idx].charge = new_chrg;
-        if (new_chrg > _thr_level) pixels[idx].counter = 0;
+        if (new_chrg > getThreshold() and not pixels[idx].thr_down) pixels[idx].counter = 0;
     }
 }
-/*
-void PixelDigiMatrix::Apply(PixelTransformation l_expr)
-{
-    for (long unsigned int k = 0; k < pixels.size(); k++)
-    {
-        PixelData tmpd = l_expr(pixels[k]);
-        tmpd.charge = std::min(tmpd.charge, _satur_level);
-        pixels[k] = tmpd;
-    }
-}
-*/
+
 PixelData PixelDigiMatrix::GetPixel(int x, int y)
 {
     if (status != MatrixStatus::ok)
@@ -133,10 +118,8 @@ PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
     return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
 }
 
-bool PixelDigiMatrix::check(int x, int y)
+double PixelDigiMatrix::getThreshold()
 {
-    if (x < 0 || x >= l_rows) return false;
-    if (y < 0 || y >= l_columns) return false;
-    return true;
+    // TODO implement noises and threshold dispersion effects
+    return _thr_level;
 }
-

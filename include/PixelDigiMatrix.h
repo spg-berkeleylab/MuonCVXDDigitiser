@@ -1,8 +1,8 @@
 #ifndef PixelDigiMatrix_h
 #define PixelDigiMatrix_h 1
 
+#include <string>
 #include <vector>
-#include <functional>
 
 using std::string;
 
@@ -37,7 +37,6 @@ struct SegmentDigiHit
     int segment_y;  // redundant information
 };
 
-typedef std::function<PixelData(PixelData pIn)> PixelTransformation;
 typedef std::vector<SegmentDigiHit> SegmentDigiHitList;
 
 class PixelDigiMatrix
@@ -54,9 +53,10 @@ public:
                     double pixelSizeY,
                     string enc_str,
                     int barrel_id,
-					double thr,
-                    float s_level,
-					int q_level);
+                    double thr,
+                    float fe_slope,
+                    float starttime,
+                    float t_step);
     virtual ~PixelDigiMatrix();
 
     virtual void buildHits(SegmentDigiHitList& output) = 0;
@@ -82,9 +82,8 @@ public:
     inline string GetCellIDFormatStr() { return cellFmtStr; }
 
     void Reset();
-    void ClockSync(float time);
+    void ClockSync();
     void UpdatePixel(int x, int y, float chrg);
-    //void Apply(PixelTransformation l_expr);
     PixelData GetPixel(int x, int y);
 
     inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
@@ -98,6 +97,7 @@ protected:
     inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
     inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
+    virtual double getThreshold();
 
     int _barrel_id;
     int _layer;
@@ -115,20 +115,20 @@ protected:
     int y_segnum;
     string cellFmtStr;
     double _thr_level;
-    float _satur_level;
-    int _q_level;
     float clock_time;
+    float clock_step;
     float q_slope;
 
 private:
     struct PixelRawData
     {
         float charge;
-        int counter;
+        int   counter;
+        bool  thr_down;
     };
 
     inline int index(int x, int y) { return x * l_columns + y; }
-    bool check(int x, int y);
+    inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
     
     std::vector<PixelRawData> pixels;
     MatrixStatus status;

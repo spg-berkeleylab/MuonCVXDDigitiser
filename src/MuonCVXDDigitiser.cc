@@ -165,24 +165,14 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _maxTrkLen,
                                10.0); 
 
-    registerProcessorParameter("QuantizationLevels",
-                               "Number of levels for charge quantization",
-                               _q_level,
-                               int(256)); 
-
-    registerProcessorParameter("SaturationLevel",
-                               "Maximum charge on sensor in electrons",
-                               _satur_level,
-                               double(1024.0));
-
 #ifdef TIME_PROCESS
-    registerProcessorParameter("TimeClick",
-                               "Time step",
-                               _tclick,
-                               (float)0.1);
     registerProcessorParameter("WindowSize",
                                "Window size",
                                _window_size,
+                               (float)0.1);
+    registerProcessorParameter("RD53Aslope",
+                               "ADC slope for chip RD53A",
+                               _fe_slope,
                                (float)0.1);
 #endif
 }
@@ -319,8 +309,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 _layerThickness[layer],
                 _pixelSizeX, _pixelSizeY,
                 encoder_str, _barrelID,
-				_threshold,
-                _satur_level, _q_level
+                _threshold, _fe_slope,
+                start_time, _window_size
             };
             
             if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
@@ -338,7 +328,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             DetElemSlidingWindow t_window {
                 t_index, sensor,
-                _tclick, _window_size, start_time,
+                _window_size, start_time,
                 _tanLorentzAngleX, _tanLorentzAngleY,
                 _cutOnDeltaRays,
                 _diffusionCoefficient,

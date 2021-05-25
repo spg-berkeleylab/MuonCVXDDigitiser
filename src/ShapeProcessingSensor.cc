@@ -17,8 +17,9 @@ ShapeProcessingSensor::ShapeProcessingSensor(int layer,
                                              string enc_str,
                                              int barrel_id,
                                              double thr,
-                                             float s_level,
-                                             int q_level) :
+                                             float fe_slope,
+                                             float starttime,
+                                             float t_step) :
     HKBaseSensor(layer,
                  ladder,
                  xsegmentNumber,
@@ -31,8 +32,9 @@ ShapeProcessingSensor::ShapeProcessingSensor(int layer,
                  enc_str,
                  barrel_id,
                  thr,
-                 s_level,
-                 q_level)
+                 fe_slope,
+                 starttime,
+                 t_step)
 {}
 
 /* ***************************************************************************************

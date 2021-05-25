@@ -27,7 +27,6 @@ using CLHEP::RandFlat;
 
 DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            PixelDigiMatrix& sensor,
-                                           float tclick,
                                            float wsize,
                                            float starttime,
                                            double tanLorentzAngleX,
@@ -42,9 +41,8 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            double maxTrkLen,
                                            double maxEnergyDelta,
                                            const SurfaceMap* s_map):
-    //curr_time(htable.GetMinTime() - wrad - tclick),
     curr_time(starttime),
-    time_click(tclick),
+    time_click(wsize),
     window_radius(wsize / 2),
     _htable(htable),
     _sensor(sensor),
@@ -64,7 +62,6 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     cell_decoder(sensor.GetCellIDFormatStr())
 {
     _fluctuate = new G4UniversalFluctuation();
-    _sensor.ClockSync(starttime);
 }
 
 DetElemSlidingWindow::~DetElemSlidingWindow()
@@ -144,7 +141,7 @@ float DetElemSlidingWindow::get_time()
 
 void DetElemSlidingWindow::UpdatePixels()
 {
-    _sensor.ClockSync(curr_time);
+    _sensor.ClockSync();
 
     for (auto spoint : signals)
     {

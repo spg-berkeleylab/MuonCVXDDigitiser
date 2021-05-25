@@ -20,9 +20,10 @@ public:
                           double pixelSizeY,
                           string enc_str,
                           int barrel_id,
-						  double thr,
-                          float s_level,
-                          int q_level);
+                          double thr,
+                          float fe_slope,
+                          float starttime,
+                          float t_step);
     virtual ~ShapeProcessingSensor() {}
 
 protected:
