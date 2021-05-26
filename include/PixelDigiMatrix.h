@@ -97,7 +97,7 @@ protected:
     inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
     inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
-    virtual double getThreshold();
+    virtual bool IsOverThreshold(float charge);
 
     int _barrel_id;
     int _layer;
@@ -124,7 +124,7 @@ private:
     {
         float charge;
         int   counter;
-        bool  thr_down;
+        bool  active;
     };
 
     inline int index(int x, int y) { return x * l_columns + y; }

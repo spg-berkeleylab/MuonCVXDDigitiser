@@ -77,11 +77,21 @@ void PixelDigiMatrix::ClockSync()
 
     for (long unsigned int k = 0; k < pixels.size(); k++)
     {
-        if (pixels[k].charge == 0) continue;
+        //if (pixels[k].charge == 0) continue;
+
+        if (pixels[k].active)
+        {
+            pixels[k].counter += 1;
+        }
+        else
+        {
+            pixels[k].counter = 0;
+        }
+
+        pixels[k].active = IsOverThreshold(pixels[k].charge);
 
         pixels[k].charge = std::max(pixels[k].charge - delta_c, 0.f);
-        pixels[k].counter += 1;
-        pixels[k].thr_down = (pixels[k].charge < getThreshold()  and not pixels[k].thr_down);
+        
     }
 
     clock_time += clock_step;
@@ -93,9 +103,7 @@ void PixelDigiMatrix::UpdatePixel(int x, int y, float chrg)
     {
         int idx = index(x, y);
         float new_chrg = pixels[idx].charge + chrg;
-
         pixels[idx].charge = new_chrg;
-        if (new_chrg > getThreshold() and not pixels[idx].thr_down) pixels[idx].counter = 0;
     }
 }
 
@@ -107,8 +115,18 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     }
     if (check(x, y))
     {
-        // TODO implement
-        //return pixels[index(x, y)];
+        auto pix = pixels[index(x, y)];
+        PixelData result {
+            0,
+            clock_time - pix.counter * clock_step,
+            PixelStatus::ok
+        };
+
+        if ((not pix.active) and pix.counter > 0)
+        {
+            result.charge += pix.counter * q_slope;
+        }
+        return result;
     }
     return { 0, 0, PixelStatus::out_of_bounds };
 }
@@ -118,8 +136,8 @@ PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
     return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
 }
 
-double PixelDigiMatrix::getThreshold()
+bool PixelDigiMatrix::IsOverThreshold(float charge)
 {
     // TODO implement noises and threshold dispersion effects
-    return _thr_level;
+    return charge > _thr_level;
 }

@@ -141,8 +141,6 @@ float DetElemSlidingWindow::get_time()
 
 void DetElemSlidingWindow::UpdatePixels()
 {
-    _sensor.ClockSync();
-
     for (auto spoint : signals)
     {
         if (spoint.time > curr_time + window_radius) break;
@@ -188,33 +186,8 @@ void DetElemSlidingWindow::UpdatePixels()
             }
         }
     }
-/*
-    _sensor.Apply([](PixelData data) -> PixelData {
-        float new_charge = 0;
-        if (data.charge > 1e+03) // assume Gaussian
-        {
-            new_charge += float(RandGauss::shoot(data.charge, sqrt(data.charge)));
-        }
-        else // assume Poisson
-        {
-            new_charge += float(RandPoisson::shoot(data.charge));
-        }
 
-        if (new_charge < 0) new_charge = 0;
-
-        return { new_charge, data.time, PixelStatus::ok };
-    });
-
-    if (_electronicNoise > 0)
-    {
-        _sensor.Apply([&, this](PixelData data) -> PixelData {
-            return {
-                data.charge + float(RandGauss::shoot(0., this->_electronicNoise)), 
-                data.time,
-                PixelStatus::ok
-            };
-    }
-*/
+    _sensor.ClockSync();
 }
 
 void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
