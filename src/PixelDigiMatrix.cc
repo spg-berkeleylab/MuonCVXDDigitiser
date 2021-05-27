@@ -116,15 +116,17 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     if (check(x, y))
     {
         auto pix = pixels[index(x, y)];
-        PixelData result {
-            0,
-            clock_time - pix.counter * clock_step,
-            PixelStatus::ok
-        };
+        PixelData result { 0, 0, PixelStatus::off };
 
+        if (pix.active)
+        {
+            result.time = clock_time - pix.counter * clock_step;
+            result.status = pix.counter == 0 ? PixelStatus::start : PixelStatus::on;
+        }
         if ((not pix.active) and pix.counter > 0)
         {
             result.charge += pix.counter * q_slope;
+            result.status = PixelStatus::ready;
         }
         return result;
     }

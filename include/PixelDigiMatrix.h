@@ -7,8 +7,10 @@
 using std::string;
 
 enum class PixelStatus : char {
-    ok,
-    undefined,
+    on,
+    off,
+    ready,
+    start,
     out_of_bounds,
     geometry_error
 };

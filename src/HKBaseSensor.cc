@@ -202,9 +202,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
     {
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
-            float charge_thr = getThreshold(h, k);
-            if (charge_thr == 0) continue;
-
             //Hoshen-Kopelman Algorithm:
             //  https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
 
@@ -214,14 +211,14 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             {
                 for (int j = 0; j < this->GetSensorCols(); j++)
                 {
-                    if (!aboveThreshold(charge_thr, h, k, i, j))
+                    if (!pixelOn(h, k, i, j))
                     {
                         _gridSet.invalidate(i, j);
                         continue;
                     }
 
-                    bool up_is_above = aboveThreshold(charge_thr, h, k, i - 1, j);
-                    bool left_is_above = aboveThreshold(charge_thr, h, k, i, j - 1);
+                    bool up_is_above = pixelOn(h, k, i - 1, j);
+                    bool left_is_above = pixelOn(h, k, i, j - 1);
 
                     if (up_is_above && left_is_above)
                     {
@@ -246,7 +243,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                  c_item = processCluster(_gridSet.next()))
             {
                 // Very simple implementation: geometric mean
-                float n_acc = 0;
                 float x_acc = 0;
                 float y_acc = 0;
                 float t_acc = 0;
@@ -256,11 +252,10 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     int global_x = SensorRowToLadderRow(h, p_coord.row);
                     int global_y = SensorColToLadderCol(k, p_coord.col);
 
-                    n_acc += 1;
                     x_acc += PixelRowToX(global_x);
                     y_acc += PixelColToY(global_y);
                     PixelData p_data = GetPixel(global_x, global_y);
-                    t_acc += p_data.time;
+                    t_acc = p_data.time;
                     tot_charge += p_data.charge;
                 }
 
@@ -268,10 +263,10 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumY() + k;
 
                 SegmentDigiHit digiHit = {
-                    x_acc / n_acc,
-                    y_acc / n_acc,
+                    x_acc / c_item.size(),
+                    y_acc / c_item.size(),
                     tot_charge,
-                    t_acc / n_acc,
+                    t_acc,
                     bf_encoder.lowWord(),
                     h, k
                 };
@@ -281,18 +276,12 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
     }
 }
 
-float HKBaseSensor::getThreshold(int segid_x, int segid_y)
-{
-	// TODO implement noisy pixels and threshold dispersion effects
-    return _thr_level;
-}
-
-bool HKBaseSensor::aboveThreshold(float charge, int seg_x, int seg_y, int pos_x, int pos_y)
+bool HKBaseSensor::pixelOn(int seg_x, int seg_y, int pos_x, int pos_y)
 {
     if (pos_x < 0 || pos_x >= this->GetSensorRows()) return false;
     if (pos_y < 0 || pos_y >= this->GetSensorCols()) return false;
 
-    return GetPixel(seg_x, seg_y, pos_x, pos_y).charge > charge;
+    return GetPixel(seg_x, seg_y, pos_x, pos_y).status == PixelStatus::start;
 }
 
 
