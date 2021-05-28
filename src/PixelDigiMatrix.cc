@@ -123,9 +123,10 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
             result.time = clock_time - pix.counter * clock_step;
             result.status = pix.counter == 0 ? PixelStatus::start : PixelStatus::on;
         }
-        if ((not pix.active) and pix.counter > 0)
+        else if (pix.counter > 0)
         {
             result.charge += pix.counter * q_slope;
+            result.time = clock_time - pix.counter * clock_step;
             result.status = PixelStatus::ready;
         }
         return result;
