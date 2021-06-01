@@ -3,10 +3,12 @@
 
 #include "PixelDigiMatrix.h"
 #include <tuple>
+#include <unordered_map>
 
 using std::vector;
 using std::tuple;
 using std::tie;
+using std::unordered_map;
 
 struct ClusterData
 {
@@ -15,6 +17,12 @@ struct ClusterData
 };
 
 static bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
+
+/* ****************************************************************************
+
+    Find-Union Algorithm
+
+   ************************************************************************* */
 
 struct GridCoordinate
 {
@@ -56,6 +64,65 @@ private:
     vector<ClusterData> c_buffer;
 };
 
+/* ****************************************************************************
+
+    Cluster Heap
+
+   ************************************************************************* */
+
+struct CounterItem
+{
+    int   left;
+    int   head;
+//    float time;
+};
+
+using CounterTable = unordered_map<int, CounterItem>;
+
+struct ChargeItem
+{
+    float charge;
+    int   next;
+    int   cid;
+};
+
+using ChargeTable = unordered_map<int, ChargeItem>;
+
+struct ChargePoint
+{
+    int row;
+    int col;
+    float charge;
+};
+
+struct BufferedCluster
+{
+    vector<ChargePoint> pixels;
+    float time;
+};
+
+class ClusterHeap
+{
+public:
+    ClusterHeap(int b_size);
+    virtual ~ClusterHeap();
+    void AddCluster(ClusterOfPixel& cluster);
+    void UpdatePixel(int pos_x, int pos_y, PixelData pix);
+    vector<BufferedCluster> PopClusters();
+private:
+    int hash_cnt;
+    int bunch_size;
+    ChargeTable  charge_table;
+    CounterTable counter_table;
+    vector<int>  ready_to_pop;
+};
+
+/* ****************************************************************************
+
+    Hoshen-Kopelman sensor
+
+   ************************************************************************* */
+
 class HKBaseSensor : public PixelDigiMatrix
 {
 public:
@@ -82,7 +149,8 @@ protected:
     virtual bool pixelOn(int seg_x, int seg_y, int pos_x, int pos_y);
     virtual ClusterOfPixel processCluster(const ClusterOfPixel& in) { return in; };
 
-    GridPartitionedSet _gridSet;
+    GridPartitionedSet  _gridSet;
+    vector<ClusterHeap> heap_table;
 };
 
 #endif //HKBaseSensor_h

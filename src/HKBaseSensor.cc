@@ -152,6 +152,103 @@ tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster)
 
 /* ****************************************************************************
 
+    Cluster Heap
+
+   ************************************************************************* */
+
+ClusterHeap::ClusterHeap(int b_size) :
+    hash_cnt(0),
+    bunch_size(b_size),
+    charge_table(),
+    counter_table(),
+    ready_to_pop()
+{}
+
+ClusterHeap::~ClusterHeap()
+{}
+
+void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
+{
+    int prev_pos = -1;
+    int curr_pos = -1;
+    for (GridCoordinate p_coord : cluster)
+    {
+        curr_pos = p_coord.row * bunch_size + p_coord.col;
+        ChargeItem item { 0, prev_pos, hash_cnt };
+        charge_table.emplace(curr_pos, item);   // TODO check for pix duplicated
+        prev_pos = curr_pos;
+    }
+
+    CounterItem cnt_item { cluster.size(), curr_pos };
+    counter_table.emplace(hash_cnt, cnt_item);
+
+    hash_cnt++;  // TODO possible overflow
+}
+
+void ClusterHeap::UpdatePixel(int pos_x, int pos_y, PixelData pix)
+{
+    if (pix.status == PixelStatus::ready)
+    {
+        int pos = pos_x * bunch_size + pos_y;
+        auto c_item = charge_table.find(pos);
+        if (c_item != charge_table.end() and (c_item->second).charge == 0)
+        {
+            charge_table[pos].charge = pix.charge;
+            int cluster_id = (c_item->second).cid;
+            auto cnt_item = counter_table.find(cluster_id);
+            if (cnt_item != counter_table.end())
+            {
+                counter_table[cluster_id].left -= 1;
+                if (counter_table[cluster_id].left == 0)
+                {
+                    ready_to_pop.push_back(cluster_id);
+                }
+            }
+        }
+    }
+}
+
+vector<BufferedCluster> ClusterHeap::PopClusters()
+{
+    vector<BufferedCluster> result;
+    for (auto cluster_id : ready_to_pop)
+    {
+        BufferedCluster c_points;
+
+        auto cnt_item =  counter_table.find(cluster_id);
+        if (cnt_item != counter_table.end())
+        {
+            int curr_pos = (cnt_item->second).head;
+            do
+            {
+                auto ch_item = charge_table.find(curr_pos);
+                if (ch_item != charge_table.end())
+                {
+                    ChargePoint c_pix
+                    {
+                        curr_pos / bunch_size,
+                        curr_pos % bunch_size,
+                        (ch_item->second).charge
+                    };
+                    
+                    c_points.pixels.push_back(c_pix);
+                }
+                else
+                {
+                    curr_pos = -1;
+                }
+            }
+            while(curr_pos != -1);
+        }
+        result.push_back(c_points);
+    }
+
+    ready_to_pop.clear();
+    return result;
+}
+
+/* ****************************************************************************
+
     Hoshen-Kopelman sensor
 
    ************************************************************************* */
@@ -186,8 +283,14 @@ HKBaseSensor::HKBaseSensor(int layer,
                     fe_slope,
                     starttime,
                     t_step),
-    _gridSet(s_rows, s_colums)
-{}
+    _gridSet(s_rows, s_colums),
+    heap_table(0, { 0 })
+{
+    if (GetStatus() == MatrixStatus::ok)
+    {
+        heap_table.resize(GetSegNumX() * GetSegNumY(), { GetSensorCols() });
+    }
+}
 
 void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 {
@@ -202,8 +305,10 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
     {
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
-            //Hoshen-Kopelman Algorithm:
-            //  https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
+            /* ****************************************************************
+               Hoshen-Kopelman Algorithm:
+               https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
+               ************************************************************** */
 
             _gridSet.init();
 
@@ -238,35 +343,50 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             
             _gridSet.close();
 
-            for (ClusterOfPixel c_item = processCluster(_gridSet.next());
-                 c_item.size() > 0;
-                 c_item = processCluster(_gridSet.next()))
+            /* ****************************************************************
+               Cluster buffering
+               ************************************************************** */
+            ClusterHeap& c_heap = heap_table[h * GetSegNumY() + k];
+            for (ClusterOfPixel c_item = _gridSet.next();
+                                c_item.size() > 0;
+                                c_item = _gridSet.next())
+            {
+                c_heap.AddCluster(c_item);
+            }
+
+            for (int i = 0; i < this->GetSensorRows(); i++)
+            {
+                for (int j = 0; j < this->GetSensorCols(); j++)
+                {
+                    c_heap.UpdatePixel(i, j, GetPixel(h, k, i, j));
+                }
+            }
+            
+            for (BufferedCluster c_item : c_heap.PopClusters())
             {
                 // Very simple implementation: geometric mean
                 float x_acc = 0;
                 float y_acc = 0;
-                float t_acc = 0;
                 float tot_charge = 0;
-                for (GridCoordinate p_coord : c_item)
+                for (ChargePoint c_point : c_item.pixels)
                 {
-                    int global_x = SensorRowToLadderRow(h, p_coord.row);
-                    int global_y = SensorColToLadderCol(k, p_coord.col);
+                    int global_x = SensorRowToLadderRow(h, c_point.row);
+                    int global_y = SensorColToLadderCol(k, c_point.col);
 
                     x_acc += PixelRowToX(global_x);
                     y_acc += PixelColToY(global_y);
-                    PixelData p_data = GetPixel(global_x, global_y);
-                    t_acc = p_data.time;
-                    tot_charge += p_data.charge;
+
+                    tot_charge += c_point.charge;
                 }
 
                 //Sensor segments ordered row first
                 bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumY() + k;
 
                 SegmentDigiHit digiHit = {
-                    x_acc / c_item.size(),
-                    y_acc / c_item.size(),
+                    x_acc / c_item.pixels.size(),
+                    y_acc / c_item.pixels.size(),
                     tot_charge,
-                    t_acc,
+                    c_item.time,
                     bf_encoder.lowWord(),
                     h, k
                 };
@@ -278,9 +398,10 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
 bool HKBaseSensor::pixelOn(int seg_x, int seg_y, int pos_x, int pos_y)
 {
+    /*
     if (pos_x < 0 || pos_x >= this->GetSensorRows()) return false;
     if (pos_y < 0 || pos_y >= this->GetSensorCols()) return false;
-
+    */
     return GetPixel(seg_x, seg_y, pos_x, pos_y).status == PixelStatus::start;
 }
 
