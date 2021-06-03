@@ -119,7 +119,7 @@ protected:
     double _thr_level;
     float clock_time;
     float clock_step;
-    float q_slope;
+    float delta_c;
 
 private:
     struct PixelRawData

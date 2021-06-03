@@ -174,14 +174,22 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
     for (GridCoordinate p_coord : cluster)
     {
         curr_pos = p_coord.row * bunch_size + p_coord.col;
-        ChargeItem item { 0, prev_pos, hash_cnt };
-        charge_table.emplace(curr_pos, item);   // TODO check for pix duplicated
-        prev_pos = curr_pos;
+        auto ch_item = charge_table.find(curr_pos);
+        if (ch_item == charge_table.end())
+        {
+            ChargeItem item { 0, prev_pos, hash_cnt };
+            charge_table.emplace(curr_pos, item);
+            prev_pos = curr_pos;            
+        }
+        else
+        {
+            // TODO roll-back
+            return;
+        }
     }
 
     CounterItem cnt_item { cluster.size(), curr_pos };
     counter_table.emplace(hash_cnt, cnt_item);
-
     hash_cnt++;  // TODO possible overflow
 }
 
@@ -232,6 +240,10 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
                     };
                     
                     c_points.pixels.push_back(c_pix);
+
+                    int next_pos = (ch_item->second).next;
+                    charge_table.erase(curr_pos);
+                    curr_pos = next_pos;
                 }
                 else
                 {
@@ -241,10 +253,11 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
             while(curr_pos != -1);
         }
         result.push_back(c_points);
+        counter_table.erase(cluster_id);
     }
 
     ready_to_pop.clear();
-    return result;
+    return std::move(result);
 }
 
 /* ****************************************************************************
