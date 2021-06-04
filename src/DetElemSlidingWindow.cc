@@ -72,7 +72,9 @@ DetElemSlidingWindow::~DetElemSlidingWindow()
 
 bool DetElemSlidingWindow::active()
 {
-    return _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder()) > 0;
+    bool hasMoreHits = _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder()) > 0;
+    bool sensorOn = _sensor.IsActive();
+    return hasMoreHits || sensorOn;
 }
 
 int DetElemSlidingWindow::process()

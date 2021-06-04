@@ -301,7 +301,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             int num_segment_x = 1;
             int nun_segment_y = 1;
 #endif
-            ShapeProcessingSensor sensor {
+            HKBaseSensor sensor {
                 layer, ladder,
                 num_segment_x, nun_segment_y,
                 _layerLadderLength[layer],
@@ -344,10 +344,11 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             while(t_window.active())
             {
-                if (t_window.process() == 0) continue;
+                t_window.process();
 
                 SegmentDigiHitList hit_buffer {};
                 sensor.buildHits(hit_buffer);
+                if (hit_buffer.size() == 0) continue;
 
                 vector<TrackerHitPlaneImpl*> reco_buffer;
                 reco_buffer.assign(hit_buffer.size(), nullptr);

@@ -87,6 +87,7 @@ public:
     void ClockSync();
     void UpdatePixel(int x, int y, float chrg);
     PixelData GetPixel(int x, int y);
+    bool IsActive();
 
     inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
     inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
@@ -120,6 +121,7 @@ protected:
     float clock_time;
     float clock_step;
     float delta_c;
+    bool _active;
 
 private:
     struct PixelRawData

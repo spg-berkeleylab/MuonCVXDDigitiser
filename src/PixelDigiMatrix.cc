@@ -29,7 +29,8 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     _thr_level(thr),
     clock_time(starttime),
     clock_step(t_step),
-    delta_c(t_step * fe_slope)
+    delta_c(t_step * fe_slope),
+    _active(false)
 {
     int lwid = floor(ladderWidth * 1e4);
     int psx = floor(pixelSizeX * 1e4);
@@ -73,6 +74,7 @@ void PixelDigiMatrix::Reset()
 
 void PixelDigiMatrix::ClockSync()
 {
+    _active = false;
     for (long unsigned int k = 0; k < pixels.size(); k++)
     {
         if (pixels[k].charge == 0) continue;
@@ -87,6 +89,7 @@ void PixelDigiMatrix::ClockSync()
         }
 
         pixels[k].active = IsOverThreshold(pixels[k].charge);
+        _active = _active || pixels[k].active;
 
         pixels[k].charge = std::max(pixels[k].charge - delta_c, 0.f);
     }
@@ -134,6 +137,11 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
 PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
 {
     return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
+}
+
+bool PixelDigiMatrix::IsActive()
+{
+    return _active;
 }
 
 bool PixelDigiMatrix::IsOverThreshold(float charge)
