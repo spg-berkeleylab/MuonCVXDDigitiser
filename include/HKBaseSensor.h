@@ -74,7 +74,7 @@ struct CounterItem
 {
     int   left;
     int   head;
-//    float time;
+    float time;
 };
 
 using CounterTable = unordered_map<int, CounterItem>;

@@ -14,6 +14,7 @@ using UTIL::BitField64;
 using lcio::LCTrackerCellID;
 using lcio::ILDDetID;
 using int_limits = std::numeric_limits<int>;
+using f_limits = std::numeric_limits<float>;
 
 /* ****************************************************************************
 
@@ -171,6 +172,7 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
 {
     int prev_pos = -1;
     int curr_pos = -1;
+    bool need_rollback = false;
     for (GridCoordinate p_coord : cluster)
     {
         curr_pos = p_coord.row * bunch_size + p_coord.col;
@@ -183,12 +185,34 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
         }
         else
         {
-            // TODO roll-back
-            return;
+            need_rollback = true;
+            break;
         }
     }
 
-    CounterItem cnt_item { cluster.size(), curr_pos };
+    if (need_rollback)
+    {
+        if (streamlog::out.write<streamlog::ERROR>())
+#pragma omp critical
+        {
+            streamlog::out() << "Roll-back for pixel "
+                            << curr_pos / bunch_size << ":"
+                            << curr_pos % bunch_size << std::endl;
+        }
+        
+        for (curr_pos = prev_pos; prev_pos >= 0; curr_pos = prev_pos )
+        {
+            auto ch_item = charge_table.find(curr_pos);
+            if (ch_item != charge_table.end())
+            {
+                prev_pos = (ch_item->second).next;
+                charge_table.erase(curr_pos);
+            }
+        }
+        return;
+    }
+
+    CounterItem cnt_item { cluster.size(), curr_pos, f_limits::lowest() };
     counter_table.emplace(hash_cnt, cnt_item);
     hash_cnt++;  // TODO possible overflow
 }
@@ -209,6 +233,7 @@ void ClusterHeap::UpdatePixel(int pos_x, int pos_y, PixelData pix)
                 counter_table[cluster_id].left -= 1;
                 if (counter_table[cluster_id].left == 0)
                 {
+                    counter_table[cluster_id].time = pix.time;
                     ready_to_pop.push_back(cluster_id);
                 }
             }
@@ -251,6 +276,8 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
                 }
             }
             while(curr_pos != -1);
+
+            c_points.time = (cnt_item->second).time;
         }
         result.push_back(c_points);
         counter_table.erase(cluster_id);
