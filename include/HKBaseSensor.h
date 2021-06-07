@@ -10,19 +10,7 @@ using std::tuple;
 using std::tie;
 using std::unordered_map;
 
-struct ClusterData
-{
-    int label;
-    int pos;
-};
-
-static bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
-
-/* ****************************************************************************
-
-    Find-Union Algorithm
-
-   ************************************************************************* */
+using LinearPosition = int;
 
 struct GridCoordinate
 {
@@ -35,9 +23,29 @@ static inline bool operator==(GridCoordinate a, GridCoordinate b)
     return a.row == b.row && a.col == b.col;
 }
 
-using ClusterOfPixel = vector<GridCoordinate>;
+class GridPosition
+{
+public:
+    GridPosition(int rows, int cols) : b_size(cols) {}
+    virtual ~GridPosition() {}
+    LinearPosition operator()(int row, int col) { return row * b_size + col; }
+    GridCoordinate operator()(LinearPosition pos)
+    {
+        return { pos / b_size, pos % b_size };
+    }
+private:
+    int b_size;
+};
 
-tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster);
+/* ****************************************************************************
+
+    Find-Union Algorithm
+
+   ************************************************************************* */
+
+using ClusterOfPixel = vector<LinearPosition>;
+
+tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster, GridPosition locate);
 
 class GridPartitionedSet
 {
@@ -52,14 +60,20 @@ public:
     ClusterOfPixel next();
 
 private:
-    inline int index(int row, int col) { return row * columns + col; }
-    inline GridCoordinate coordinate(int p) { return { p / columns, p % columns }; }
+    struct ClusterData
+    {
+        int label;
+        int pos;
+    };
+
+    static bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
 
     int rows;
     int columns;
     int valid_cells;
     int c_curr;
     int c_next;
+    GridPosition locate;
     vector<int> data;
     vector<ClusterData> c_buffer;
 };
@@ -104,14 +118,14 @@ struct BufferedCluster
 class ClusterHeap
 {
 public:
-    ClusterHeap(int b_size);
+    ClusterHeap(int rows, int cols);
     virtual ~ClusterHeap();
     void AddCluster(ClusterOfPixel& cluster);
     void UpdatePixel(int pos_x, int pos_y, PixelData pix);
     vector<BufferedCluster> PopClusters();
 private:
     int hash_cnt;
-    int bunch_size;
+    GridPosition locate;
     ChargeTable  charge_table;
     CounterTable counter_table;
     vector<int>  ready_to_pop;
@@ -151,6 +165,7 @@ protected:
 
     GridPartitionedSet  _gridSet;
     vector<ClusterHeap> heap_table;
+    GridPosition locate;
 };
 
 #endif //HKBaseSensor_h

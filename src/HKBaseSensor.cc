@@ -28,6 +28,7 @@ GridPartitionedSet::GridPartitionedSet(int n_row, int n_col) :
     valid_cells(0),
     c_curr(0),
     c_next(0),
+    locate(n_row, n_col),
     data(rows * columns, 0),
     c_buffer(0)
 {}
@@ -47,7 +48,7 @@ void GridPartitionedSet::close()
     {
         for (int k = 0; k < columns; k++)
         {
-            if (data[index(h, k)] >= 0) find(h, k);
+            if (data[locate(h, k)] >= 0) find(h, k);
         }
     }
 
@@ -72,14 +73,14 @@ void GridPartitionedSet::close()
 
 int GridPartitionedSet::find(int x, int y)
 {
-    int res = index(x, y);
+    int res = locate(x, y);
     while (data[res] != res)
     {
         if (res < 0) return -1;
         res = data[res];
     }
 
-    int pos = index(x, y);
+    int pos = locate(x, y);
     while (data[pos] != pos)
     {
         int curr = data[pos];
@@ -108,7 +109,7 @@ void GridPartitionedSet::merge(int x1, int y1, int x2, int y2)
 
 void GridPartitionedSet::invalidate(int x, int y)
 {
-    data[index(x, y)] = -1;
+    data[locate(x, y)] = -1;
     valid_cells--;
 }
 
@@ -125,24 +126,24 @@ ClusterOfPixel GridPartitionedSet::next()
     while (c_next < c_buffer.size() && c_buffer[c_next].label == c_buffer[c_curr].label) c_next++;
 
     int res_size = c_next - c_curr;
-    result.assign(res_size, { 0, 0 });
+    result.assign(res_size, { 0 });
 
     for (int k = 0; k < res_size; k++)
     {
-        GridCoordinate coord = coordinate(c_buffer[c_curr + k].pos);
-        result[k] = coord;
+        result[k] = c_buffer[c_curr + k].pos;
     }
     return result;
 }
 
-tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster)
+tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster, GridPosition locate)
 {
     int row_min = int_limits::max();
     int row_max = -1;
     int col_min = int_limits::max();
     int col_max = -1;
-    for (auto item : cluster)
+    for (LinearPosition pos : cluster)
     {
+        GridCoordinate item = locate(pos);
         if (item.row < row_min) row_min = item.row;
         if (item.row > row_max) row_max = item.row;
         if (item.col < col_min) col_min = item.col;
@@ -157,9 +158,9 @@ tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster)
 
    ************************************************************************* */
 
-ClusterHeap::ClusterHeap(int b_size) :
+ClusterHeap::ClusterHeap(int rows, int cols) :
     hash_cnt(0),
-    bunch_size(b_size),
+    locate(rows, cols),
     charge_table(),
     counter_table(),
     ready_to_pop()
@@ -173,9 +174,8 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
     int prev_pos = -1;
     int curr_pos = -1;
     bool need_rollback = false;
-    for (GridCoordinate p_coord : cluster)
+    for (LinearPosition curr_pos : cluster)
     {
-        curr_pos = p_coord.row * bunch_size + p_coord.col;
         auto ch_item = charge_table.find(curr_pos);
         if (ch_item == charge_table.end())
         {
@@ -195,9 +195,9 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
         if (streamlog::out.write<streamlog::ERROR>())
 #pragma omp critical
         {
+            GridCoordinate gcoord = locate(curr_pos);
             streamlog::out() << "Roll-back for pixel "
-                            << curr_pos / bunch_size << ":"
-                            << curr_pos % bunch_size << std::endl;
+                            << gcoord.row << ":" << gcoord.col << std::endl;
         }
         
         for (curr_pos = prev_pos; prev_pos >= 0; curr_pos = prev_pos )
@@ -221,7 +221,7 @@ void ClusterHeap::UpdatePixel(int pos_x, int pos_y, PixelData pix)
 {
     if (pix.status == PixelStatus::ready)
     {
-        int pos = pos_x * bunch_size + pos_y;
+        LinearPosition pos = locate(pos_x, pos_y);
         auto c_item = charge_table.find(pos);
         if (c_item != charge_table.end() and (c_item->second).charge == 0)
         {
@@ -257,10 +257,11 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
                 auto ch_item = charge_table.find(curr_pos);
                 if (ch_item != charge_table.end())
                 {
+                    GridCoordinate gcoord = locate(curr_pos);
                     ChargePoint c_pix
                     {
-                        curr_pos / bunch_size,
-                        curr_pos % bunch_size,
+                        gcoord.row,
+                        gcoord.col,
                         (ch_item->second).charge
                     };
                     
@@ -324,11 +325,12 @@ HKBaseSensor::HKBaseSensor(int layer,
                     starttime,
                     t_step),
     _gridSet(s_rows, s_colums),
-    heap_table(0, { 0 })
+    heap_table(0, { 0, 0 }),
+    locate({ GetSensorRows(), GetSensorCols() })
 {
     if (GetStatus() == MatrixStatus::ok)
     {
-        heap_table.resize(GetSegNumX() * GetSegNumY(), { GetSensorCols() });
+        heap_table.resize(GetSegNumX() * GetSegNumY(), { GetSensorRows(), GetSensorCols() });
     }
 }
 
@@ -392,6 +394,12 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                                 c_item = _gridSet.next())
             {
                 c_heap.AddCluster(c_item);
+
+                if (streamlog::out.write<streamlog::MESSAGE>())
+#pragma omp critical
+                {
+                    streamlog::out() << "Registered cluster" << std::endl;
+                }
             }
 
             for (int i = 0; i < this->GetSensorRows(); i++)
@@ -404,6 +412,11 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             
             for (BufferedCluster c_item : c_heap.PopClusters())
             {
+                if (streamlog::out.write<streamlog::MESSAGE>())
+#pragma omp critical
+                {
+                    streamlog::out() << "Completed cluster" << std::endl;
+                }
                 // Very simple implementation: geometric mean
                 float x_acc = 0;
                 float y_acc = 0;
@@ -438,10 +451,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
 bool HKBaseSensor::pixelOn(int seg_x, int seg_y, int pos_x, int pos_y)
 {
-    /*
-    if (pos_x < 0 || pos_x >= this->GetSensorRows()) return false;
-    if (pos_y < 0 || pos_y >= this->GetSensorCols()) return false;
-    */
     return GetPixel(seg_x, seg_y, pos_x, pos_y).status == PixelStatus::start;
 }
 

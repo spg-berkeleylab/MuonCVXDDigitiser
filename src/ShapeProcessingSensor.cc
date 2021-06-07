@@ -79,7 +79,7 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& s
     int row_max;
     int col_min;
     int col_max;
-    tie(row_min, row_max, col_min, col_max) = GetBound(spot);
+    tie(row_min, row_max, col_min, col_max) = GetBound(spot, locate);
     logstr << "Box for cluster: " << row_min << ":" << col_min  << " " ;
     logstr << row_max << ":" << col_max << " Size: " << spot.size() << std::endl;
 
@@ -92,8 +92,9 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& s
 
     GridCoordinate curr_p { 0, 0 };
     GridCoordinate prev_p { 0, 0 };
-    for (GridCoordinate a_coord : spot)
+    for (LinearPosition item : spot)
     {
+        GridCoordinate a_coord = locate(item);
         int l_row = a_coord.row - row_min + 1;
         int l_col = a_coord.col - col_min + 1;
         buffer[l_row * b_cols + l_col] = 1;
