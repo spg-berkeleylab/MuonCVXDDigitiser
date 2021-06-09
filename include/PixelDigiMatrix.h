@@ -88,6 +88,7 @@ public:
     void UpdatePixel(int x, int y, float chrg);
     PixelData GetPixel(int x, int y);
     bool IsActive();
+    bool CheckStatus(int x, int y, PixelStatus pstat);
 
     inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
     inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
@@ -100,6 +101,7 @@ protected:
     inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
     inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
+    bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
     virtual bool IsOverThreshold(float charge);
 
     int _barrel_id;

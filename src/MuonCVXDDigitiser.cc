@@ -313,16 +313,20 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 start_time, _window_size
             };
             
-            if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
+            if (sensor.GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
             {
-                streamlog_out(ERROR) << "Pixel number error for layer " << layer
-                                     << " ladder " << ladder << std::endl;
-                continue;
-            }
-            if (sensor.GetStatus() == MatrixStatus::segment_number_error)
-            {
-                streamlog_out(ERROR) << "Segment number error for layer " << layer
-                                     << " ladder " << ladder << std::endl;
+                if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
+#pragma omp critical
+                {
+                    streamlog::out() << "Pixel number error for layer " << layer
+                                        << " ladder " << ladder << std::endl;
+                }
+                else
+#pragma omp critical
+                {
+                    streamlog::out() << "Segment number error for layer " << layer
+                                        << " ladder " << ladder << std::endl;
+                }
                 continue;
             }
 
@@ -412,6 +416,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                     idx++;
                 }
 
+                if (reco_buffer.size() > 0)
 #pragma omp critical               
                 {
                     for(TrackerHitPlaneImpl* recoHit : reco_buffer)

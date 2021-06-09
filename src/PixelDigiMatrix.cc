@@ -144,6 +144,31 @@ bool PixelDigiMatrix::IsActive()
     return _active;
 }
 
+bool PixelDigiMatrix::CheckStatus(int x, int y, PixelStatus pstat)
+{
+    if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
+
+    auto pix = pixels[index(x, y)];
+    switch (pstat)
+    {
+    case PixelStatus::on:
+        return pix.active && pix.counter > 0;
+    case PixelStatus::ready:
+        return !pix.active && pix.counter > 0;
+    case PixelStatus::start:
+        return pix.active && pix.counter == 0;
+    }
+
+    return pstat == PixelStatus::off;
+}
+
+bool PixelDigiMatrix::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
+{
+    return CheckStatus(SensorRowToLadderRow(seg_x, pos_x),
+                        SensorColToLadderCol(seg_y, pos_y),
+                        pstat);
+}
+
 bool PixelDigiMatrix::IsOverThreshold(float charge)
 {
     // TODO implement noises and threshold dispersion effects

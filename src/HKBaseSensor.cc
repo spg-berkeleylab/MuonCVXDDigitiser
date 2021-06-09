@@ -394,12 +394,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                                 c_item = _gridSet.next())
             {
                 c_heap.AddCluster(c_item);
-
-                if (streamlog::out.write<streamlog::MESSAGE>())
-#pragma omp critical
-                {
-                    streamlog::out() << "Registered cluster" << std::endl;
-                }
             }
 
             for (int i = 0; i < this->GetSensorRows(); i++)
@@ -412,11 +406,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             
             for (BufferedCluster c_item : c_heap.PopClusters())
             {
-                if (streamlog::out.write<streamlog::MESSAGE>())
-#pragma omp critical
-                {
-                    streamlog::out() << "Completed cluster" << std::endl;
-                }
                 // Very simple implementation: geometric mean
                 float x_acc = 0;
                 float y_acc = 0;
@@ -451,7 +440,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
 bool HKBaseSensor::pixelOn(int seg_x, int seg_y, int pos_x, int pos_y)
 {
-    return GetPixel(seg_x, seg_y, pos_x, pos_y).status == PixelStatus::start;
+    return CheckStatus(seg_x, seg_y, pos_x, pos_y, PixelStatus::start);
 }
 
 
