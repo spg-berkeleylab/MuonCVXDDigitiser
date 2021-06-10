@@ -62,6 +62,8 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     pixels = std::vector<PixelRawData>(l_rows * l_columns);
     pixels.assign(pixels.size(), {0, 0, false});
 
+    num_start = std::vector<int>(x_segnum * y_segnum);
+    num_start.assign(num_start.size(), 0);
 }
 
 PixelDigiMatrix::~PixelDigiMatrix()
@@ -74,7 +76,8 @@ void PixelDigiMatrix::Reset()
 
 void PixelDigiMatrix::ClockSync()
 {
-    _active = false;
+    reset_counters();
+
     for (long unsigned int k = 0; k < pixels.size(); k++)
     {
         if (pixels[k].charge == 0) continue;
@@ -89,9 +92,10 @@ void PixelDigiMatrix::ClockSync()
         }
 
         pixels[k].active = IsOverThreshold(pixels[k].charge);
-        _active = _active || pixels[k].active;
 
         pixels[k].charge = std::max(pixels[k].charge - delta_c, 0.f);
+
+        update_counters(k);
     }
 
     clock_time += clock_step;
@@ -169,8 +173,42 @@ bool PixelDigiMatrix::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, Pi
                         pstat);
 }
 
+bool PixelDigiMatrix::CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat)
+{
+    switch (pstat)
+    {
+    case PixelStatus::ready:
+        // TODO implement
+        return false;
+    case PixelStatus::start:
+        return num_start[seg_x * y_segnum + seg_y] > 0;
+    }
+
+    return false;
+}
+
 bool PixelDigiMatrix::IsOverThreshold(float charge)
 {
     // TODO implement noises and threshold dispersion effects
     return charge > _thr_level;
+}
+
+void PixelDigiMatrix::reset_counters()
+{
+    _active = false;
+    num_start.assign(num_start.size(), 0);
+}
+
+void PixelDigiMatrix::update_counters(int idx)
+{
+    if (pixels[idx].active)
+    {
+        _active = true;
+        if (pixels[idx].counter == 0)
+        {
+            int mod_row = (idx / l_columns) / s_rows;
+            int mod_col = (idx % l_columns) / s_colums;
+            num_start[mod_row * y_segnum + mod_col] += 1;
+        }
+    }
 }

@@ -160,7 +160,6 @@ public:
     void buildHits(SegmentDigiHitList& output) override;
 
 protected:
-    virtual bool pixelOn(int seg_x, int seg_y, int pos_x, int pos_y);
     virtual ClusterOfPixel processCluster(const ClusterOfPixel& in) { return in; };
 
     GridPartitionedSet  _gridSet;

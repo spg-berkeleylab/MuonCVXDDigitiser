@@ -174,8 +174,9 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
     int prev_pos = -1;
     int curr_pos = -1;
     bool need_rollback = false;
-    for (LinearPosition curr_pos : cluster)
+    for (LinearPosition tmpp : cluster)
     {
+        curr_pos = tmpp;
         auto ch_item = charge_table.find(curr_pos);
         if (ch_item == charge_table.end())
         {
@@ -347,53 +348,63 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
     {
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
-            /* ****************************************************************
-               Hoshen-Kopelman Algorithm:
-               https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
-               ************************************************************** */
 
-            _gridSet.init();
+            bool found_clusters = CheckStatusOnSensor(h, k, PixelStatus::start);
 
-            for (int i = 0; i < this->GetSensorRows(); i++)
+            if (found_clusters)
             {
-                for (int j = 0; j < this->GetSensorCols(); j++)
+                /* ****************************************************************
+                   Hoshen-Kopelman Algorithm:
+                   https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
+                   ************************************************************** */
+
+                _gridSet.init();
+
+                for (int i = 0; i < this->GetSensorRows(); i++)
                 {
-                    if (!pixelOn(h, k, i, j))
+                    for (int j = 0; j < this->GetSensorCols(); j++)
                     {
-                        _gridSet.invalidate(i, j);
-                        continue;
-                    }
+                        if (!CheckStatus(h, k, i, j, PixelStatus::start))
+                        {
+                            _gridSet.invalidate(i, j);
+                            continue;
+                        }
 
-                    bool up_is_above = pixelOn(h, k, i - 1, j);
-                    bool left_is_above = pixelOn(h, k, i, j - 1);
+                        bool up_is_above = CheckStatus(h, k, i - 1, j, PixelStatus::start);
+                        bool left_is_above = CheckStatus(h, k, i, j - 1, PixelStatus::start);
 
-                    if (up_is_above && left_is_above)
-                    {
-                        _gridSet.merge(i - 1, j, i, j - 1);
-                        _gridSet.merge(i, j - 1, i, j);
-                    }
-                    else if (!up_is_above && left_is_above)
-                    {
-                        _gridSet.merge(i, j - 1, i, j);
-                    }
-                    else if (up_is_above && !left_is_above)
-                    {
-                        _gridSet.merge(i - 1, j, i, j);
+                        if (up_is_above && left_is_above)
+                        {
+                            _gridSet.merge(i - 1, j, i, j - 1);
+                            _gridSet.merge(i, j - 1, i, j);
+                        }
+                        else if (!up_is_above && left_is_above)
+                        {
+                            _gridSet.merge(i, j - 1, i, j);
+                        }
+                        else if (up_is_above && !left_is_above)
+                        {
+                            _gridSet.merge(i - 1, j, i, j);
+                        }
                     }
                 }
+
+                _gridSet.close();
             }
-            
-            _gridSet.close();
 
             /* ****************************************************************
                Cluster buffering
                ************************************************************** */
             ClusterHeap& c_heap = heap_table[h * GetSegNumY() + k];
-            for (ClusterOfPixel c_item = _gridSet.next();
-                                c_item.size() > 0;
-                                c_item = _gridSet.next())
+
+            if (found_clusters)
             {
-                c_heap.AddCluster(c_item);
+                for (ClusterOfPixel c_item = _gridSet.next();
+                                    c_item.size() > 0;
+                                    c_item = _gridSet.next())
+                {
+                    c_heap.AddCluster(c_item);
+                }
             }
 
             for (int i = 0; i < this->GetSensorRows(); i++)
@@ -437,12 +448,3 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
         }
     }
 }
-
-bool HKBaseSensor::pixelOn(int seg_x, int seg_y, int pos_x, int pos_y)
-{
-    return CheckStatus(seg_x, seg_y, pos_x, pos_y, PixelStatus::start);
-}
-
-
-
-

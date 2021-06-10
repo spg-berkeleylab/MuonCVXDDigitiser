@@ -102,6 +102,7 @@ protected:
     inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
+    bool CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat);
     virtual bool IsOverThreshold(float charge);
 
     int _barrel_id;
@@ -123,7 +124,6 @@ protected:
     float clock_time;
     float clock_step;
     float delta_c;
-    bool _active;
 
 private:
     struct PixelRawData
@@ -135,9 +135,14 @@ private:
 
     inline int index(int x, int y) { return x * l_columns + y; }
     inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
+    void reset_counters();
+    void update_counters(int idx);
     
     std::vector<PixelRawData> pixels;
     MatrixStatus status;
+
+    bool _active;
+    std::vector<int> num_start;
 };
 
 #endif //PixelDigiMatrix_h
