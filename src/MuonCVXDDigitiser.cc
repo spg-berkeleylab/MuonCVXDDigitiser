@@ -287,7 +287,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
 
     HitTemporalIndexes t_index{STHcol};
-    float start_time = t_index.GetMinTime() - _window_size / 2;  // TODO check border condition
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
     {
@@ -301,6 +300,20 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             int num_segment_x = 1;
             int nun_segment_y = 1;
 #endif
+
+            float start_time = t_index.GetMinTime(layer, ladder);
+            if (start_time == HitTemporalIndexes::MAXTIME)
+            {
+                if (streamlog::out.write<streamlog::DEBUG6>())
+#pragma omp critical
+                {
+                    streamlog::out() << "Undefined min time for layer " << layer
+                        << " ladder " << ladder << std::endl;
+                }
+                continue;
+            }
+            start_time -= _window_size / 2;
+
             HKBaseSensor sensor {
                 layer, ladder,
                 num_segment_x, nun_segment_y,

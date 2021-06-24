@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <queue>
+#include <limits>
 
 #include "EVENT/SimTrackerHit.h"
 #include "EVENT/LCCollection.h"
@@ -38,6 +39,9 @@ public:
     void DisposeHit(int layer, int ladder);
     int GetHitNumber(int layer, int ladder);
     float GetMinTime();
+    float GetMinTime(int layer, int ladder);
+
+    static float MAXTIME;
 
 private:
     inline int GetKey(int layer, int ladder);

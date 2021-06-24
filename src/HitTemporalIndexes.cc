@@ -65,12 +65,20 @@ int HitTemporalIndexes::GetHitNumber(int layer, int ladder)
 
 float HitTemporalIndexes::GetMinTime()
 {
-    float min_time{1.0e+12};
+    float min_time { MAXTIME };
     for (auto item : htable)
     {
         min_time = min(min_time, item.second->top()->getTime());
     }
     return min_time;
+}
+
+float HitTemporalIndexes::GetMinTime(int layer, int ladder)
+{
+    int tkey = GetKey(layer, ladder);
+    auto item = htable.find(tkey);
+    if (item != htable.end()) return item->second->top()->getTime();
+    return MAXTIME;
 }
 
 int HitTemporalIndexes::GetKey(int layer, int ladder)
@@ -79,3 +87,4 @@ int HitTemporalIndexes::GetKey(int layer, int ladder)
     return layer * 1000 + ladder;
 }
 
+float HitTemporalIndexes::MAXTIME { std::numeric_limits<float>::max() };
