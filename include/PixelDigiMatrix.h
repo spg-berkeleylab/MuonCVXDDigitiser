@@ -143,6 +143,7 @@ private:
 
     bool _active;
     std::vector<int> num_start;
+    std::vector<int> num_ready;
 };
 
 #endif //PixelDigiMatrix_h

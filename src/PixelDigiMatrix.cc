@@ -64,6 +64,9 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
 
     num_start = std::vector<int>(x_segnum * y_segnum);
     num_start.assign(num_start.size(), 0);
+
+    num_ready = std::vector<int>(x_segnum * y_segnum);
+    num_ready.assign(num_start.size(), 0);
 }
 
 PixelDigiMatrix::~PixelDigiMatrix()
@@ -178,8 +181,7 @@ bool PixelDigiMatrix::CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus psta
     switch (pstat)
     {
     case PixelStatus::ready:
-        // TODO implement
-        return false;
+        return num_ready[seg_x * y_segnum + seg_y] > 0;
     case PixelStatus::start:
         return num_start[seg_x * y_segnum + seg_y] > 0;
     }
@@ -197,6 +199,7 @@ void PixelDigiMatrix::reset_counters()
 {
     _active = false;
     num_start.assign(num_start.size(), 0);
+    num_ready.assign(num_ready.size(), 0);
 }
 
 void PixelDigiMatrix::update_counters(int idx)
@@ -209,6 +212,15 @@ void PixelDigiMatrix::update_counters(int idx)
             int mod_row = (idx / l_columns) / s_rows;
             int mod_col = (idx % l_columns) / s_colums;
             num_start[mod_row * y_segnum + mod_col] += 1;
+        }
+    }
+    else
+    {
+        if (pixels[idx].counter > 0)
+        {
+            int mod_row = (idx / l_columns) / s_rows;
+            int mod_col = (idx % l_columns) / s_colums;
+            num_ready[mod_row * y_segnum + mod_col] += 1;
         }
     }
 }

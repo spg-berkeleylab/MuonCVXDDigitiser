@@ -407,11 +407,14 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 }
             }
 
-            for (int i = 0; i < this->GetSensorRows(); i++)
+            if (CheckStatusOnSensor(h, k, PixelStatus::ready))
             {
-                for (int j = 0; j < this->GetSensorCols(); j++)
+                for (int i = 0; i < this->GetSensorRows(); i++)
                 {
-                    c_heap.UpdatePixel(i, j, GetPixel(h, k, i, j));
+                    for (int j = 0; j < this->GetSensorCols(); j++)
+                    {
+                        c_heap.UpdatePixel(i, j, GetPixel(h, k, i, j));
+                    }
                 }
             }
             
