@@ -41,9 +41,43 @@ struct SegmentDigiHit
 
 typedef std::vector<SegmentDigiHit> SegmentDigiHitList;
 
+/**
+ * @class PixelDigiMatrix
+ * @brief Simulation of the chip RD53A
+ *
+ * This class implements the basic behaviour of the chip [RD53A](https://cds.cern.ch/record/2113263).
+ * It simulates a matrix of pixels. Each pixel can collect a charge and perform a linear charge
+ * depletion mechanism in order to measure the charge itself. A single threshold detection, with smearing,
+ * is available for each pixel.
+ * The matrix of pixels corresponds to the entire ladder; the ladder is divided into a grid of sensors.
+ * Each matrix is identify by a couple of ID: the layer ID and the ladder ID.
+ * This class must be operated by an agent which feeds it with the charge and synchronize the actions
+ * through a clock.
+ */
 class PixelDigiMatrix
 {
 public:
+    /**
+     * @brief The main constructor
+     *
+     * This constructor creates a matrix of pixels for a given ladder
+     * within a layer of the vertex barrel.
+     * @param layer The ID of the layer containing the pixel matrix
+     * @param ladder The ID of the ladder matching this matrix of pixels
+     * @param xsegmentNumber The number of sensors per ladder width
+     * @param ysegmentNumber The number of sensors per ladder length
+     * @param ladderLength The length of the ladder
+     * @param ladderWidth The width of the ladder
+     * @param thickness The thickness the ladder
+     * @param pixelSizeX The width of a pixel
+     * @param pixelSizeY The length of a pixel
+     * @param enc_str The format string used to encode the CellID for any sensor of a ladder
+     * @param barrel_id The ID of the vertex barrel inside the detector
+     * @param thr The threshold for any pixel of the ladder
+     * @param fe_slope The charge depletion slope of the FE
+     * @param starttime The start time for the matrix evolution
+     * @param t_step The clock period of the chip
+     */
     PixelDigiMatrix(int layer,
                     int ladder,
                     int xsegmentNumber,
@@ -84,7 +118,27 @@ public:
     inline string GetCellIDFormatStr() { return cellFmtStr; }
 
     void Reset();
+
+    /**
+     * @brief The synchronization call for the matrix of pixels
+     *
+     * This method must be called by the agent at the end of the clock period.
+     * For all the pixels of the ladder the following steps are carried out:
+     *   - The internal counter is updated according to the state of the pixel
+     *   - The level of charge is checked against the threshold and the state is updated
+     *   - The level of charge is decreased of a quantity related to the slope and clock period
+     */
     void ClockSync();
+
+    /**
+     * @brief The charge aggregation call.
+     *
+     * This method must be called by the agent when a quantity of charge must be gathered
+     * for a given pixel of the ladder
+     * @param x The row number of the pixel
+     * @param y The column number of the pixel
+     * @param chrg The charge to be aggregated in the pixel
+     */
     void UpdatePixel(int x, int y, float chrg);
     PixelData GetPixel(int x, int y);
     bool IsActive();
