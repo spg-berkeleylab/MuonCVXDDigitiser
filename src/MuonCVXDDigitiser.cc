@@ -439,10 +439,13 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
                         if (streamlog::out.write<streamlog::DEBUG7>())
                         {
-                            streamlog::out() << "Reconstructed pixel cluster:" << std::endl
+                            CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { sensor.GetCellIDFormatStr() };
+                            streamlog::out() << "Reconstructed pixel cluster for " 
+                                             << sensor.GetLayer() << ":" << sensor.GetLadder() 
+                                             << ":" << cellid_decoder(recoHit)["sensor"] << std::endl
                                              << "- global position (x,y,z,t) = " << recoHit->getPosition()[0] 
+                                             << ", " << recoHit->getPosition()[1] 
                                              << ", " << recoHit->getPosition()[2] 
-                                             << ", " << recoHit->getPosition()[3] 
                                              << ", " << recoHit->getTime() << std::endl
                                              << "- charge = " << recoHit->getEDep() << std::endl;
                         }

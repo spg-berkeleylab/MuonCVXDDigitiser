@@ -91,8 +91,10 @@ int DetElemSlidingWindow::process()
             float mcp_theta = hit->getPosition()[2] == 0 ? 3.1416/2 : atan(mcp_r / hit->getPosition()[2]);
             double mom_norm = sqrt(pow(hit->getMomentum()[0], 2) + pow(hit->getMomentum()[1], 2)
                                    + pow(hit->getMomentum()[2], 2));
-            streamlog::out() << "Processing simHit from layer =" << _sensor.GetLayer()
-                             << ", module =" << _sensor.GetLadder() << std::endl
+            int segment_id = cell_decoder(hit)["sensor"];
+            streamlog::out() << "Processing simHit from layer = " << _sensor.GetLayer()
+                             << ", ladder = " << _sensor.GetLadder() 
+                             << ", sensor = " << segment_id << std::endl
                              << "Time window centered in " << curr_time
                              << ", Hits available = "
                              << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
