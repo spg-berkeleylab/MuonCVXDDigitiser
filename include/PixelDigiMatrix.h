@@ -41,6 +41,33 @@ struct SegmentDigiHit
 
 typedef std::vector<SegmentDigiHit> SegmentDigiHitList;
 
+struct GridCoordinate
+{
+    int row;
+    int col;
+};
+
+static inline bool operator==(GridCoordinate a, GridCoordinate b)
+{
+    return a.row == b.row && a.col == b.col;
+}
+
+using LinearPosition = int;
+
+class GridPosition
+{
+public:
+    GridPosition(int rows, int cols) : b_size(cols) {}
+    virtual ~GridPosition() {}
+    LinearPosition operator()(int row, int col) { return row * b_size + col; }
+    GridCoordinate operator()(LinearPosition pos)
+    {
+        return { pos / b_size, pos % b_size };
+    }
+private:
+    int b_size;
+};
+
 /**
  * @class PixelDigiMatrix
  * @brief Simulation of the chip RD53A
@@ -178,6 +205,7 @@ protected:
     float clock_time;
     float clock_step;
     float delta_c;
+    GridPosition s_locate;
 
 private:
     struct PixelRawData
@@ -191,13 +219,14 @@ private:
     inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
     void reset_counters();
     void update_counters(int idx);
+    PixelStatus calc_status(PixelRawData pix);
     
     std::vector<PixelRawData> pixels;
     MatrixStatus status;
 
     bool _active;
-    std::vector<int> num_start;
-    std::vector<int> num_ready;
+    std::vector<LinearPosition> num_start;
+    std::vector<LinearPosition> num_ready;
 };
 
 #endif //PixelDigiMatrix_h

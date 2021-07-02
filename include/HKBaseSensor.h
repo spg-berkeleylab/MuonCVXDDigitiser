@@ -10,33 +10,6 @@ using std::tuple;
 using std::tie;
 using std::unordered_map;
 
-using LinearPosition = int;
-
-struct GridCoordinate
-{
-    int row;
-    int col;
-};
-
-static inline bool operator==(GridCoordinate a, GridCoordinate b)
-{
-    return a.row == b.row && a.col == b.col;
-}
-
-class GridPosition
-{
-public:
-    GridPosition(int rows, int cols) : b_size(cols) {}
-    virtual ~GridPosition() {}
-    LinearPosition operator()(int row, int col) { return row * b_size + col; }
-    GridCoordinate operator()(LinearPosition pos)
-    {
-        return { pos / b_size, pos % b_size };
-    }
-private:
-    int b_size;
-};
-
 /* ****************************************************************************
 
     Find-Union Algorithm
@@ -164,7 +137,7 @@ protected:
 
     GridPartitionedSet  _gridSet;
     vector<ClusterHeap> heap_table;
-    GridPosition locate;
+    GridPosition p_locate;
 };
 
 #endif //HKBaseSensor_h

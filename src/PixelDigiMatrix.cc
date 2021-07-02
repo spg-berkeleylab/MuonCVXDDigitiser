@@ -30,6 +30,7 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     clock_time(starttime),
     clock_step(t_step),
     delta_c(t_step * fe_slope),
+    s_locate({ 0, 0 }),
     _active(false)
 {
     int lwid = floor(ladderWidth * 1e4);
@@ -62,11 +63,13 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     pixels = std::vector<PixelRawData>(l_rows * l_columns);
     pixels.assign(pixels.size(), {0, 0, false});
 
+    s_locate = GridPosition(x_segnum, y_segnum);
+
     num_start = std::vector<int>(x_segnum * y_segnum);
     num_start.assign(num_start.size(), 0);
 
     num_ready = std::vector<int>(x_segnum * y_segnum);
-    num_ready.assign(num_start.size(), 0);
+    num_ready.assign(num_ready.size(), 0);
 }
 
 PixelDigiMatrix::~PixelDigiMatrix()
@@ -120,25 +123,24 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     {
         return { 0, 0, PixelStatus::geometry_error };
     }
-    if (check(x, y))
+    if (!check(x, y))
     {
-        auto pix = pixels[index(x, y)];
-        PixelData result { 0, 0, PixelStatus::off };
-
-        if (pix.active)
-        {
-            result.time = clock_time - pix.counter * clock_step;
-            result.status = pix.counter == 0 ? PixelStatus::start : PixelStatus::on;
-        }
-        else if (pix.counter > 0)
-        {
-            result.charge += pix.counter * delta_c;
-            result.time = clock_time - pix.counter * clock_step;
-            result.status = PixelStatus::ready;
-        }
-        return result;
+        return { 0, 0, PixelStatus::out_of_bounds };
     }
-    return { 0, 0, PixelStatus::out_of_bounds };
+
+    auto pix = pixels[index(x, y)];
+    auto pstat = calc_status(pix);
+    PixelData result { 0, 0, pstat };
+
+    if (pstat != PixelStatus::off)
+    {
+        result.time = clock_time - pix.counter * clock_step;
+    }
+    if  (pstat == PixelStatus::ready)
+    {
+        result.charge += pix.counter * delta_c;
+    }
+    return result;
 }
 
 PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
@@ -156,17 +158,7 @@ bool PixelDigiMatrix::CheckStatus(int x, int y, PixelStatus pstat)
     if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
 
     auto pix = pixels[index(x, y)];
-    switch (pstat)
-    {
-    case PixelStatus::on:
-        return pix.active && pix.counter > 0;
-    case PixelStatus::ready:
-        return !pix.active && pix.counter > 0;
-    case PixelStatus::start:
-        return pix.active && pix.counter == 0;
-    }
-
-    return pstat == PixelStatus::off;
+    return pstat == calc_status(pix);
 }
 
 bool PixelDigiMatrix::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
@@ -181,9 +173,9 @@ bool PixelDigiMatrix::CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus psta
     switch (pstat)
     {
     case PixelStatus::ready:
-        return num_ready[seg_x * y_segnum + seg_y] > 0;
+        return num_ready[s_locate(seg_x, seg_y)] > 0;
     case PixelStatus::start:
-        return num_start[seg_x * y_segnum + seg_y] > 0;
+        return num_start[s_locate(seg_x, seg_y)] > 0;
     }
 
     return false;
@@ -211,7 +203,7 @@ void PixelDigiMatrix::update_counters(int idx)
         {
             int mod_row = (idx / l_columns) / s_rows;
             int mod_col = (idx % l_columns) / s_colums;
-            num_start[mod_row * y_segnum + mod_col] += 1;
+            num_start[s_locate(mod_row, mod_col)] += 1;
         }
     }
     else
@@ -220,7 +212,20 @@ void PixelDigiMatrix::update_counters(int idx)
         {
             int mod_row = (idx / l_columns) / s_rows;
             int mod_col = (idx % l_columns) / s_colums;
-            num_ready[mod_row * y_segnum + mod_col] += 1;
+            num_ready[s_locate(mod_row, mod_col)] += 1;
         }
     }
+}
+
+PixelStatus PixelDigiMatrix::calc_status(PixelRawData pix)
+{
+    if (pix.active)
+    {
+        return pix.counter > 0 ? PixelStatus::on : PixelStatus::start;
+    }
+    else if (pix.counter > 0)
+    {
+        return PixelStatus::ready;
+    }
+    return PixelStatus::off;
 }

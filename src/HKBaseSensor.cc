@@ -220,23 +220,20 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
 
 void ClusterHeap::UpdatePixel(int pos_x, int pos_y, PixelData pix)
 {
-    if (pix.status == PixelStatus::ready)
+    LinearPosition pos = locate(pos_x, pos_y);
+    auto c_item = charge_table.find(pos);
+    if (c_item != charge_table.end() and (c_item->second).charge == 0)
     {
-        LinearPosition pos = locate(pos_x, pos_y);
-        auto c_item = charge_table.find(pos);
-        if (c_item != charge_table.end() and (c_item->second).charge == 0)
+        charge_table[pos].charge = pix.charge;
+        int cluster_id = (c_item->second).cid;
+        auto cnt_item = counter_table.find(cluster_id);
+        if (cnt_item != counter_table.end())
         {
-            charge_table[pos].charge = pix.charge;
-            int cluster_id = (c_item->second).cid;
-            auto cnt_item = counter_table.find(cluster_id);
-            if (cnt_item != counter_table.end())
+            counter_table[cluster_id].left -= 1;
+            if (counter_table[cluster_id].left == 0)
             {
-                counter_table[cluster_id].left -= 1;
-                if (counter_table[cluster_id].left == 0)
-                {
-                    counter_table[cluster_id].time = pix.time;
-                    ready_to_pop.push_back(cluster_id);
-                }
+                counter_table[cluster_id].time = pix.time;
+                ready_to_pop.push_back(cluster_id);
             }
         }
     }
@@ -327,7 +324,7 @@ HKBaseSensor::HKBaseSensor(int layer,
                     t_step),
     _gridSet(s_rows, s_colums),
     heap_table(0, { 0, 0 }),
-    locate({ GetSensorRows(), GetSensorCols() })
+    p_locate({ GetSensorRows(), GetSensorCols() })
 {
     if (GetStatus() == MatrixStatus::ok)
     {
@@ -395,7 +392,11 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             /* ****************************************************************
                Cluster buffering
                ************************************************************** */
-            ClusterHeap& c_heap = heap_table[h * GetSegNumY() + k];
+            //Sensor segments ordered row first
+            LinearPosition sens_id = s_locate(h, k);
+            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+
+            ClusterHeap& c_heap = heap_table[sens_id];
 
             if (found_clusters)
             {
@@ -413,7 +414,11 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 {
                     for (int j = 0; j < this->GetSensorCols(); j++)
                     {
-                        c_heap.UpdatePixel(i, j, GetPixel(h, k, i, j));
+                        PixelData pix = GetPixel(h, k, i, j);
+                        if (pix.status == PixelStatus::ready)
+                        {
+                            c_heap.UpdatePixel(i, j, pix);
+                        }
                     }
                 }
             }
@@ -434,9 +439,6 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
                     tot_charge += c_point.charge;
                 }
-
-                //Sensor segments ordered row first
-                bf_encoder[LCTrackerCellID::sensor()] = h * this->GetSegNumY() + k;
 
                 SegmentDigiHit digiHit = {
                     x_acc / c_item.pixels.size(),
