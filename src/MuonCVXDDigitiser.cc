@@ -283,6 +283,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
     if( STHcol == nullptr ) return;
     std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
+    CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { encoder_str };
 
     LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
 
@@ -390,8 +391,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
 #ifdef ZSEGMENTED
                     // See DetElemSlidingWindow::StoreSignalPoints
+                    int segment_id = cellid_decoder(recoHit)["sensor"];
                     float s_offset = sensor.GetSensorCols() * sensor.GetPixelSizeY();
-                    s_offset *= (float(digiHit.segment_y) + 0.5);
+                    s_offset *= (float(segment_id) + 0.5);
                     s_offset -= sensor.GetHalfLength();
 
                     Vector2D oldPos(loc_pos[0] * dd4hep::mm, loc_pos[1] * dd4hep::mm - s_offset);
@@ -439,7 +441,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
                         if (streamlog::out.write<streamlog::DEBUG7>())
                         {
-                            CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { sensor.GetCellIDFormatStr() };
                             streamlog::out() << "Reconstructed pixel cluster for " 
                                              << sensor.GetLayer() << ":" << sensor.GetLadder() 
                                              << ":" << cellid_decoder(recoHit)["sensor"] << std::endl

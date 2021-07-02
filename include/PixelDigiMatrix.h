@@ -35,8 +35,6 @@ struct SegmentDigiHit
     float charge;
     float time;
     int cellID0;
-    int segment_x;  // redundant information
-    int segment_y;  // redundant information
 };
 
 typedef std::vector<SegmentDigiHit> SegmentDigiHitList;

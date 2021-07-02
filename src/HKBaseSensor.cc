@@ -445,8 +445,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     y_acc / c_item.pixels.size(),
                     tot_charge,
                     c_item.time,
-                    bf_encoder.lowWord(),
-                    h, k
+                    bf_encoder.lowWord()
                 };
                 output.push_back(digiHit);
             }
