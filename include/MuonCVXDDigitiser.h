@@ -75,6 +75,16 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 3.0) <br>
  * @param PoissonSmearing flag to switch on gaussian smearing of electrons collected on pixels <br>
  * (default parameter value : 1) <br>
+ * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
+ * (default parameter value: 25) <br>
+ * @param ThresholdSmearing flag to switch on gaussian smearing of threshold <br>
+ * (default parameter value: 1) <br>
+ * @param ChargeDiscretize flag to switch on charge discretization <br>
+ * (default parameter value: 1) <br>
+ * @param ChargeDiscretizeNumBits number of bits used to determine bins for charge discretization <br>
+ * (default parameter value: 4) <br>
+ * @param ChargeDiscretizeBinning binning scheme for charge discretization
+ * (default parameter value; 1) <br>
  * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
  * (default parameter value : 1) <br>
  * @param ElectronicNoise electronic noise in electrons <br>
@@ -144,6 +154,11 @@ protected:
     double _deltaEne;
   	double _maxTrkLen;	
     int _PoissonSmearing;
+    int _ThresholdSmearing;
+    double _thresholdSmearSigma;
+    int _ChargeDiscretize;
+    int _ChargeDiscretizeNumBits;
+    int _ChargeDiscretizeBinning;
     int _electronicEffects;
     int _produceFullPattern;
 
@@ -166,7 +181,6 @@ protected:
     std::vector<float> _layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
 
-
     // internal state
     int _currentLayer;
     int _currentLadder;
@@ -187,6 +201,8 @@ protected:
     void ProduceHits(SimTrackerHitImplVec &simTrkVec);
     void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
     void GainSmearer(SimTrackerHitImplVec &simTrkVec);
+    void ThresholdSmearer(SimTrackerHitImplVec &simTrkVec);
+    void ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec);
     TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
     void TransformToLab(const int cellID, const double *xLoc, double *xLab);
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);

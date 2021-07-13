@@ -1,3 +1,4 @@
+
 #include "MuonCVXDDigitiser.h"
 #include <iostream>
 #include <algorithm>
@@ -127,6 +128,31 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("PoissonSmearing",
                                "Apply Poisson smearing of electrons collected on pixels",
                                _PoissonSmearing,
+                               1);
+    
+    registerProcessorParameter("ThresholdSmearSigma",
+                               "sigma of Gaussian used in threshold smearing, in electrons",
+                               _thresholdSmearSigma, 
+                               25.);
+    
+    registerProcessorParameter("ThresholdSmearing",
+                               "Apply smearing of threshold",
+                               _ThresholdSmearing,
+                               1);
+
+    registerProcessorParameter("ChargeDiscretize",
+                               "Discretize the charge collected on pixels",
+                               _ChargeDiscretize,
+                               1);
+    
+    registerProcessorParameter("ChargeDiscretizeNumBits",
+                               "Number of bits used to determine bins for charge discretization",
+                               _ChargeDiscretizeNumBits,
+                               4);
+
+    registerProcessorParameter("ChargeDiscretizeBinning",
+                               "Binning scheme used for charge discretization",
+                               _ChargeDiscretizeBinning,
                                1);
 
     registerProcessorParameter("ElectronicEffects",
@@ -332,6 +358,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             if (_electronicEffects != 0) GainSmearer(simTrkHitVec);
 
+	    if (_ThresholdSmearing != 0) ThresholdSmearer(simTrkHitVec);
+
+	    if (_ChargeDiscretize != 0) ChargeDiscretizer(simTrkHitVec);
+	    
             TrackerHitPlaneImpl *recoHit = ReconstructTrackerHit(simTrkHitVec);
             if (recoHit == nullptr)
             {
@@ -826,6 +856,113 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
         hit->setEDep(hit->getEDep() + float(Noise));
         streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2] 
             << ", charge = " << hit->getEDep() << "(delta = " << Noise << ")" << std::endl;
+    }
+}
+
+/**
+ * Threshold smearing. 
+ * Smears the threshold by a Gaussian
+ * Sets the charge to 0 if less than the threshold
+ */
+void MuonCVXDDigitiser::ThresholdSmearer(SimTrackerHitImplVec &simTrkVec)
+{
+   streamlog_out (DEBUG6) << "Adding threshold smearing" << std::endl;
+   float actualThreshold = _threshold;
+   
+   for (int i = 0; i < (int)simTrkVec.size(); ++i)
+   {
+     SimTrackerHitImpl *hit = simTrkVec[i];
+     
+     double smear = 0;
+     float origCharge = hit->getEDep();
+
+     if (_thresholdSmearSigma > 0) smear = RandGauss::shoot(0., _thresholdSmearSigma);
+
+     actualThreshold = actualThreshold + smear;
+     if (hit->getEDep() <= actualThreshold) hit->setEDep(0.0);
+     
+     streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
+			   << ", new charge = " << hit->getEDep() << ", previous charge = " << origCharge
+			   << " smeared threshold = " << actualThreshold << "(delta = " << smear << ")" << std::endl;
+   }
+}
+
+/**
+ * Discretizes the charge.
+ * Discretization based on number of bits and bin width scheme.
+ */
+void MuonCVXDDigitiser::ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec)
+{
+  streamlog_out (DEBUG6) << "Charge discretization" << std::endl;
+  
+  float minThreshold = 0;
+  float maxThreshold = 15000;
+  float avgThreshold = 5000;
+  int split = 0.3;
+  int numBins = pow(2, _ChargeDiscretizeNumBits);
+
+  int discCharge=-999; 
+
+  for (int i = 0; i < (int)simTrkVec.size(); ++i)
+   {
+     SimTrackerHitImpl *hit = simTrkVec[i];
+
+     float origCharge =	hit->getEDep();
+     
+     switch(_ChargeDiscretizeBinning)
+       {
+       case 0: // uniform binning
+	 {
+	   float binWidth = (maxThreshold-minThreshold)/numBins;
+	   if (origCharge < binWidth)discCharge = 0;
+	   else discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
+	   break;
+	 }
+       case 1: // variable binning
+	 {
+	   std::vector<int> bins;
+	   if (_ChargeDiscretizeNumBits == 3) bins = {0,3325, 3875, 4375, 4925, 5625, 6675, 8775};
+	   if (_ChargeDiscretizeNumBits == 4) bins = {0, 2925, 3275, 3575, 3825, 4075, 4325, 4575, 4825, 5125, 5425, 5875, 6375, 7025, 8025, 9575, 13225};
+	   if (_ChargeDiscretizeNumBits == 5) bins = {0,2625, 2875, 3075, 3225, 3375, 3525, 3625, 3775, 3875, 3975, 4075, 4175, 4275, 4425, 4525, 4625, 4775, 4875, 5025, 5175, 5325, 5475, 5675, 5925, 6175, 6375, 6675, 7025, 7425, 7975, 8675, 9525, 10775, 12925};
+	   if (_ChargeDiscretizeNumBits == 6) bins = {0, 2375, 2625, 2775, 2875, 2975, 3075, 3175, 3225, 3275, 3325, 3375, 3425, 3475, 3525, 3575, 3625, 3675, 3725, 3775, 3825, 3875, 3925, 3975, 4025, 4075, 4125, 4175, 4225, 4275, 4325, 4375, 4425, 4475, 4525, 4575, 4625, 4675, 4725, 4775, 4825, 4875, 4925, 4975, 5025, 5075, 5125, 5175, 5225, 5275, 5325, 5375, 5425, 5475, 5575, 5625, 5725, 5825, 5925, 6025, 6175, 6275, 6375, 6525, 6675, 6825, 6975, 7125, 7325, 7525, 7825, 8175, 8475, 8825, 9225, 9725, 10325, 10975, 11875, 13275};
+	   if (_ChargeDiscretizeNumBits == 8) bins = {0, 1875, 2175, 2275, 2375, 2425, 2475, 2525, 2575, 2625, 2675, 2725, 2775, 2825, 2875, 2925, 2975, 3025, 3075, 3125, 3175, 3225, 3275, 3325, 3375, 3425, 3475, 3525, 3575, 3625, 3675, 3725, 3775, 3825, 3875, 3925, 3975, 4025, 4075, 4125, 4175, 4225, 4275, 4325, 4375, 4425, 4475, 4525, 4575, 4625, 4675, 4725, 4775, 4825, 4875, 4925, 4975, 5025, 5075, 5125, 5175, 5225, 5275, 5325, 5375, 5425, 5475, 5525, 5575, 5625, 5675, 5725, 5775, 5825, 5875, 5925, 5975, 6025, 6075, 6125, 6175, 6225, 6275, 6325, 6375, 6425, 6475, 6525, 6575, 6625, 6675, 6725, 6775, 6825, 6875, 6925, 6975, 7025, 7075, 7125, 7175, 7225, 7275, 7325, 7375, 7425, 7475, 7525, 7575, 7625, 7725, 7775, 7825, 7875, 7925, 7975, 8025, 8125, 8175, 8225, 8325, 8375, 8425, 8475, 8525, 8575, 8675, 8725, 8825, 8875, 8975, 9025, 9075, 9175, 9225, 9325, 9425, 9525, 9625, 9775, 9875, 9975, 10075, 10225, 10375, 10475, 10625, 10775, 10925, 11025, 11175, 11425, 11625, 11975, 12275, 12575, 12975, 13375, 13875, 14375};
+	   if (_ChargeDiscretizeNumBits == 10) bins = {0, 1475, 1675, 1825, 1875, 1975, 2075, 2125, 2175, 2225, 2275, 2325, 2375, 2425, 2475, 2525, 2575, 2625, 2675, 2725, 2775, 2825, 2875, 2925, 2975, 3025, 3075, 3125, 3175, 3225, 3275, 3325, 3375, 3425, 3475, 3525, 3575, 3625, 3675, 3725, 3775, 3825, 3875, 3925, 3975, 4025, 4075, 4125, 4175, 4225, 4275, 4325, 4375, 4425, 4475, 4525, 4575, 4625, 4675, 4725, 4775, 4825, 4875, 4925, 4975, 5025, 5075, 5125, 5175, 5225, 5275, 5325, 5375, 5425, 5475, 5525, 5575, 5625, 5675, 5725, 5775, 5825, 5875, 5925, 5975, 6025, 6075, 6125, 6175, 6225, 6275, 6325, 6375, 6425, 6475, 6525, 6575, 6625, 6675, 6725, 6775, 6825, 6875, 6925, 6975, 7025, 7075, 7125, 7175, 7225, 7275, 7325, 7375, 7425, 7475, 7525, 7575, 7625, 7675, 7725, 7775, 7825, 7875, 7925, 7975, 8025, 8075, 8125, 8175, 8225, 8275, 8325, 8375, 8425, 8475, 8525, 8575, 8625, 8675, 8725, 8775, 8825, 8875, 8925, 8975, 9025, 9075, 9125, 9175, 9225, 9275, 9325, 9375, 9425, 9475, 9525, 9575, 9625, 9675, 9725, 9775, 9825, 9875, 9925, 9975, 10025, 10075, 10125, 10175, 10225, 10275, 10325, 10375, 10425, 10475, 10525, 10575, 10625, 10675, 10725, 10775, 10825, 10875, 10925, 10975, 11025, 11075, 11125, 11175, 11225, 11275, 11325, 11375, 11475, 11525, 11575, 11625, 11675, 11725, 11775, 11925, 12025, 12075, 12125, 12225, 12275, 12375, 12425, 12475, 12525, 12575, 12625, 12825, 12875, 12925, 12975, 13075, 13225, 13275, 13375, 13475, 13575, 13675, 13875, 13925, 13975, 14175, 14275, 14425, 14575, 14725, 14925};
+	   
+	   int binVal;
+	   for(int idx = 0; idx < bins.size()-1; idx++) {
+	     if (bins[idx+1] > origCharge) {
+	       binVal = idx;
+	       break;
+	     }
+	   }
+	   if (origCharge == 0) discCharge = 0;
+	   else discCharge = bins[binVal];
+	   streamlog_out (DEBUG6) << i << ": previous charge = " << origCharge << ", bin value = " << bins[binVal]
+				  << std::endl;
+	   break;
+	 }
+       case 2: // 70-30%
+	 float binWidth;
+	 if (origCharge > avgThreshold){
+	   int nB = round(numBins*split);
+	   binWidth = (maxThreshold-avgThreshold)/nB;
+	   discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
+	 }
+	 else{
+	   int nB = round(numBins*(1-split));
+	   binWidth = (avgThreshold-minThreshold)/nB;
+           if (origCharge < binWidth)discCharge = 0;
+           else discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
+	 }
+	 streamlog_out (DEBUG6) << i << ": bin width = " << binWidth << std::endl;
+       }
+     
+     hit->setEDep(discCharge);
+
+     streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
+                           << ", new charge = " << hit->getEDep() << ", previous charge = " << origCharge
+			    << ", number of bits = " << _ChargeDiscretizeNumBits
+			    << ", binning scheme = " << _ChargeDiscretizeBinning << std::endl;
     }
 }
 
