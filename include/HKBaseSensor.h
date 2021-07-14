@@ -56,25 +56,6 @@ private:
     Cluster Heap
 
    ************************************************************************* */
-
-struct CounterItem
-{
-    int   left;
-    int   head;
-    float time;
-};
-
-using CounterTable = unordered_map<int, CounterItem>;
-
-struct ChargeItem
-{
-    float charge;
-    int   next;
-    int   cid;
-};
-
-using ChargeTable = unordered_map<int, ChargeItem>;
-
 struct ChargePoint
 {
     int row;
@@ -88,19 +69,32 @@ struct BufferedCluster
     float time;
 };
 
+struct ClusterItem
+{
+    BufferedCluster buffer;
+    int size;
+};
+
+using ClusterTable = unordered_map<int, ClusterItem>;
+
+using ReferenceTable = unordered_map<LinearPosition, int>;
+
 class ClusterHeap
 {
 public:
     ClusterHeap(int rows, int cols);
     virtual ~ClusterHeap();
     void AddCluster(ClusterOfPixel& cluster);
-    void UpdatePixel(int pos_x, int pos_y, PixelData pix);
+    void SetupPixel(int pos_x, int pos_y, PixelData pix);
     vector<BufferedCluster> PopClusters();
+    void SetLabel(string dlabel) { debug_label = dlabel; }
+
 private:
     int hash_cnt;
     GridPosition locate;
-    ChargeTable  charge_table;
-    CounterTable counter_table;
+    string debug_label;
+    ClusterTable cluster_table;
+    ReferenceTable ref_table;
     vector<int>  ready_to_pop;
 };
 

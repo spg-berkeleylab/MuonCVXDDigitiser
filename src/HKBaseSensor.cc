@@ -8,13 +8,14 @@
 #include <math.h>
 #include <algorithm>
 #include <limits>
+#include <sstream>
 
 using std::sort;
+using std::stringstream;
 using UTIL::BitField64;
 using lcio::LCTrackerCellID;
 using lcio::ILDDetID;
 using int_limits = std::numeric_limits<int>;
-using f_limits = std::numeric_limits<float>;
 
 /* ****************************************************************************
 
@@ -161,8 +162,9 @@ tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster, GridPosition l
 ClusterHeap::ClusterHeap(int rows, int cols) :
     hash_cnt(0),
     locate(rows, cols),
-    charge_table(),
-    counter_table(),
+    debug_label("Undefined"),
+    cluster_table(),
+    ref_table(),
     ready_to_pop()
 {}
 
@@ -171,71 +173,57 @@ ClusterHeap::~ClusterHeap()
 
 void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
 {
-    int prev_pos = -1;
-    int curr_pos = -1;
-    bool need_rollback = false;
-    for (LinearPosition tmpp : cluster)
+    for (LinearPosition curr_pos : cluster)
     {
-        curr_pos = tmpp;
-        auto ch_item = charge_table.find(curr_pos);
-        if (ch_item == charge_table.end())
+        auto ref_item = ref_table.find(curr_pos);
+        if (ref_item == ref_table.end())
         {
-            ChargeItem item { 0, prev_pos, hash_cnt };
-            charge_table.emplace(curr_pos, item);
-            prev_pos = curr_pos;            
+            ref_table.emplace(curr_pos, hash_cnt);
         }
-        else
-        {
-            need_rollback = true;
-            break;
-        }
-    }
-
-    if (need_rollback)
-    {
-        if (streamlog::out.write<streamlog::ERROR>())
+        else if (streamlog::out.write<streamlog::ERROR>())
 #pragma omp critical
         {
             GridCoordinate gcoord = locate(curr_pos);
-            streamlog::out() << "Roll-back for pixel "
-                            << gcoord.row << ":" << gcoord.col << std::endl;
+            streamlog::out() << "Cluster heap " << debug_label << ": conflict for pixel "
+                << gcoord.row << ":" << gcoord.col << std::endl;
         }
-        
-        for (curr_pos = prev_pos; prev_pos >= 0; curr_pos = prev_pos )
-        {
-            auto ch_item = charge_table.find(curr_pos);
-            if (ch_item != charge_table.end())
-            {
-                prev_pos = (ch_item->second).next;
-                charge_table.erase(curr_pos);
-            }
-        }
-        return;
     }
 
-    CounterItem cnt_item { cluster.size(), curr_pos, f_limits::lowest() };
-    counter_table.emplace(hash_cnt, cnt_item);
-    hash_cnt++;  // TODO possible overflow
+    ClusterItem cl_item { {}, cluster.size() };
+    cluster_table.emplace(hash_cnt, cl_item);
+
+    hash_cnt++;
+    if (hash_cnt == int_limits::max())
+    {
+        hash_cnt = 0;
+    }
 }
 
-void ClusterHeap::UpdatePixel(int pos_x, int pos_y, PixelData pix)
+void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix)
 {
     LinearPosition pos = locate(pos_x, pos_y);
-    auto c_item = charge_table.find(pos);
-    if (c_item != charge_table.end() and (c_item->second).charge == 0)
+    auto r_item = ref_table.find(pos);
+    if (r_item != ref_table.end())
     {
-        charge_table[pos].charge = pix.charge;
-        int cluster_id = (c_item->second).cid;
-        auto cnt_item = counter_table.find(cluster_id);
-        if (cnt_item != counter_table.end())
+        int cluster_id = r_item->second;
+        ClusterItem& c_item = cluster_table[cluster_id];
+
+        ChargePoint c_pix { pos_x, pos_y, pix.charge };
+        c_item.buffer.pixels.push_back(c_pix);
+        c_item.buffer.time = pix.time;
+
+        if (c_item.buffer.pixels.size() == c_item.size)
         {
-            counter_table[cluster_id].left -= 1;
-            if (counter_table[cluster_id].left == 0)
-            {
-                counter_table[cluster_id].time = pix.time;
-                ready_to_pop.push_back(cluster_id);
-            }
+            ready_to_pop.push_back(cluster_id);
         }
+
+        ref_table.erase(pos);
+    }
+    else if (streamlog::out.write<streamlog::ERROR>())
+#pragma omp critical
+    {
+        streamlog::out() << "Cluster heap " << debug_label << ": undefined pixel "
+            << pos_x << ":" << pos_y << std::endl;
     }
 }
 
@@ -244,42 +232,8 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
     vector<BufferedCluster> result;
     for (auto cluster_id : ready_to_pop)
     {
-        BufferedCluster c_points;
-
-        auto cnt_item =  counter_table.find(cluster_id);
-        if (cnt_item != counter_table.end())
-        {
-            int curr_pos = (cnt_item->second).head;
-            do
-            {
-                auto ch_item = charge_table.find(curr_pos);
-                if (ch_item != charge_table.end())
-                {
-                    GridCoordinate gcoord = locate(curr_pos);
-                    ChargePoint c_pix
-                    {
-                        gcoord.row,
-                        gcoord.col,
-                        (ch_item->second).charge
-                    };
-                    
-                    c_points.pixels.push_back(c_pix);
-
-                    int next_pos = (ch_item->second).next;
-                    charge_table.erase(curr_pos);
-                    curr_pos = next_pos;
-                }
-                else
-                {
-                    curr_pos = -1;
-                }
-            }
-            while(curr_pos != -1);
-
-            c_points.time = (cnt_item->second).time;
-        }
-        result.push_back(c_points);
-        counter_table.erase(cluster_id);
+        result.push_back(cluster_table[cluster_id].buffer);
+        cluster_table.erase(cluster_id);
     }
 
     ready_to_pop.clear();
@@ -329,6 +283,16 @@ HKBaseSensor::HKBaseSensor(int layer,
     if (GetStatus() == MatrixStatus::ok)
     {
         heap_table.resize(GetSegNumX() * GetSegNumY(), { GetSensorRows(), GetSensorCols() });
+
+        for (int h = 0; h < this->GetSegNumX(); h++)
+        {
+            for (int k = 0; k < this->GetSegNumY(); k++)
+            {
+                stringstream d_label;
+                d_label << "[" << GetLayer() << ":" << GetLadder() << ":" << h << ":" << k << "]";
+                heap_table[s_locate(h, k)].SetLabel(d_label.str());
+            }
+        }
     }
 }
 
@@ -417,7 +381,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                         PixelData pix = GetPixel(h, k, i, j);
                         if (pix.status == PixelStatus::ready)
                         {
-                            c_heap.UpdatePixel(i, j, pix);
+                            c_heap.SetupPixel(i, j, pix);
                         }
                     }
                 }
