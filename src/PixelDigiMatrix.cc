@@ -86,7 +86,8 @@ void PixelDigiMatrix::ClockSync()
 
     for (long unsigned int k = 0; k < pixels.size(); k++)
     {
-        if (pixels[k].charge == 0) continue;
+        if (pixels[k].charge == 0 and pixels[k].counter == 0
+            and not pixels[k].active) continue;
 
         if (pixels[k].active)
         {
