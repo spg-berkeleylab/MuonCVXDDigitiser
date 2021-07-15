@@ -132,13 +132,8 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     registerProcessorParameter("ThresholdSmearSigma",
                                "sigma of Gaussian used in threshold smearing, in electrons",
                                _thresholdSmearSigma, 
-                               25.);
+                               25);
     
-    registerProcessorParameter("ThresholdSmearing",
-                               "Apply smearing of threshold",
-                               _ThresholdSmearing,
-                               1);
-
     registerProcessorParameter("ChargeDiscretize",
                                "Discretize the charge collected on pixels",
                                _ChargeDiscretize,
@@ -267,6 +262,15 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     }
 
     PrintGeometryInfo();
+
+    // Bins for charge discretization
+    // Will move to assign more dynamically 
+    if (_ChargeDiscretizeNumBits == 3) _discretizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
+    if (_ChargeDiscretizeNumBits == 4) _discretizedBins = {500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};
+    if (_ChargeDiscretizeNumBits == 5) _discretizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
+    if (_ChargeDiscretizeNumBits == 6) _discretizedBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
+    if (_ChargeDiscretizeNumBits == 8) _discretizedBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
+
 } 
 
 
@@ -357,7 +361,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             if (_electronicEffects != 0) GainSmearer(simTrkHitVec);
 
-	    if (_ThresholdSmearing != 0) ThresholdSmearer(simTrkHitVec);
+	    ApplyThreshold(simTrkHitVec);
 
 	    if (_ChargeDiscretize != 0) ChargeDiscretizer(simTrkHitVec);
 	    
@@ -859,13 +863,13 @@ void MuonCVXDDigitiser::GainSmearer(SimTrackerHitImplVec &simTrkVec)
 }
 
 /**
- * Threshold smearing. 
- * Smears the threshold by a Gaussian
+ * Apply threshold.  
  * Sets the charge to 0 if less than the threshold
+ * Smears the threshold by a Gaussian if sigma > 0
  */
-void MuonCVXDDigitiser::ThresholdSmearer(SimTrackerHitImplVec &simTrkVec)
+void MuonCVXDDigitiser::ApplyThreshold(SimTrackerHitImplVec &simTrkVec)
 {
-   streamlog_out (DEBUG6) << "Adding threshold smearing" << std::endl;
+   streamlog_out (DEBUG6) << "Applying threshold" << std::endl;
    float actualThreshold = _threshold;
    
    for (int i = 0; i < (int)simTrkVec.size(); ++i)
@@ -895,68 +899,49 @@ void MuonCVXDDigitiser::ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec)
   streamlog_out (DEBUG6) << "Charge discretization" << std::endl;
   
   float minThreshold = 0;
-  float maxThreshold = 10000;
+  float maxThreshold = 15000;
   float avgThreshold = 5000;
   int split = 0.3;
-  int numBins = pow(2, _ChargeDiscretizeNumBits);
+  int numBins = pow(2, _ChargeDiscretizeNumBits)-1;
 
-  int discCharge=-999; 
+  double discCharge=-999; 
 
   for (int i = 0; i < (int)simTrkVec.size(); ++i)
    {
      SimTrackerHitImpl *hit = simTrkVec[i];
 
      float origCharge =	hit->getEDep();
+     discCharge = origCharge;
      
      switch(_ChargeDiscretizeBinning)
        {
        case 0: // uniform binning
 	 {
-	   float binWidth = (maxThreshold-minThreshold)/numBins;
-	   if (origCharge < binWidth)discCharge = 0;
-	   else discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
+	   if (origCharge >= 1.0){
+	     float binWidth = (maxThreshold-minThreshold)/(numBins);
+	     if (origCharge < binWidth)discCharge = 0;
+	     else discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
+	   }
 	   break;
 	 }
        case 1: // variable binning
 	 {
-	   std::vector<int> bins;
-	   if (_ChargeDiscretizeNumBits == 3) bins = {775, 1075, 1375, 1725, 2175, 2875, 5075};
-	   if (_ChargeDiscretizeNumBits == 4) bins = {625, 725, 825, 925, 1025, 1175, 1325, 1475, 1625, 1775, 1975, 2175, 2425, 2725, 3175, 4025, 7075};
-	   if (_ChargeDiscretizeNumBits == 5) bins = {575, 625, 675, 725, 775, 825, 875, 925, 975, 1025, 1075, 1125, 1175, 1225, 1275, 1325, 1375, 1425, 1475, 1525, 1575, 1625, 1675, 1725, 1775, 1825, 1925, 2025, 2125, 2225, 2325, 2475, 2625, 2775, 2975, 3225, 3525, 3975, 4725, 6475, 22225};
-	   if (_ChargeDiscretizeNumBits == 6) bins = {525, 575, 625, 675, 725, 775, 825, 875, 925, 975, 1025, 1075, 1125, 1175, 1225, 1275, 1325, 1375, 1425, 1475, 1525, 1575, 1625, 1675, 1725, 1775, 1825, 1875, 1925, 1975, 2025, 2075, 2125, 2175, 2225, 2275, 2325, 2375, 2425, 2475, 2525, 2575, 2625, 2675, 2725, 2775, 2825, 2925, 3025, 3125, 3225, 3375, 3525, 3725, 3925, 4175, 4525, 5125, 5975, 7375, 11175};
-	   if (_ChargeDiscretizeNumBits == 8) bins = {525, 575, 625, 675, 725, 775, 825, 875, 925, 975, 1025, 1075, 1125, 1175, 1225, 1275, 1325, 1375, 1425, 1475, 1525, 1575, 1625, 1675, 1725, 1775, 1825, 1875, 1925, 1975, 2025, 2075, 2125, 2175, 2225, 2275, 2325, 2375, 2425, 2475, 2525, 2575, 2625, 2675, 2725, 2775, 2825, 2875, 2925, 2975, 3025, 3075, 3125, 3175, 3225, 3275, 3325, 3375, 3425, 3475, 3525, 3575, 3625, 3675, 3725, 3775, 3825, 3875, 3925, 3975, 4025, 4075, 4125, 4175, 4225, 4325, 4375, 4425, 4525, 4625, 4725, 4875, 5025, 5175, 5375, 5525, 5675, 5875, 6125, 6375, 6675, 7075, 7525, 8075, 8725, 9675, 11325, 14675, 22925};
-
-	   if (origCharge < _threshold) discCharge = 0;
-	   else if (origCharge < bins[0]) discCharge = _threshold;
-	   else{
+	   // for now, bins are hardcoded
+	   // want to calculate this dynamically
+	   if (origCharge >= 1.0){ 
 	     int binVal=-1;
-	     for(unsigned int idx = 0; idx < bins.size()-1; idx++) {
-	       if (bins[idx+1] > origCharge) {
+	     for(unsigned int idx = 0; idx < _discretizedBins.size()-1; idx++) {
+	       if (_discretizedBins[idx+1] > origCharge) {
 		 binVal = idx;
 		 break;
 	       }
 	     }
-	     if (binVal < 0) discCharge = bins[bins.size()-1];
-	     else discCharge = bins[binVal];
+	     if (binVal < 0) discCharge = (_discretizedBins[_discretizedBins.size()-2] + _discretizedBins[_discretizedBins.size()-1]) / 2;
+	     else discCharge = (_discretizedBins[binVal] + _discretizedBins[binVal+1]) / 2;
 	   }
 	   break;
 	 }
-       case 2: // 70-30%
-	 float binWidth;
-	 if (origCharge > avgThreshold){
-	   int nB = round(numBins*split);
-	   binWidth = (maxThreshold-avgThreshold)/nB;
-	   discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
-	 }
-	 else{
-	   int nB = round(numBins*(1-split));
-	   binWidth = (avgThreshold-minThreshold)/nB;
-           if (origCharge < binWidth)discCharge = 0;
-           else discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
-	 }
-	 streamlog_out (DEBUG0) << i << ": bin width = " << binWidth << std::endl;
        }
-     
      hit->setEDep(discCharge);
 
      streamlog_out (DEBUG4) << i << ": x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", z=" << hit->getPosition()[2]
@@ -990,14 +975,12 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
-        
-        if (hit->getEDep() <= _threshold) continue;
-	
+        	
 	if (hit->getPosition()[0] < minX) {
 	  minX = hit->getPosition()[0];
 	  minIdx.push_back(iHit);
 	}
-	if (hit->getPosition()[0] > maxX) {
+	if (hit->getPosition()[0] > maxX and minX != maxX) {
           maxX = hit->getPosition()[0];
           maxIdx.push_back(iHit);
 	}	

@@ -77,8 +77,6 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 1) <br>
  * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
  * (default parameter value: 25) <br>
- * @param ThresholdSmearing flag to switch on gaussian smearing of threshold <br>
- * (default parameter value: 1) <br>
  * @param ChargeDiscretize flag to switch on charge discretization <br>
  * (default parameter value: 1) <br>
  * @param ChargeDiscretizeNumBits number of bits used to determine bins for charge discretization <br>
@@ -154,8 +152,7 @@ protected:
     double _deltaEne;
   	double _maxTrkLen;	
     int _PoissonSmearing;
-    int _ThresholdSmearing;
-    double _thresholdSmearSigma;
+    int _thresholdSmearSigma;
     int _ChargeDiscretize;
     int _ChargeDiscretizeNumBits;
     int _ChargeDiscretizeBinning;
@@ -164,6 +161,9 @@ protected:
 
     MyG4UniversalFluctuationForSi *_fluctuate;
 
+    // charge discretization
+    std::vector<double> _discretizedBins{};
+    
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
@@ -201,7 +201,7 @@ protected:
     void ProduceHits(SimTrackerHitImplVec &simTrkVec);
     void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
     void GainSmearer(SimTrackerHitImplVec &simTrkVec);
-    void ThresholdSmearer(SimTrackerHitImplVec &simTrkVec);
+    void ApplyThreshold(SimTrackerHitImplVec &simTrkVec);
     void ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec);
     TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
     void TransformToLab(const int cellID, const double *xLoc, double *xLab);
