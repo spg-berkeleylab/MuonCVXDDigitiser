@@ -294,7 +294,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 }
                 continue;
             }
-            start_time -= _window_size / 2;
 
             HKBaseSensor sensor {
                 layer, ladder,
@@ -305,7 +304,8 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 _pixelSizeX, _pixelSizeY,
                 encoder_str, _barrelID,
                 _threshold, _fe_slope,
-                start_time, _window_size
+                start_time - _window_size / 2,
+                _window_size
             };
             
             if (sensor.GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
