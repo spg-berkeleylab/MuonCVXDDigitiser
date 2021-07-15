@@ -1,5 +1,5 @@
-#ifndef MuonCVXDDigitiser_h
-#define MuonCVXDDigitiser_h 1
+#ifndef MuonCVXDRealDigitiser_h
+#define MuonCVXDRealDigitiser_h 1
 
 #include <string>
 #include <vector>
@@ -14,7 +14,6 @@
 #include <IMPL/LCCollectionVec.h>
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
-#include "MyG4UniversalFluctuationForSi.h"
 
 using marlin::Processor;
 
@@ -89,13 +88,13 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * <br>
  */
-class MuonCVXDDigitiser : public Processor
+class MuonCVXDRealDigitiser : public Processor
 {  
 public:
   
-    virtual Processor*  newProcessor() { return new MuonCVXDDigitiser ; }
+    virtual Processor*  newProcessor() { return new MuonCVXDRealDigitiser ; }
 
-    MuonCVXDDigitiser();
+    MuonCVXDRealDigitiser();
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
@@ -118,10 +117,13 @@ public:
 
 protected:
 
+    void PrintGeometryInfo();
+
     int _nRun;
     int _nEvt;
     int _debug;
     int _totEntries;
+    int _barrelID;
     std::string _subDetName;
 
     // input/output collections
@@ -142,19 +144,17 @@ protected:
     double _electronicNoise;
     double _energyLoss;
     double _deltaEne;
-  	double _maxTrkLen;	
+  	double _maxTrkLen;
+    float _window_size;
+    float _fe_slope;
     int _PoissonSmearing;
     int _electronicEffects;
     int _produceFullPattern;
 
-    MyG4UniversalFluctuationForSi *_fluctuate;
-
     // geometry
     int _numberOfLayers;
     std::vector<int>   _laddersInLayer{};
-#ifdef ZSEGMENTED
     std::vector<int>   _sensorsPerLadder{};
-#endif
     std::vector<float> _layerRadius{};
     std::vector<float> _layerThickness{};
     std::vector<float> _layerHalfThickness{};
@@ -165,41 +165,9 @@ protected:
     std::vector<float> _layerHalfPhi{};
     std::vector<float> _layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
-
-
-    // internal state
-    int _currentLayer;
-    int _currentLadder;
-    int _numberOfSegments;
-    double _currentParticleMass;
-    double _currentParticleMomentum;
-    double _currentPhi;
-    double _eSum;
-    double _segmentDepth;
-    double _currentLocalPosition[3];
-    double _currentEntryPoint[3];
-    double _currentExitPoint[3];
-    IonisationPointVec _ionisationPoints;
-    SignalPointVec _signalPoints;
-
-    void ProduceIonisationPoints(SimTrackerHit *hit);
-    void ProduceSignalPoints();
-    void ProduceHits(SimTrackerHitImplVec &simTrkVec);
-    void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
-    void GainSmearer(SimTrackerHitImplVec &simTrkVec);
-    TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
-    void TransformToLab(const int cellID, const double *xLoc, double *xLab);
-    void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
-    void TransformXYToCellID(double x, double y, int & ix, int & iy);
-    void TransformCellIDToXY(int ix, int iy, double & x, double & y);
-    int GetPixelsInaRow();
-    int GetPixelsInaColumn();
-
-    void PrintGeometryInfo();
-    double randomTail( const double qmin, const double qmax );
 };
 
-#endif
+#endif //MuonCVXDRealDigitiser_h
 
 
 

@@ -34,7 +34,8 @@ ShapeProcessingSensor::ShapeProcessingSensor(int layer,
                  thr,
                  fe_slope,
                  starttime,
-                 t_step)
+                 t_step),
+    p_locate({ GetSensorRows(), GetSensorCols() })
 {}
 
 /* ***************************************************************************************

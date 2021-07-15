@@ -277,8 +277,7 @@ HKBaseSensor::HKBaseSensor(int layer,
                     starttime,
                     t_step),
     _gridSet(s_rows, s_colums),
-    heap_table(0, { 0, 0 }),
-    p_locate({ GetSensorRows(), GetSensorCols() })
+    heap_table(0, { 0, 0 })
 {
     if (GetStatus() == MatrixStatus::ok)
     {
@@ -310,9 +309,13 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
         for (int k = 0; k < this->GetSegNumY(); k++)
         {
 
-            bool found_clusters = CheckStatusOnSensor(h, k, PixelStatus::start);
+            //Sensor segments ordered row first
+            LinearPosition sens_id = s_locate(h, k);
+            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
 
-            if (found_clusters)
+            ClusterHeap& c_heap = heap_table[sens_id];
+
+            if (CheckStatusOnSensor(h, k, PixelStatus::start))
             {
                 /* ****************************************************************
                    Hoshen-Kopelman Algorithm:
@@ -351,19 +354,11 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 }
 
                 _gridSet.close();
-            }
 
-            /* ****************************************************************
-               Cluster buffering
-               ************************************************************** */
-            //Sensor segments ordered row first
-            LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+                /* ****************************************************************
+                   Cluster buffering
+                   ************************************************************** */
 
-            ClusterHeap& c_heap = heap_table[sens_id];
-
-            if (found_clusters)
-            {
                 for (ClusterOfPixel c_item = _gridSet.next();
                                     c_item.size() > 0;
                                     c_item = _gridSet.next())

@@ -131,7 +131,6 @@ protected:
 
     GridPartitionedSet  _gridSet;
     vector<ClusterHeap> heap_table;
-    GridPosition p_locate;
 };
 
 #endif //HKBaseSensor_h

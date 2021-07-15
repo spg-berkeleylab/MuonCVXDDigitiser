@@ -2,7 +2,6 @@
 #include <iostream>
 #include <algorithm>
 
-#include <EVENT/LCIO.h>
 #include <EVENT/LCCollection.h>
 #include <EVENT/MCParticle.h>
 
@@ -21,12 +20,7 @@
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
-#include "CLHEP/Random/RandFlat.h"
-
-#ifdef TIME_PROCESS
-#include "DetElemSlidingWindow.h"
-#include "ShapeProcessingSensor.h"
-#endif
+#include "CLHEP/Random/RandFlat.h" 
     
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
@@ -165,16 +159,6 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
                                _maxTrkLen,
                                10.0); 
 
-#ifdef TIME_PROCESS
-    registerProcessorParameter("WindowSize",
-                               "Window size",
-                               _window_size,
-                               (float)0.1);
-    registerProcessorParameter("RD53Aslope",
-                               "ADC slope for chip RD53A",
-                               _fe_slope,
-                               (float)0.1);
-#endif
 }
 
 
@@ -211,7 +195,6 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
       throw Exception( err.str() ) ;
     }
 
-    _barrelID = vxBarrel.id();
     _laddersInLayer.resize(_numberOfLayers);
 #ifdef ZSEGMENTED
     _sensorsPerLadder.resize(_numberOfLayers);
@@ -262,208 +245,7 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 } 
 
 
-/******************************************************************************
-    Time window implementation
- ******************************************************************************/
-#ifdef TIME_PROCESS
-void MuonCVXDDigitiser::processEvent(LCEvent * evt)
-{ 
-    LCCollection* STHcol = nullptr;
-    try
-    {
-        STHcol = evt->getCollection(_colName);
-        streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with "
-                                <<  STHcol->getNumberOfElements()  << " hits ... " << std::endl ;
-    }
-    catch( lcio::DataNotAvailableException ex )
-    {
-        streamlog_out(ERROR) << _colName << " collection not available" << std::endl;
-        STHcol = nullptr;
-    }
 
-    if( STHcol == nullptr ) return;
-    std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
-    CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { encoder_str };
-
-    LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
-
-    HitTemporalIndexes t_index{STHcol};
-
-    for (int layer = 0; layer < _numberOfLayers; layer++)
-    {
-#pragma omp parallel for
-        for (int ladder = 0; ladder < _laddersInLayer[layer]; ladder++)
-        {
-#ifdef ZSEGMENTED
-            int num_segment_x = 1;
-            int nun_segment_y = _sensorsPerLadder[layer];
-#else
-            int num_segment_x = 1;
-            int nun_segment_y = 1;
-#endif
-
-            float start_time = t_index.GetMinTime(layer, ladder);
-            if (start_time == HitTemporalIndexes::MAXTIME)
-            {
-                if (streamlog::out.write<streamlog::DEBUG6>())
-#pragma omp critical
-                {
-                    streamlog::out() << "Undefined min time for layer " << layer
-                        << " ladder " << ladder << std::endl;
-                }
-                continue;
-            }
-            start_time -= _window_size / 2;
-
-            HKBaseSensor sensor {
-                layer, ladder,
-                num_segment_x, nun_segment_y,
-                _layerLadderLength[layer],
-                _layerLadderWidth[layer],
-                _layerThickness[layer],
-                _pixelSizeX, _pixelSizeY,
-                encoder_str, _barrelID,
-                _threshold, _fe_slope,
-                start_time, _window_size
-            };
-            
-            if (sensor.GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
-            {
-                if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
-#pragma omp critical
-                {
-                    streamlog::out() << "Pixel number error for layer " << layer
-                                        << " ladder " << ladder << std::endl;
-                }
-                else
-#pragma omp critical
-                {
-                    streamlog::out() << "Segment number error for layer " << layer
-                                        << " ladder " << ladder << std::endl;
-                }
-                continue;
-            }
-
-            DetElemSlidingWindow t_window {
-                t_index, sensor,
-                _window_size, start_time,
-                _tanLorentzAngleX, _tanLorentzAngleY,
-                _cutOnDeltaRays,
-                _diffusionCoefficient,
-                _electronsPerKeV,
-                _segmentLength,
-                _energyLoss,
-                3.0,
-                _electronicNoise,
-                _maxTrkLen,
-                _deltaEne,
-                _map
-            };
-
-            while(t_window.active())
-            {
-                t_window.process();
-
-                SegmentDigiHitList hit_buffer {};
-                sensor.buildHits(hit_buffer);
-                if (hit_buffer.size() == 0) continue;
-
-                vector<TrackerHitPlaneImpl*> reco_buffer;
-                reco_buffer.assign(hit_buffer.size(), nullptr);
-
-                int idx = 0;
-                for (SegmentDigiHit digiHit : hit_buffer)
-                {
-                    TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
-                    recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
-
-                    double loc_pos[3] = { 
-                        digiHit.x - _layerHalfThickness[layer] * _tanLorentzAngleX,
-                        digiHit.y - _layerHalfThickness[layer] * _tanLorentzAngleY,
-                        0
-                    };
-
-                    recoHit->setCellID0(digiHit.cellID0);
-                    recoHit->setCellID1(0);
-
-                    SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0);
-                    const ISurface* surf = sI->second;
-
-#ifdef ZSEGMENTED
-                    // See DetElemSlidingWindow::StoreSignalPoints
-                    int segment_id = cellid_decoder(recoHit)["sensor"];
-                    float s_offset = sensor.GetSensorCols() * sensor.GetPixelSizeY();
-                    s_offset *= (float(segment_id) + 0.5);
-                    s_offset -= sensor.GetHalfLength();
-
-                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, loc_pos[1] * dd4hep::mm - s_offset);
-                    Vector3D lv = surf->localToGlobal(oldPos);
-
-                    double xLab[3];
-                    for ( int i = 0; i < 3; i++ )
-                    {
-                        xLab[i] = lv[i] / dd4hep::mm;
-                    }
-
-                    recoHit->setPosition(xLab);
-#else
-                    double xLab[3];
-                    TransformToLab(digiHit.cellID0, loc_pos, xLab);
-                    recoHit->setPosition(xLab);
-#endif
-
-                    recoHit->setTime(digiHit.time);
-
-                    Vector3D u = surf->u() ;
-                    Vector3D v = surf->v() ;
-
-                    float u_direction[2] = { u.theta(), u.phi() };
-                    float v_direction[2] = { v.theta(), v.phi() };
-
-                    recoHit->setU( u_direction ) ;
-                    recoHit->setV( v_direction ) ;
-
-                    // ALE Does this make sense??? TO CHECK
-                    recoHit->setdU( _pixelSizeX / sqrt(12) );
-                    recoHit->setdV( _pixelSizeY / sqrt(12) );  
-
-                    reco_buffer[idx] = recoHit;
-                    idx++;
-                }
-
-                if (reco_buffer.size() > 0)
-#pragma omp critical               
-                {
-                    for(TrackerHitPlaneImpl* recoHit : reco_buffer)
-                    {
-                        if (recoHit == nullptr) continue;
-                        THcol->addElement(recoHit);
-
-                        if (streamlog::out.write<streamlog::DEBUG7>())
-                        {
-                            streamlog::out() << "Reconstructed pixel cluster for " 
-                                             << sensor.GetLayer() << ":" << sensor.GetLadder() 
-                                             << ":" << cellid_decoder(recoHit)["sensor"] << std::endl
-                                             << "- global position (x,y,z,t) = " << recoHit->getPosition()[0] 
-                                             << ", " << recoHit->getPosition()[1] 
-                                             << ", " << recoHit->getPosition()[2] 
-                                             << ", " << recoHit->getTime() << std::endl
-                                             << "- charge = " << recoHit->getEDep() << std::endl;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    evt->addCollection(THcol, _outputCollectionName.c_str());
-}
-
-
-/******************************************************************************
-    First implementation (no time window)
- ******************************************************************************/
-#else
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
 
@@ -690,7 +472,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
     _nEvt ++ ;
 }
-#endif // First implementation
 
 void MuonCVXDDigitiser::check(LCEvent *evt)
 {}

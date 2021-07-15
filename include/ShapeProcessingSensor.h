@@ -32,6 +32,7 @@ protected:
 
 private:
     GridCoordinate GetNextPoint(GridCoordinate c, GridCoordinate p);
+    GridPosition p_locate;
 };
 
 #endif //ShapeProcessingSensor_h
