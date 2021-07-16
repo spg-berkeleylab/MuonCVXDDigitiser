@@ -446,7 +446,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
               {
                 SimTrackerHitImpl *sth = simTrkHitVec[iS];
                 float charge = sth->getEDep()  ;
-                if (charge >_threshold)
+                if (charge >1.0)
                 {
                    SimTrackerHitImpl *newsth = new SimTrackerHitImpl();
                    // hit's layer/ladder position is the same for all fired points 
