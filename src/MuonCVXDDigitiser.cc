@@ -898,9 +898,8 @@ void MuonCVXDDigitiser::ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec)
 {
   streamlog_out (DEBUG6) << "Charge discretization" << std::endl;
   
-  float minThreshold = 0;
+  float minThreshold = _threshold;
   float maxThreshold = 15000;
-  float avgThreshold = 5000;
   int split = 0.3;
   int numBins = pow(2, _ChargeDiscretizeNumBits)-1;
 
@@ -919,15 +918,15 @@ void MuonCVXDDigitiser::ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec)
 	 {
 	   if (origCharge >= 1.0){
 	     float binWidth = (maxThreshold-minThreshold)/(numBins);
-	     if (origCharge < binWidth)discCharge = 0;
-	     else discCharge = ceil((origCharge-binWidth)/binWidth)*binWidth;
+	     if (origCharge < binWidth)discCharge = (minThreshold+binWidth)/2;
+	     else{
+	       discCharge = ((ceil((origCharge-binWidth)/binWidth)*binWidth)*2+binWidth)/2;
+	     }
 	   }
 	   break;
 	 }
        case 1: // variable binning
 	 {
-	   // for now, bins are hardcoded
-	   // want to calculate this dynamically
 	   if (origCharge >= 1.0){ 
 	     int binVal=-1;
 	     for(unsigned int idx = 0; idx < _discretizedBins.size()-1; idx++) {
@@ -975,24 +974,34 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     for (int iHit=0; iHit < int(simTrkVec.size()); ++iHit)
     {
         SimTrackerHit *hit = simTrkVec[iHit];
-        	
+
+	if (hit->getEDep() < 1.0) continue;
+	
+        size += 1;
+        charge += hit->getEDep();
+        pos[0] += hit->getPosition()[0];
+        pos[1] += hit->getPosition()[1];
+        streamlog_out (DEBUG0) << iHit << ": Averaging position, x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", weight(EDep)=" << hit->getEDep() << std::endl;
+
+    }
+    /*
 	if (hit->getPosition()[0] < minX) {
 	  minX = hit->getPosition()[0];
 	  minIdx.push_back(iHit);
 	}
-	if (hit->getPosition()[0] > maxX and minX != maxX) {
+	if (hit->getPosition()[0] > maxX) {
           maxX = hit->getPosition()[0];
           maxIdx.push_back(iHit);
-	}	
+	}
+	charge += hit->getEDep();
     }
     
     for (unsigned int i = 0; i < minIdx.size(); i++){
       SimTrackerHit *hit = simTrkVec[minIdx[i]];
-
+      
       if (minX < hit->getPosition()[0]) continue;
       streamlog_out (DEBUG4) << "min val = " << minX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
       size += 1;
-      charge += hit->getEDep();
       pos[0] += hit->getPosition()[0];
       pos[1] += hit->getPosition()[1];
     }
@@ -1001,13 +1010,12 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
       SimTrackerHit *hit = simTrkVec[maxIdx[i]];
 
       if (maxX > hit->getPosition()[0]) continue;
-      streamlog_out (DEBUG4) << "min val = " << maxX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
+      streamlog_out (DEBUG4) << "max val = " << maxX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
       size += 1;
-      charge += hit->getEDep();
       pos[0] += hit->getPosition()[0];
       pos[1] += hit->getPosition()[1];
     }
-
+    */
     if (charge > 0.)
     {
         TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
