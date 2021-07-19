@@ -16,14 +16,14 @@ SET( ${PROJECT_NAME}_VERSION_PATCH 0 )
 
 set(PACKAGE_INSTALL_LIB_DIR lib CACHE PATH "Installation directory for libraries")
 set(PACKAGE_INSTALL_INC_DIR include CACHE PATH "Installation directory for headers")
-option(ZSEGMENTED "Sensitives are segmented along z")
+option(ZSEGMENTED "Sensitives are segmented along z" ON)
 
 ### DEPENDENCIES ############################################################
 
 FIND_PACKAGE( ILCUTIL REQUIRED COMPONENTS ILCSOFT_CMAKE_MODULES )
 
 # load default settings from ILCSOFT_CMAKE_MODULES
-#INCLUDE( ilcsoft_default_settings )
+INCLUDE( ilcsoft_default_settings )
 
 FIND_PACKAGE( Marlin 1.0 REQUIRED ) # minimum required Marlin version
 INCLUDE_DIRECTORIES( ${Marlin_INCLUDE_DIRS} )
@@ -47,6 +47,13 @@ find_package( DD4hep REQUIRED COMPONENTS DDRec)
 INCLUDE_DIRECTORIES( SYSTEM ${DD4hep_INCLUDE_DIRS} )
 LINK_LIBRARIES( ${DD4hep_LIBRARIES} ${DD4hep_COMPONENT_LIBRARIES}  )
 
+find_package(OpenMP)
+option(OPENMP_ENABLED "Activate OpenMP parallel compilation" ON)
+if(OPENMP_FOUND AND OPENMP_ENABLED)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" )
+endif()
+
 ### DOCUMENTATION ###########################################################
 
 OPTION( INSTALL_DOC "Set to OFF to skip build/install Documentation" OFF )
@@ -67,14 +74,19 @@ endif()
 
 # include directories
 INCLUDE_DIRECTORIES( ./include )
-#INSTALL_DIRECTORY( ./include
-#                   DESTINATION ${PACKAGE_INSTALL_INC_DIR}
-#                   FILES_MATCHING PATTERN "*.h" )
 
 # add library
-FILE(GLOB_RECURSE library_sources "src/*.cc")
-ADD_SHARED_LIBRARY( ${PROJECT_NAME} ${library_sources} )
+ADD_SHARED_LIBRARY( ${PROJECT_NAME} src/MuonCVXDDigitiser.cc
+                                    src/MyG4UniversalFluctuationForSi.cc)
 INSTALL_SHARED_LIBRARY( ${PROJECT_NAME} DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
+
+ADD_SHARED_LIBRARY( MuonCVXDRealDigitiser   src/DetElemSlidingWindow.cc
+                                            src/G4UniversalFluctuation.cc
+                                            src/HKBaseSensor.cc
+                                            src/HitTemporalIndexes.cc
+                                            src/MuonCVXDRealDigitiser.cc
+                                            src/PixelDigiMatrix.cc)
+INSTALL_SHARED_LIBRARY( MuonCVXDRealDigitiser DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
 
 # display some variables and write them to cache
 DISPLAY_STD_VARIABLES()
