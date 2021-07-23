@@ -3,8 +3,12 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 using std::string;
+using std::unordered_map;
+using std::unordered_multimap;
+using std::vector;
 
 enum class PixelStatus : char {
     on,
@@ -37,7 +41,7 @@ struct SegmentDigiHit
     int cellID0;
 };
 
-typedef std::vector<SegmentDigiHit> SegmentDigiHitList;
+typedef vector<SegmentDigiHit> SegmentDigiHitList;
 
 struct GridCoordinate
 {
@@ -51,6 +55,7 @@ static inline bool operator==(GridCoordinate a, GridCoordinate b)
 }
 
 using LinearPosition = int;
+using ClockTicks = int;
 
 class GridPosition
 {
@@ -144,16 +149,7 @@ public:
 
     void Reset();
 
-    /**
-     * @brief The synchronization call for the matrix of pixels
-     *
-     * This method must be called by the agent at the end of the clock period.
-     * For all the pixels of the ladder the following steps are carried out:
-     *   - The internal counter is updated according to the state of the pixel
-     *   - The level of charge is checked against the threshold and the state is updated
-     *   - The level of charge is decreased of a quantity related to the slope and clock period
-     */
-    void ClockSync();
+    void BeginClockStep();
 
     /**
      * @brief The charge aggregation call.
@@ -165,6 +161,9 @@ public:
      * @param chrg The charge to be aggregated in the pixel
      */
     void UpdatePixel(int x, int y, float chrg);
+
+    void EndClockStep();
+
     PixelData GetPixel(int x, int y);
     bool IsActive();
     bool CheckStatus(int x, int y, PixelStatus pstat);
@@ -182,7 +181,6 @@ protected:
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
     bool CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat);
-    virtual bool IsOverThreshold(float charge);
 
     int _barrel_id;
     int _layer;
@@ -200,31 +198,34 @@ protected:
     int y_segnum;
     string cellFmtStr;
     double _thr_level;
-    float clock_time;
+    float init_time;
+    int clock_cnt;
     float clock_step;
     float delta_c;
     GridPosition s_locate;
 
 private:
+
     struct PixelRawData
     {
         float charge;
-        int   counter;
-        bool  active;
+        ClockTicks t_begin;
+        ClockTicks t_end;
     };
 
-    inline int index(int x, int y) { return x * l_columns + y; }
-    inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
-    void reset_counters();
-    void update_counters(int idx);
-    PixelStatus calc_status(PixelRawData pix);
-    
-    std::vector<PixelRawData> pixels;
-    MatrixStatus status;
+    using SensorBin = unordered_multimap<LinearPosition, LinearPosition>;
 
-    bool _active;
-    std::vector<LinearPosition> num_start;
-    std::vector<LinearPosition> num_ready;
+    inline LinearPosition index(int x, int y) { return x * l_columns + y; }
+    inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
+    PixelStatus calc_status(LinearPosition lpos);
+    ClockTicks calc_end_clock(float charge);
+    LinearPosition sensor_for_pixel(LinearPosition pos);
+
+    MatrixStatus status;
+    unordered_map<LinearPosition, PixelRawData> pixels;
+    unordered_map<ClockTicks, SensorBin> expir_table;
+    unordered_map<LinearPosition, float> charge_buffer;
+    SensorBin start_table; 
 };
 
 #endif //PixelDigiMatrix_h
