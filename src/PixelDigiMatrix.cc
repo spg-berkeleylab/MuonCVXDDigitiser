@@ -31,6 +31,7 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
     clock_cnt(0),
     clock_step(t_step),
     delta_c(t_step * fe_slope),
+    l_locate({ 0, 0 }),
     s_locate({ 0, 0 }),
     status(MatrixStatus::ok),
     pixels(),
@@ -61,6 +62,7 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
         status = MatrixStatus::segment_number_error;
     }
 
+    l_locate = GridPosition(l_rows, l_columns);
     s_locate = GridPosition(x_segnum, y_segnum);
 }
 
@@ -91,7 +93,7 @@ void PixelDigiMatrix::UpdatePixel(int x, int y, float chrg)
 {
     if (!check(x, y)) return;
 
-    LinearPosition lpos = index(x, y);
+    LinearPosition lpos = l_locate(x, y);
     auto cb_iter = charge_buffer.find(lpos);
     if (cb_iter == charge_buffer.end())
     {
@@ -173,7 +175,7 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
         return { 0, 0, PixelStatus::out_of_bounds };
     }
 
-    LinearPosition lpos = index(x, y);
+    LinearPosition lpos = l_locate(x, y);
     auto pstat = calc_status(lpos);
 
     PixelData result { 0, 0, pstat };
@@ -203,7 +205,7 @@ bool PixelDigiMatrix::CheckStatus(int x, int y, PixelStatus pstat)
 {
     if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
 
-    return pstat == calc_status(index(x, y));
+    return pstat == calc_status(l_locate(x, y));
 }
 
 bool PixelDigiMatrix::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
@@ -227,6 +229,45 @@ bool PixelDigiMatrix::CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus psta
     }
 
     return false;
+}
+
+vector<LocatedPixel> PixelDigiMatrix::GetPixelsFromSensor(int seg_x, int seg_y, PixelStatus pstat)
+{
+    vector<LocatedPixel> result;
+
+    if (pstat == PixelStatus::ready and expir_table.find(clock_cnt) != expir_table.end())
+    {
+        auto d_range = expir_table[clock_cnt].equal_range(s_locate(seg_x, seg_y));
+        for (auto it = d_range.first; it != d_range.second; it++)
+        {
+            GridCoordinate g_pos = l_locate(it->second);
+            LocatedPixel l_pix
+            {
+                LadderRowToSensorRow(g_pos.row, seg_x),
+                LadderColToSensorCol(g_pos.col, seg_y),
+                GetPixel(g_pos.row, g_pos.col)
+            };
+            result.push_back(l_pix);
+        }
+    }
+
+    if (pstat == PixelStatus::start)
+    {
+        auto d_range = start_table.equal_range(s_locate(seg_x, seg_y));
+        for (auto it = d_range.first; it != d_range.second; it++)
+        {
+            GridCoordinate g_pos = l_locate(it->second);
+            LocatedPixel l_pix
+            {
+                LadderRowToSensorRow(g_pos.row, seg_x),
+                LadderColToSensorCol(g_pos.col, seg_y),
+                GetPixel(g_pos.row, g_pos.col)
+            };
+            result.push_back(l_pix);
+        }
+    }
+
+    return std::move(result);
 }
 
 PixelStatus PixelDigiMatrix::calc_status(LinearPosition lpos)

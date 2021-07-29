@@ -71,6 +71,13 @@ private:
     int b_size;
 };
 
+struct LocatedPixel
+{
+    int row;
+    int col;
+    PixelData data;
+};
+
 /**
  * @class PixelDigiMatrix
  * @brief Simulation of the chip RD53A
@@ -178,9 +185,14 @@ protected:
 
     inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
     inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
+    inline int LadderRowToSensorRow(int pos_x, int seg_x) { return pos_x - seg_x * s_rows; }
+    inline int LadderColToSensorCol(int pos_y, int seg_y) { return pos_y - seg_y * s_colums; }
+
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
     bool CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat);
+
+    vector<LocatedPixel> GetPixelsFromSensor(int seg_x, int seg_y, PixelStatus pstat);
 
     int _barrel_id;
     int _layer;
@@ -202,6 +214,7 @@ protected:
     int clock_cnt;
     float clock_step;
     float delta_c;
+    GridPosition l_locate;
     GridPosition s_locate;
 
 private:
@@ -215,7 +228,6 @@ private:
 
     using SensorBin = unordered_multimap<LinearPosition, LinearPosition>;
 
-    inline LinearPosition index(int x, int y) { return x * l_columns + y; }
     inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
     PixelStatus calc_status(LinearPosition lpos);
     ClockTicks calc_end_clock(float charge);

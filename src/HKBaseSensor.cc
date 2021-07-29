@@ -367,21 +367,11 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 }
             }
 
-            if (CheckStatusOnSensor(h, k, PixelStatus::ready))
+            for (auto p_item : GetPixelsFromSensor(h, k, PixelStatus::ready))
             {
-                for (int i = 0; i < this->GetSensorRows(); i++)
-                {
-                    for (int j = 0; j < this->GetSensorCols(); j++)
-                    {
-                        PixelData pix = GetPixel(h, k, i, j);
-                        if (pix.status == PixelStatus::ready)
-                        {
-                            c_heap.SetupPixel(i, j, pix);
-                        }
-                    }
-                }
+                c_heap.SetupPixel(p_item.row, p_item.col, p_item.data);
             }
-            
+
             for (BufferedCluster c_item : c_heap.PopClusters())
             {
                 // Very simple implementation: geometric mean
