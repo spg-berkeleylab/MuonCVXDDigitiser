@@ -267,7 +267,7 @@ vector<LocatedPixel> PixelDigiMatrix::GetPixelsFromSensor(int seg_x, int seg_y, 
         }
     }
 
-    return std::move(result);
+    return result;
 }
 
 PixelStatus PixelDigiMatrix::calc_status(LinearPosition lpos)

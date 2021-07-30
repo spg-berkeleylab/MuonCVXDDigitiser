@@ -30,25 +30,15 @@ public:
     void init();
     void close();
     void invalidate(int x, int y);
-    ClusterOfPixel next();
+    vector<ClusterOfPixel> get_clusters();
 
 private:
-    struct ClusterData
-    {
-        int label;
-        int pos;
-    };
-
-    static bool CmpClusterData(ClusterData c1, ClusterData c2) { return c1.label < c2.label; }
-
     int rows;
     int columns;
-    int valid_cells;
-    int c_curr;
-    int c_next;
+    unordered_map<int, ClusterOfPixel> c_table;
+
     GridPosition locate;
     vector<int> data;
-    vector<ClusterData> c_buffer;
 };
 
 /* ****************************************************************************
@@ -127,8 +117,6 @@ public:
     void buildHits(SegmentDigiHitList& output) override;
 
 protected:
-    virtual ClusterOfPixel processCluster(const ClusterOfPixel& in) { return in; };
-
     GridPartitionedSet  _gridSet;
     vector<ClusterHeap> heap_table;
 };

@@ -140,19 +140,3 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& s
 
     return result;
 }
-
-
-/* ***************************************************************************************
- * 
- * Sub-clustering
- * 
- * ************************************************************************************ */
-ClusterOfPixel ShapeProcessingSensor::processCluster(const ClusterOfPixel& in)
-{
-    if (in.size() > 200)
-    {
-        vector<GridCoordinate> contour = GetContour(in);
-    }
-
-    return in;
-}
