@@ -376,7 +376,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     s_offset *= (float(segment_id) + 0.5);
                     s_offset -= sensor.GetHalfLength();
 
-                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, loc_pos[1] * dd4hep::mm - s_offset);
+                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, (loc_pos[1] - s_offset)* dd4hep::mm);
                     Vector3D lv = surf->localToGlobal(oldPos);
 
                     double xLab[3];
@@ -430,7 +430,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             }
         }
     }
-
+    streamlog_out(DEBUG) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
 }
 
