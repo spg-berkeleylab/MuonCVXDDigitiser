@@ -26,18 +26,15 @@ using int_limits = std::numeric_limits<int>;
 GridPartitionedSet::GridPartitionedSet(int n_row, int n_col) :
     rows(n_row),
     columns(n_col),
-    valid_cells(0),
-    c_curr(0),
-    c_next(0),
+    c_table(),
     locate(n_row, n_col),
-    data(rows * columns, 0),
-    c_buffer(0)
+    data(rows * columns, 0)
 {}
 
 void GridPartitionedSet::init()
 {
     for (size_t k = 0; k < data.size(); k++) data[k] = k;
-    valid_cells = data.size();
+    c_table.clear();
 }
 
 void GridPartitionedSet::close()
@@ -54,22 +51,21 @@ void GridPartitionedSet::close()
     }
 
     /*
-     * Prepare the ordered set of clusters
+     * Prepare the set of clusters
      */
-    c_buffer.resize(valid_cells);
-    int c_id = 0;
     for (size_t k = 0; k < data.size(); k++)
     {
-        if (data[k] >= 0)
+        auto c_item = c_table.find(data[k]);
+        if (c_item != c_table.end())
         {
-            c_buffer[c_id] = { data[k], k };
-            c_id++;
+            (c_item->second).push_back(k);
+        }
+        else if (data[k] >= 0)
+        {
+            ClusterOfPixel p_list { k };
+            c_table.emplace(data[k], p_list);
         }
     }
-    sort(c_buffer.begin(), c_buffer.end(), CmpClusterData);
-
-    c_curr = -1;
-    c_next = 0;
 }
 
 int GridPartitionedSet::find(int x, int y)
@@ -111,27 +107,14 @@ void GridPartitionedSet::merge(int x1, int y1, int x2, int y2)
 void GridPartitionedSet::invalidate(int x, int y)
 {
     data[locate(x, y)] = -1;
-    valid_cells--;
 }
 
-ClusterOfPixel GridPartitionedSet::next()
+vector<ClusterOfPixel> GridPartitionedSet::get_clusters()
 {
-    ClusterOfPixel result;
-
-    c_curr = c_next;
-    if (c_curr == c_buffer.size())
+    vector<ClusterOfPixel> result;
+    for (auto c_item : c_table)
     {
-        return result;
-    }
-
-    while (c_next < c_buffer.size() && c_buffer[c_next].label == c_buffer[c_curr].label) c_next++;
-
-    int res_size = c_next - c_curr;
-    result.assign(res_size, { 0 });
-
-    for (int k = 0; k < res_size; k++)
-    {
-        result[k] = c_buffer[c_curr + k].pos;
+        result.push_back(std::move(c_item.second));
     }
     return result;
 }
@@ -237,7 +220,7 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
     }
 
     ready_to_pop.clear();
-    return std::move(result);
+    return result;
 }
 
 /* ****************************************************************************
@@ -359,29 +342,17 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                    Cluster buffering
                    ************************************************************** */
 
-                for (ClusterOfPixel c_item = _gridSet.next();
-                                    c_item.size() > 0;
-                                    c_item = _gridSet.next())
+                for (ClusterOfPixel c_item : _gridSet.get_clusters())
                 {
                     c_heap.AddCluster(c_item);
                 }
             }
 
-            if (CheckStatusOnSensor(h, k, PixelStatus::ready))
+            for (auto p_item : GetPixelsFromSensor(h, k, PixelStatus::ready))
             {
-                for (int i = 0; i < this->GetSensorRows(); i++)
-                {
-                    for (int j = 0; j < this->GetSensorCols(); j++)
-                    {
-                        PixelData pix = GetPixel(h, k, i, j);
-                        if (pix.status == PixelStatus::ready)
-                        {
-                            c_heap.SetupPixel(i, j, pix);
-                        }
-                    }
-                }
+                c_heap.SetupPixel(p_item.row, p_item.col, p_item.data);
             }
-            
+
             for (BufferedCluster c_item : c_heap.PopClusters())
             {
                 // Very simple implementation: geometric mean

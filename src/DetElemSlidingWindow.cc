@@ -145,6 +145,8 @@ float DetElemSlidingWindow::get_time()
 
 void DetElemSlidingWindow::UpdatePixels()
 {
+    _sensor.BeginClockStep();
+
     for (auto spoint : signals)
     {
         if (spoint.time > curr_time + window_radius) break;
@@ -191,7 +193,7 @@ void DetElemSlidingWindow::UpdatePixels()
         }
     }
 
-    _sensor.ClockSync();
+    _sensor.EndClockStep();
 }
 
 void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)

@@ -27,7 +27,6 @@ public:
     virtual ~ShapeProcessingSensor() {}
 
 protected:
-    ClusterOfPixel processCluster(const ClusterOfPixel& in) override;
     vector<GridCoordinate> GetContour(const ClusterOfPixel& spot);
 
 private:
