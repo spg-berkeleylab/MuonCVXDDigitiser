@@ -17,54 +17,26 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  float fe_slope,
                                  float starttime,
                                  float t_step):
-    _barrel_id(barrel_id),
-    _layer(layer),
-    _ladder(ladder),
-    _thickness(thickness),
-    _pixelSizeX(fabs(pixelSizeX)),
-    _pixelSizeY(fabs(pixelSizeY)),
-    _ladderLength(ladderLength > 0 ? ladderLength : 0),
-    _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
-    cellFmtStr(enc_str),
-    _thr_level(thr),
-    init_time(starttime),
-    clock_cnt(0),
-    clock_step(t_step),
+    AbstractSensor( layer,
+                    ladder,
+                    xsegmentNumber,
+                    ysegmentNumber,
+                    ladderLength,
+                    ladderWidth,
+                    thickness,
+                    pixelSizeX,
+                    pixelSizeY,
+                    enc_str,
+                    barrel_id,
+                    thr,
+                    starttime,
+                    t_step),
     delta_c(t_step * fe_slope),
-    l_locate({ 0, 0 }),
-    s_locate({ 0, 0 }),
-    status(MatrixStatus::ok),
     pixels(),
     expir_table(),
     charge_buffer(),
     start_table()
-{
-    int lwid = floor(ladderWidth * 1e4);
-    int psx = floor(pixelSizeX * 1e4);
-    int llen = floor(ladderLength * 1e4);
-    int psy = floor(pixelSizeY * 1e4);
-
-    l_rows = lwid / psx;
-    l_columns = llen / psy;
-
-    x_segnum = xsegmentNumber;
-    y_segnum = ysegmentNumber;
-
-    s_rows = xsegmentNumber > 0 ? l_rows / xsegmentNumber : 1;
-    s_colums = ysegmentNumber > 0 ? l_columns / ysegmentNumber : 1;
-    
-    if (lwid % psx > 0 || llen % psy > 0)
-    {
-        status = MatrixStatus::pixel_number_error;
-    }
-    else if (l_rows % xsegmentNumber > 0 || l_columns % ysegmentNumber > 0)
-    {
-        status = MatrixStatus::segment_number_error;
-    }
-
-    l_locate = GridPosition(l_rows, l_columns);
-    s_locate = GridPosition(x_segnum, y_segnum);
-}
+{}
 
 PixelDigiMatrix::~PixelDigiMatrix()
 {}

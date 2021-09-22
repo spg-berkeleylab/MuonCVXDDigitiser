@@ -5,71 +5,12 @@
 #include <vector>
 #include <unordered_map>
 
+#include "AbstractSensor.h"
+
 using std::string;
 using std::unordered_map;
 using std::unordered_multimap;
 using std::vector;
-
-enum class PixelStatus : char {
-    on,
-    off,
-    ready,
-    start,
-    out_of_bounds,
-    geometry_error
-};
-
-struct PixelData
-{
-    float charge;
-    float time;
-    PixelStatus status;
-};
-
-enum class MatrixStatus : char {
-    ok,
-    pixel_number_error,
-    segment_number_error
-};
-
-struct SegmentDigiHit
-{
-    float x;
-    float y;
-    float charge;
-    float time;
-    int cellID0;
-};
-
-typedef vector<SegmentDigiHit> SegmentDigiHitList;
-
-struct GridCoordinate
-{
-    int row;
-    int col;
-};
-
-static inline bool operator==(GridCoordinate a, GridCoordinate b)
-{
-    return a.row == b.row && a.col == b.col;
-}
-
-using LinearPosition = int;
-using ClockTicks = int;
-
-class GridPosition
-{
-public:
-    GridPosition(int rows, int cols) : b_size(cols) {}
-    virtual ~GridPosition() {}
-    LinearPosition operator()(int row, int col) { return row * b_size + col; }
-    GridCoordinate operator()(LinearPosition pos)
-    {
-        return { pos / b_size, pos % b_size };
-    }
-private:
-    int b_size;
-};
 
 struct LocatedPixel
 {
@@ -77,6 +18,8 @@ struct LocatedPixel
     int col;
     PixelData data;
 };
+
+using ClockTicks = int;
 
 /**
  * @class PixelDigiMatrix
@@ -91,7 +34,7 @@ struct LocatedPixel
  * This class must be operated by an agent which feeds it with the charge and synchronize the actions
  * through a clock.
  */
-class PixelDigiMatrix
+class PixelDigiMatrix : public AbstractSensor
 {
 public:
     /**
@@ -132,31 +75,9 @@ public:
                     float t_step);
     virtual ~PixelDigiMatrix();
 
-    virtual void buildHits(SegmentDigiHitList& output) = 0;
+    void Reset() override;
 
-    inline int GetLayer() { return _layer; }
-    inline int GetLadder() { return _ladder; }
-    inline float GetThickness() { return _thickness; }
-    inline float GetHalfThickness() { return _thickness / 2; }
-    inline float GetLength() { return _ladderLength; }
-    inline float GetHalfLength() { return _ladderLength / 2; }
-    inline float GetWidth() { return _ladderWidth; }
-    inline float GetHalfWidth() { return _ladderWidth / 2; }
-    inline double GetPixelSizeX() { return _pixelSizeX; }
-    inline double GetPixelSizeY() { return _pixelSizeY; }
-    inline int GetLadderRows() { return l_rows; }
-    inline int GetLadderCols() { return l_columns; }
-    inline int GetSensorRows() { return s_rows; }
-    inline int GetSensorCols() { return s_colums; }
-    inline int GetSegNumX() { return x_segnum; }
-    inline int GetSegNumY() { return y_segnum; }
-    inline MatrixStatus GetStatus() { return status; }
-
-    inline string GetCellIDFormatStr() { return cellFmtStr; }
-
-    void Reset();
-
-    void BeginClockStep();
+    void BeginClockStep() override;
 
     /**
      * @brief The charge aggregation call.
@@ -167,26 +88,17 @@ public:
      * @param y The column number of the pixel
      * @param chrg The charge to be aggregated in the pixel
      */
-    void UpdatePixel(int x, int y, float chrg);
+    void UpdatePixel(int x, int y, float chrg) override;
 
-    void EndClockStep();
+    void EndClockStep() override;
 
-    PixelData GetPixel(int x, int y);
-    bool IsActive();
-    bool CheckStatus(int x, int y, PixelStatus pstat);
+    PixelData GetPixel(int x, int y) override;
 
-    inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
-    inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
+    bool IsActive() override;
 
-    inline double PixelRowToX(int ix) { return ((0.5 + double(ix)) * _pixelSizeX) - _ladderWidth / 2; }
-    inline double PixelColToY(int iy) { return ((0.5 + double(iy)) * _pixelSizeY) - _ladderLength / 2; }
+    bool CheckStatus(int x, int y, PixelStatus pstat) override;
 
 protected:
-
-    inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
-    inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
-    inline int LadderRowToSensorRow(int pos_x, int seg_x) { return pos_x - seg_x * s_rows; }
-    inline int LadderColToSensorCol(int pos_y, int seg_y) { return pos_y - seg_y * s_colums; }
 
     PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
@@ -194,28 +106,7 @@ protected:
 
     vector<LocatedPixel> GetPixelsFromSensor(int seg_x, int seg_y, PixelStatus pstat);
 
-    int _barrel_id;
-    int _layer;
-    int _ladder;
-    float _thickness;
-    double _pixelSizeX;
-    double _pixelSizeY;
-    float _ladderLength;
-    float _ladderWidth;
-    int l_rows;
-    int l_columns;
-    int s_rows;
-    int s_colums;
-    int x_segnum;
-    int y_segnum;
-    string cellFmtStr;
-    double _thr_level;
-    float init_time;
-    int clock_cnt;
-    float clock_step;
     float delta_c;
-    GridPosition l_locate;
-    GridPosition s_locate;
 
 private:
 
@@ -233,7 +124,6 @@ private:
     ClockTicks calc_end_clock(float charge);
     LinearPosition sensor_for_pixel(LinearPosition pos);
 
-    MatrixStatus status;
     unordered_map<LinearPosition, PixelRawData> pixels;
     unordered_map<ClockTicks, SensorBin> expir_table;
     unordered_map<LinearPosition, float> charge_buffer;
