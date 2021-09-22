@@ -144,6 +144,9 @@ protected:
     inline int LadderRowToSensorRow(int pos_x, int seg_x) { return pos_x - seg_x * s_rows; }
     inline int LadderColToSensorCol(int pos_y, int seg_y) { return pos_y - seg_y * s_colums; }
 
+    virtual PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
+    virtual bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
+
     int _barrel_id;
     int _layer;
     int _ladder;
@@ -161,7 +164,6 @@ protected:
     string cellFmtStr;
     double _thr_level;
     float init_time;
-    int clock_cnt;
     float clock_step;
     GridPosition l_locate;
     GridPosition s_locate;

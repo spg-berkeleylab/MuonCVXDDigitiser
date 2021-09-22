@@ -107,6 +107,7 @@ protected:
     vector<LocatedPixel> GetPixelsFromSensor(int seg_x, int seg_y, PixelStatus pstat);
 
     float delta_c;
+    int clock_cnt;
 
 private:
 

@@ -2,6 +2,7 @@
 #define HKBaseSensor_h 1
 
 #include "PixelDigiMatrix.h"
+#include "FindUnionAlgorithm.h"
 #include <tuple>
 #include <unordered_map>
 
@@ -10,36 +11,7 @@ using std::tuple;
 using std::tie;
 using std::unordered_map;
 
-/* ****************************************************************************
-
-    Find-Union Algorithm
-
-   ************************************************************************* */
-
-using ClusterOfPixel = vector<LinearPosition>;
-
 tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster, GridPosition locate);
-
-class GridPartitionedSet
-{
-public:
-    GridPartitionedSet(int n_row, int n_col);
-    virtual ~GridPartitionedSet() {}
-    int find(int x, int y);
-    void merge(int x1, int y1, int x2, int y2);
-    void init();
-    void close();
-    void invalidate(int x, int y);
-    vector<ClusterOfPixel> get_clusters();
-
-private:
-    int rows;
-    int columns;
-    unordered_map<int, ClusterOfPixel> c_table;
-
-    GridPosition locate;
-    vector<int> data;
-};
 
 /* ****************************************************************************
 
@@ -117,7 +89,7 @@ public:
     void buildHits(SegmentDigiHitList& output) override;
 
 protected:
-    GridPartitionedSet  _gridSet;
+    FindUnionAlgorithm  _gridSet;
     vector<ClusterHeap> heap_table;
 };
 

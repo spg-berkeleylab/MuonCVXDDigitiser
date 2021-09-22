@@ -26,7 +26,6 @@ AbstractSensor::AbstractSensor( int layer,
     cellFmtStr(enc_str),
     _thr_level(thr),
     init_time(starttime),
-    clock_cnt(0),
     clock_step(t_step),
     l_locate({ 0, 0 }),
     s_locate({ 0, 0 }),
@@ -61,3 +60,19 @@ AbstractSensor::AbstractSensor( int layer,
 
 AbstractSensor::~AbstractSensor()
 {}
+
+PixelData AbstractSensor::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
+{
+    return GetPixel(SensorRowToLadderRow(seg_x, pos_x),
+                    SensorColToLadderCol(seg_y, pos_y));
+}
+
+bool AbstractSensor::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
+{
+    return CheckStatus(SensorRowToLadderRow(seg_x, pos_x),
+                        SensorColToLadderCol(seg_y, pos_y),
+                        pstat);
+}
+
+
+
