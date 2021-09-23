@@ -1,6 +1,10 @@
 #include "AbstractSensor.h"
 #include <cmath>
 
+#include <UTIL/ILDConf.h>
+
+using lcio::ILDDetID;
+
 AbstractSensor::AbstractSensor( int layer,
                                 int ladder,
                                 int xsegmentNumber,
@@ -61,18 +65,46 @@ AbstractSensor::AbstractSensor( int layer,
 AbstractSensor::~AbstractSensor()
 {}
 
-PixelData AbstractSensor::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
+int AbstractSensor::XToPixelRow(double x)
 {
-    return GetPixel(SensorRowToLadderRow(seg_x, pos_x),
-                    SensorColToLadderCol(seg_y, pos_y));
+    return int((x + _ladderWidth / 2) / _pixelSizeX);
 }
 
-bool AbstractSensor::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
+int AbstractSensor::YToPixelCol(double y)
+{
+    return int((y + _ladderLength / 2) / _pixelSizeY);
+}
+
+double AbstractSensor::PixelRowToX(int ix)
+{
+    return ((0.5 + double(ix)) * _pixelSizeX) - _ladderWidth / 2;
+}
+
+double AbstractSensor::PixelColToY(int iy)
+{
+    return ((0.5 + double(iy)) * _pixelSizeY) - _ladderLength / 2;
+}
+
+
+PixelData AbstractSensor::getPixel(int seg_x, int seg_y, int pos_x, int pos_y)
+{
+    return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
+}
+
+bool AbstractSensor::checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
 {
     return CheckStatus(SensorRowToLadderRow(seg_x, pos_x),
                         SensorColToLadderCol(seg_y, pos_y),
                         pstat);
 }
 
-
-
+BitField64 AbstractSensor::getBFEncoder()
+{
+    BitField64 bf_encoder { cellFmtStr };
+    bf_encoder.reset();
+    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
+    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
+    bf_encoder[LCTrackerCellID::layer()] = _layer;
+    bf_encoder[LCTrackerCellID::module()] = _ladder;
+    return bf_encoder;
+}

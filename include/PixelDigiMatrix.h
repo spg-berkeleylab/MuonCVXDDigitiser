@@ -100,8 +100,6 @@ public:
 
 protected:
 
-    PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
-    bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
     bool CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat);
 
     vector<LocatedPixel> GetPixelsFromSensor(int seg_x, int seg_y, PixelStatus pstat);

@@ -37,7 +37,11 @@ TrivialSensor::TrivialSensor(int layer,
 
 TrivialSensor::~TrivialSensor() {}
 
-void TrivialSensor::Reset() {}
+void TrivialSensor::Reset()
+{
+    pixels.assign(l_rows * l_columns, 0);
+    charged_pix = 0;
+}
 
 void TrivialSensor::BeginClockStep()
 {
@@ -88,25 +92,30 @@ bool TrivialSensor::CheckStatus(int x, int y, PixelStatus pstat)
 void TrivialSensor::buildHits(SegmentDigiHitList& output)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
+    BitField64 bf_encoder = getBFEncoder();
 
     for (int h = 0; h < GetSegNumX(); h++)
     {
         for (int k = 0; k < GetSegNumY(); k++)
         {
+            //Sensor segments ordered row first
+            LinearPosition sens_id = s_locate(h, k);
+            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+
             fu_algo.init();
 
             for (int i = 0; i < GetSensorRows(); i++)
             {
                 for (int j = 0; j < GetSensorCols(); j++)
                 {
-                    if (!CheckStatus(h, k, i, j, PixelStatus::on))
+                    if (!checkStatus(h, k, i, j, PixelStatus::on))
                     {
                         fu_algo.invalidate(i, j);
                         continue;
                     }
 
-                    bool up_is_above = CheckStatus(h, k, i - 1, j, PixelStatus::on);
-                    bool left_is_above = CheckStatus(h, k, i, j - 1, PixelStatus::on);
+                    bool up_is_above = checkStatus(h, k, i - 1, j, PixelStatus::on);
+                    bool left_is_above = checkStatus(h, k, i, j - 1, PixelStatus::on);
 
                     if (up_is_above && left_is_above)
                     {
@@ -125,6 +134,34 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
             }
 
             fu_algo.close();
+
+            for (ClusterOfPixel c_item : fu_algo.get_clusters())
+            {
+                // Very simple implementation: geometric mean
+                float x_acc = 0;
+                float y_acc = 0;
+                float tot_charge = 0;
+
+                for (LinearPosition curr_pos : c_item)
+                {
+                    GridCoordinate gcoor = l_locate(curr_pos);
+                    PixelData p_data = GetPixel(gcoor.row, gcoor.col);
+                    x_acc += PixelRowToX(gcoor.row);
+                    y_acc += PixelColToY(gcoor.col);
+                    tot_charge += p_data.charge;
+                    
+                }
+
+                SegmentDigiHit digiHit = {
+                    x_acc / c_item.size(),
+                    y_acc / c_item.size(),
+                    tot_charge,
+                    init_time + clock_cnt * clock_step,
+                    bf_encoder.lowWord()
+                };
+                output.push_back(digiHit);
+            }
         }
     }
 }
+

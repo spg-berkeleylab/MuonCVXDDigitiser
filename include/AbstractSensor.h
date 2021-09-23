@@ -3,9 +3,13 @@
 
 #include <string>
 #include <vector>
+#include <UTIL/BitField64.h>
+#include <UTIL/LCTrackerConf.h>
 
 using std::string;
 using std::vector;
+using UTIL::BitField64;
+using lcio::LCTrackerCellID;
 
 enum class PixelStatus : char {
     on,
@@ -92,34 +96,34 @@ public:
                     float starttime,
                     float t_step);
 
-    ~AbstractSensor();
+    virtual ~AbstractSensor();
 
-    inline int GetLayer() { return _layer; }
-    inline int GetLadder() { return _ladder; }
-    inline float GetThickness() { return _thickness; }
-    inline float GetHalfThickness() { return _thickness / 2; }
-    inline float GetLength() { return _ladderLength; }
-    inline float GetHalfLength() { return _ladderLength / 2; }
-    inline float GetWidth() { return _ladderWidth; }
-    inline float GetHalfWidth() { return _ladderWidth / 2; }
-    inline double GetPixelSizeX() { return _pixelSizeX; }
-    inline double GetPixelSizeY() { return _pixelSizeY; }
-    inline int GetLadderRows() { return l_rows; }
-    inline int GetLadderCols() { return l_columns; }
-    inline int GetSensorRows() { return s_rows; }
-    inline int GetSensorCols() { return s_colums; }
-    inline int GetSegNumX() { return x_segnum; }
-    inline int GetSegNumY() { return y_segnum; }
+    virtual inline int GetLayer() { return _layer; }
+    virtual inline int GetLadder() { return _ladder; }
+    virtual inline float GetThickness() { return _thickness; }
+    virtual inline float GetHalfThickness() { return _thickness / 2; }
+    virtual inline float GetLength() { return _ladderLength; }
+    virtual inline float GetHalfLength() { return _ladderLength / 2; }
+    virtual inline float GetWidth() { return _ladderWidth; }
+    virtual inline float GetHalfWidth() { return _ladderWidth / 2; }
+    virtual inline double GetPixelSizeX() { return _pixelSizeX; }
+    virtual inline double GetPixelSizeY() { return _pixelSizeY; }
+    virtual inline int GetLadderRows() { return l_rows; }
+    virtual inline int GetLadderCols() { return l_columns; }
+    virtual inline int GetSensorRows() { return s_rows; }
+    virtual inline int GetSensorCols() { return s_colums; }
+    virtual inline int GetSegNumX() { return x_segnum; }
+    virtual inline int GetSegNumY() { return y_segnum; }
 
-    inline int XToPixelRow(double x) { return int((x + _ladderWidth / 2) / _pixelSizeX); }
-    inline int YToPixelCol(double y) { return int((y + _ladderLength / 2) / _pixelSizeY); }
+    virtual int XToPixelRow(double x);
+    virtual int YToPixelCol(double y);
 
-    inline double PixelRowToX(int ix) { return ((0.5 + double(ix)) * _pixelSizeX) - _ladderWidth / 2; }
-    inline double PixelColToY(int iy) { return ((0.5 + double(iy)) * _pixelSizeY) - _ladderLength / 2; }
+    virtual double PixelRowToX(int ix);
+    virtual double PixelColToY(int iy);
 
-    inline string GetCellIDFormatStr() { return cellFmtStr; }
+    virtual inline string GetCellIDFormatStr() { return cellFmtStr; }
 
-    inline MatrixStatus GetStatus() { return status; }
+    virtual inline MatrixStatus GetStatus() { return status; }
 
     virtual void Reset() = 0;
 
@@ -139,13 +143,14 @@ public:
 
 protected:
 
-    inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
-    inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
-    inline int LadderRowToSensorRow(int pos_x, int seg_x) { return pos_x - seg_x * s_rows; }
-    inline int LadderColToSensorCol(int pos_y, int seg_y) { return pos_y - seg_y * s_colums; }
+    virtual inline int SensorRowToLadderRow(int seg_x, int pos_x) { return seg_x * s_rows + pos_x; }
+    virtual inline int SensorColToLadderCol(int seg_y, int pos_y) { return seg_y * s_colums + pos_y; }
+    virtual inline int LadderRowToSensorRow(int pos_x, int seg_x) { return pos_x - seg_x * s_rows; }
+    virtual inline int LadderColToSensorCol(int pos_y, int seg_y) { return pos_y - seg_y * s_colums; }
 
-    virtual PixelData GetPixel(int seg_x, int seg_y, int pos_x, int pos_y);
-    virtual bool CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
+    virtual PixelData getPixel(int seg_x, int seg_y, int pos_x, int pos_y);
+    virtual bool checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
+    virtual BitField64 getBFEncoder();
 
     int _barrel_id;
     int _layer;

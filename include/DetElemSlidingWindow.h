@@ -4,7 +4,7 @@
 #include <list>
 
 #include "HitTemporalIndexes.h"
-#include "PixelDigiMatrix.h"
+#include "AbstractSensor.h"
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
@@ -30,7 +30,7 @@ class DetElemSlidingWindow
 {
 public:
     DetElemSlidingWindow(HitTemporalIndexes& htable,
-                         PixelDigiMatrix& sensor,
+                         AbstractSensor& sensor,
                          float wsize,
                          float starttime,
                          double tanLorentzAngleX,
@@ -60,7 +60,7 @@ private:
     float window_radius;
 
     HitTemporalIndexes& _htable;
-    PixelDigiMatrix& _sensor;
+    AbstractSensor& _sensor;
     double _tanLorentzAngleX;
     double _tanLorentzAngleY;
     double _cutOnDeltaRays;

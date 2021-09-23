@@ -21,7 +21,7 @@ public:
                     float starttime,
                     float t_step);
 
-    ~TrivialSensor();
+    virtual ~TrivialSensor();
 
     void Reset() override;
 
@@ -40,6 +40,7 @@ public:
     void buildHits(SegmentDigiHitList& output) override;
 
 private:
+
     vector<float> pixels;
     int charged_pix;
     int clock_cnt;

@@ -24,7 +24,11 @@
 #include "CLHEP/Random/RandFlat.h"
 
 #include "DetElemSlidingWindow.h"
+#ifdef USE_TRIVIAL
+#include "TrivialSensor.h"
+#else
 #include "HKBaseSensor.h"
+#endif
     
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
@@ -295,19 +299,21 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 continue;
             }
 
+#ifdef USE_TRIVIAL
+            TrivialSensor sensor {
+                layer, ladder, num_segment_x, nun_segment_y, _layerLadderLength[layer],
+                _layerLadderWidth[layer], _layerThickness[layer], _pixelSizeX, _pixelSizeY,
+                encoder_str, _barrelID, _threshold, start_time - _window_size / 2, _window_size
+            };
+#else
             HKBaseSensor sensor {
-                layer, ladder,
-                num_segment_x, nun_segment_y,
-                _layerLadderLength[layer],
-                _layerLadderWidth[layer],
-                _layerThickness[layer],
-                _pixelSizeX, _pixelSizeY,
-                encoder_str, _barrelID,
-                _threshold, _fe_slope,
-                start_time - _window_size / 2,
+                layer, ladder, num_segment_x, nun_segment_y, _layerLadderLength[layer],
+                _layerLadderWidth[layer], _layerThickness[layer], _pixelSizeX, _pixelSizeY,
+                encoder_str, _barrelID, _threshold, _fe_slope, start_time - _window_size / 2,
                 _window_size
             };
-            
+#endif
+
             if (sensor.GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
             {
                 if (sensor.GetStatus() == MatrixStatus::pixel_number_error)

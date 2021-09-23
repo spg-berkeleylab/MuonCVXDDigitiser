@@ -164,11 +164,6 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     return result;
 }
 
-PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
-{
-    return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
-}
-
 bool PixelDigiMatrix::IsActive()
 {
     return pixels.size() > 0;
@@ -179,13 +174,6 @@ bool PixelDigiMatrix::CheckStatus(int x, int y, PixelStatus pstat)
     if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
 
     return pstat == calc_status(l_locate(x, y));
-}
-
-bool PixelDigiMatrix::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
-{
-    return CheckStatus(SensorRowToLadderRow(seg_x, pos_x),
-                        SensorColToLadderCol(seg_y, pos_y),
-                        pstat);
 }
 
 bool PixelDigiMatrix::CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat)

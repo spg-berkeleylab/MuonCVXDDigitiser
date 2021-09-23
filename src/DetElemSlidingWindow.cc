@@ -26,7 +26,7 @@ using CLHEP::RandPoisson;
 using CLHEP::RandFlat;
 
 DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
-                                           PixelDigiMatrix& sensor,
+                                           AbstractSensor& sensor,
                                            float wsize,
                                            float starttime,
                                            double tanLorentzAngleX,

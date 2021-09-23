@@ -1,7 +1,4 @@
 #include "HKBaseSensor.h"
-#include <UTIL/BitField64.h>
-#include <UTIL/LCTrackerConf.h>
-#include <UTIL/ILDConf.h>
 
 #include "streamlog/streamlog.h"
 
@@ -12,9 +9,6 @@
 
 using std::sort;
 using std::stringstream;
-using UTIL::BitField64;
-using lcio::LCTrackerCellID;
-using lcio::ILDDetID;
 using int_limits = std::numeric_limits<int>;
 
 tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster, GridPosition locate)
@@ -178,12 +172,7 @@ HKBaseSensor::HKBaseSensor(int layer,
 
 void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 {
-    BitField64 bf_encoder { cellFmtStr };
-    bf_encoder.reset();
-    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
-    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
-    bf_encoder[LCTrackerCellID::layer()] = this->GetLayer();
-    bf_encoder[LCTrackerCellID::module()] = this->GetLadder();
+    BitField64 bf_encoder = getBFEncoder();
 
     for (int h = 0; h < this->GetSegNumX(); h++)
     {
@@ -209,14 +198,14 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 {
                     for (int j = 0; j < this->GetSensorCols(); j++)
                     {
-                        if (!CheckStatus(h, k, i, j, PixelStatus::start))
+                        if (!checkStatus(h, k, i, j, PixelStatus::start))
                         {
                             _gridSet.invalidate(i, j);
                             continue;
                         }
 
-                        bool up_is_above = CheckStatus(h, k, i - 1, j, PixelStatus::start);
-                        bool left_is_above = CheckStatus(h, k, i, j - 1, PixelStatus::start);
+                        bool up_is_above = checkStatus(h, k, i - 1, j, PixelStatus::start);
+                        bool left_is_above = checkStatus(h, k, i, j - 1, PixelStatus::start);
 
                         if (up_is_above && left_is_above)
                         {

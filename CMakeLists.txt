@@ -18,6 +18,8 @@ set(PACKAGE_INSTALL_LIB_DIR lib CACHE PATH "Installation directory for libraries
 set(PACKAGE_INSTALL_INC_DIR include CACHE PATH "Installation directory for headers")
 option(ZSEGMENTED "Sensitives are segmented along z" ON)
 
+option(USE_TRIVIAL "Use TrivialSensor" OFF)
+
 ### DEPENDENCIES ############################################################
 
 FIND_PACKAGE( ILCUTIL REQUIRED COMPONENTS ILCSOFT_CMAKE_MODULES )
@@ -70,6 +72,10 @@ ADD_DEFINITIONS( "-Wno-long-long -Wno-effc++ -Wno-unused-parameter" )
 if( ZSEGMENTED )
     message ( STATUS "Enabled sensor segmentation" )
     add_compile_definitions( "ZSEGMENTED" )
+endif()
+if( USE_TRIVIAL )
+    message ( STATUS "Enabled trivial sensor" )
+    add_compile_definitions( "USE_TRIVIAL" )
 endif()
 
 # include directories
