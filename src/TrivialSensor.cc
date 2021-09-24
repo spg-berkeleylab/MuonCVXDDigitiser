@@ -94,6 +94,8 @@ bool TrivialSensor::IsActive()
 
 bool TrivialSensor::CheckStatus(int x, int y, PixelStatus pstat)
 {
+    if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
+
     LinearPosition lpos = l_locate(x, y);
     bool result = pixels[lpos] == 0 and pstat == PixelStatus::off;
     result |= pixels[lpos] != 0 and pstat == PixelStatus::on;

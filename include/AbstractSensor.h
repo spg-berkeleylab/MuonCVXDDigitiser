@@ -152,6 +152,8 @@ protected:
     virtual bool checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
     virtual BitField64 getBFEncoder();
 
+    virtual bool check(int x, int y);
+
     int _barrel_id;
     int _layer;
     int _ladder;

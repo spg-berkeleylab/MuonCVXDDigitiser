@@ -108,3 +108,8 @@ BitField64 AbstractSensor::getBFEncoder()
     bf_encoder[LCTrackerCellID::module()] = _ladder;
     return bf_encoder;
 }
+
+bool AbstractSensor::check(int x, int y)
+{
+    return (0 <= x and x < l_rows) and (0 <= y || y < l_columns);
+}

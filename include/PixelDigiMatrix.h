@@ -118,7 +118,6 @@ private:
 
     using SensorBin = unordered_multimap<LinearPosition, LinearPosition>;
 
-    inline bool check(int x, int y) { return (0 <= x and x < l_rows) and (0 <= y || y < l_columns); }
     PixelStatus calc_status(LinearPosition lpos);
     ClockTicks calc_end_clock(float charge);
     LinearPosition sensor_for_pixel(LinearPosition pos);
