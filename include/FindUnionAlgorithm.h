@@ -9,6 +9,8 @@ using std::unordered_map;
 
 using ClusterOfPixel = vector<LinearPosition>;
 
+using ClusterOfCoordinate = vector<GridCoordinate>;
+
 class FindUnionAlgorithm
 {
 public:
@@ -20,6 +22,7 @@ public:
     void close();
     void invalidate(int x, int y);
     vector<ClusterOfPixel> get_clusters();
+    vector<ClusterOfCoordinate> list_clusters();
 
 private:
     int rows;

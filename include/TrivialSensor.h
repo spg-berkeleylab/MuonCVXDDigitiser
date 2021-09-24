@@ -43,6 +43,7 @@ private:
 
     vector<float> pixels;
     int charged_pix;
+    vector<int> charged_on_sensor;
     int clock_cnt;
 };
 

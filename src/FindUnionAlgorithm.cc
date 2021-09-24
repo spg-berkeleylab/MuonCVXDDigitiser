@@ -95,3 +95,18 @@ vector<ClusterOfPixel> FindUnionAlgorithm::get_clusters()
     }
     return result;
 }
+
+vector<ClusterOfCoordinate> FindUnionAlgorithm::list_clusters()
+{
+    vector<ClusterOfCoordinate> result;
+    for (auto c_item : c_table)
+    {
+        ClusterOfCoordinate tmp_item;
+        for (LinearPosition curr_pos : c_item.second)
+        {
+            tmp_item.push_back(locate(curr_pos));
+        }
+        result.push_back(std::move(tmp_item));
+    }
+    return result;
+}

@@ -24,11 +24,8 @@
 #include "CLHEP/Random/RandFlat.h"
 
 #include "DetElemSlidingWindow.h"
-#ifdef USE_TRIVIAL
 #include "TrivialSensor.h"
-#else
 #include "HKBaseSensor.h"
-#endif
     
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
@@ -176,6 +173,11 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                "ADC slope for chip RD53A",
                                _fe_slope,
                                (float)0.1);
+
+    registerProcessorParameter("SensorType",
+                               "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
+                               sensor_type,
+                               int(1));
 }
 
 
@@ -299,24 +301,27 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 continue;
             }
 
-#ifdef USE_TRIVIAL
-            TrivialSensor sensor {
-                layer, ladder, num_segment_x, nun_segment_y, _layerLadderLength[layer],
-                _layerLadderWidth[layer], _layerThickness[layer], _pixelSizeX, _pixelSizeY,
-                encoder_str, _barrelID, _threshold, start_time - _window_size / 2, _window_size
-            };
-#else
-            HKBaseSensor sensor {
-                layer, ladder, num_segment_x, nun_segment_y, _layerLadderLength[layer],
-                _layerLadderWidth[layer], _layerThickness[layer], _pixelSizeX, _pixelSizeY,
-                encoder_str, _barrelID, _threshold, _fe_slope, start_time - _window_size / 2,
-                _window_size
-            };
-#endif
-
-            if (sensor.GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
+            AbstractSensor* sensor = nullptr;
+            if (sensor_type == 1)
             {
-                if (sensor.GetStatus() == MatrixStatus::pixel_number_error)
+                sensor = new TrivialSensor(layer, ladder, num_segment_x, nun_segment_y,
+                                            _layerLadderLength[layer], _layerLadderWidth[layer],
+                                            _layerThickness[layer], _pixelSizeX, _pixelSizeY,
+                                            encoder_str, _barrelID, _threshold,
+                                            start_time - _window_size / 2, _window_size);
+            }
+            else
+            {
+                sensor = new HKBaseSensor(layer, ladder, num_segment_x, nun_segment_y, 
+                                            _layerLadderLength[layer], _layerLadderWidth[layer],
+                                            _layerThickness[layer], _pixelSizeX, _pixelSizeY,
+                                            encoder_str, _barrelID, _threshold, _fe_slope,
+                                            start_time - _window_size / 2, _window_size);
+            }
+
+            if (sensor->GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
+            {
+                if (sensor->GetStatus() == MatrixStatus::pixel_number_error)
 #pragma omp critical
                 {
                     streamlog::out() << "Pixel number error for layer " << layer
@@ -332,7 +337,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             }
 
             DetElemSlidingWindow t_window {
-                t_index, sensor,
+                t_index, *sensor,
                 _window_size, start_time,
                 _tanLorentzAngleX, _tanLorentzAngleY,
                 _cutOnDeltaRays,
@@ -352,7 +357,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 t_window.process();
 
                 SegmentDigiHitList hit_buffer {};
-                sensor.buildHits(hit_buffer);
+                sensor->buildHits(hit_buffer);
                 if (hit_buffer.size() == 0) continue;
 
                 vector<TrackerHitPlaneImpl*> reco_buffer;
@@ -378,9 +383,9 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
                     // See DetElemSlidingWindow::StoreSignalPoints
                     int segment_id = cellid_decoder(recoHit)["sensor"];
-                    float s_offset = sensor.GetSensorCols() * sensor.GetPixelSizeY();
+                    float s_offset = sensor->GetSensorCols() * sensor->GetPixelSizeY();
                     s_offset *= (float(segment_id) + 0.5);
-                    s_offset -= sensor.GetHalfLength();
+                    s_offset -= sensor->GetHalfLength();
 
                     Vector2D oldPos(loc_pos[0] * dd4hep::mm, (loc_pos[1] - s_offset)* dd4hep::mm);
                     Vector3D lv = surf->localToGlobal(oldPos);
@@ -423,7 +428,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                         if (streamlog::out.write<streamlog::DEBUG7>())
                         {
                             streamlog::out() << "Reconstructed pixel cluster for " 
-                                             << sensor.GetLayer() << ":" << sensor.GetLadder() 
+                                             << sensor->GetLayer() << ":" << sensor->GetLadder() 
                                              << ":" << cellid_decoder(recoHit)["sensor"] << std::endl
                                              << "- global position (x,y,z,t) = " << recoHit->getPosition()[0] 
                                              << ", " << recoHit->getPosition()[1] 
@@ -434,6 +439,8 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     }
                 }
             }
+
+            delete sensor;
         }
     }
     streamlog_out(DEBUG) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;

@@ -150,6 +150,7 @@ protected:
     int _PoissonSmearing;
     int _electronicEffects;
     int _produceFullPattern;
+    int sensor_type;
 
     // geometry
     int _numberOfLayers;

@@ -31,8 +31,10 @@ TrivialSensor::TrivialSensor(int layer,
                    t_step),
     pixels(),
     charged_pix(0),
+    charged_on_sensor(),
     clock_cnt(0)
 {
+    Reset();
 }
 
 TrivialSensor::~TrivialSensor() {}
@@ -41,18 +43,27 @@ void TrivialSensor::Reset()
 {
     pixels.assign(l_rows * l_columns, 0);
     charged_pix = 0;
+    charged_on_sensor.assign(x_segnum * y_segnum, 0);
 }
 
 void TrivialSensor::BeginClockStep()
 {
-    pixels.assign(l_rows * l_columns, 0);
-    charged_pix = 0;
+    if (charged_pix > 0)
+    {
+        Reset();
+    }
 }
 
 void TrivialSensor::UpdatePixel(int x, int y, float chrg)
 {
     LinearPosition lpos = l_locate(x, y);
-    if (pixels[lpos] == 0) charged_pix++;
+    if (pixels[lpos] == 0)
+    {
+        charged_pix++;
+        int m_row = x / GetSensorRows();
+        int m_col = y / GetSensorCols();
+        charged_on_sensor[s_locate(m_row, m_col)] += 1;
+    }
     pixels[lpos] += chrg;
 }
 
@@ -68,7 +79,7 @@ PixelData TrivialSensor::GetPixel(int x, int y)
 
     if (pixels[lpos] != 0)
     {
-        result.charge = pixels[lpos];
+        result.charge = pixels[lpos] < _thr_level ? 0 : pixels[lpos];
         result.time = init_time + clock_cnt * clock_step;
         result.status = PixelStatus::on;
     }
@@ -94,10 +105,14 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
     BitField64 bf_encoder = getBFEncoder();
 
+    if (!IsActive()) return;
+
     for (int h = 0; h < GetSegNumX(); h++)
     {
         for (int k = 0; k < GetSegNumY(); k++)
         {
+            if (charged_on_sensor[s_locate(h, k)] == 0) continue;
+
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
             bf_encoder[LCTrackerCellID::sensor()] = sens_id;
@@ -135,19 +150,22 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
 
             fu_algo.close();
 
-            for (ClusterOfPixel c_item : fu_algo.get_clusters())
+            for (ClusterOfCoordinate c_item : fu_algo.list_clusters())
             {
                 // Very simple implementation: geometric mean
                 float x_acc = 0;
                 float y_acc = 0;
                 float tot_charge = 0;
 
-                for (LinearPosition curr_pos : c_item)
+                for (GridCoordinate gcoor : c_item)
                 {
-                    GridCoordinate gcoor = l_locate(curr_pos);
-                    PixelData p_data = GetPixel(gcoor.row, gcoor.col);
-                    x_acc += PixelRowToX(gcoor.row);
-                    y_acc += PixelColToY(gcoor.col);
+                    int global_row = SensorRowToLadderRow(h, gcoor.row);
+                    int global_col = SensorColToLadderCol(k, gcoor.col);
+
+                    x_acc += PixelRowToX(global_row);
+                    y_acc += PixelColToY(global_col);
+
+                    PixelData p_data = GetPixel(global_row, global_col);
                     tot_charge += p_data.charge;
                     
                 }
