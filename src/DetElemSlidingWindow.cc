@@ -124,7 +124,7 @@ int DetElemSlidingWindow::process()
                                << " = " << signals.size() << std::endl;
 
         for (TimedSignalPoint spoint = signals.front();
-             curr_time - spoint.time > window_radius;
+             curr_time - spoint.sim_hit->getTime() > window_radius;
              spoint = signals.front())
         {
             signals.pop_front();
@@ -145,11 +145,12 @@ float DetElemSlidingWindow::get_time()
 
 void DetElemSlidingWindow::UpdatePixels()
 {
+    _sensor.InitHitRegister();
     _sensor.BeginClockStep();
 
     for (auto spoint : signals)
     {
-        if (spoint.time > curr_time + window_radius) break;
+        if (spoint.sim_hit->getTime() > curr_time + window_radius) break;
 
         double xHFrame = _widthOfCluster * spoint.sigmaX;
         double yHFrame = _widthOfCluster * spoint.sigmaY;
@@ -189,6 +190,7 @@ void DetElemSlidingWindow::UpdatePixels()
                 float totCharge = float(spoint.charge * integralX * integralY);
 
                 _sensor.UpdatePixel(ix, iy, totCharge);
+                _sensor.RegisterHit(ix, iy, spoint.sim_hit);
             }
         }
     }
@@ -329,7 +331,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
             SigmaX,
             SigmaY,
             charge,
-            hit->getTime()
+            hit
         });
 
         eSum += eloss;

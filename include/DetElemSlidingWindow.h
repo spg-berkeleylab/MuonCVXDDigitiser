@@ -21,7 +21,7 @@ struct TimedSignalPoint
     double sigmaX;
     double sigmaY;
     double charge;
-    float time;
+    SimTrackerHit* sim_hit;
 };
 
 typedef std::list<TimedSignalPoint> TimedSignalPointList;

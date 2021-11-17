@@ -33,7 +33,8 @@ AbstractSensor::AbstractSensor( int layer,
     clock_step(t_step),
     l_locate({ 0, 0 }),
     s_locate({ 0, 0 }),
-    status(MatrixStatus::ok)
+    status(MatrixStatus::ok),
+    simhit_table()
 {
     int lwid = floor(ladderWidth * 1e4);
     int psx = floor(pixelSizeX * 1e4);
@@ -113,3 +114,14 @@ bool AbstractSensor::check(int x, int y)
 {
     return (0 <= x and x < l_rows) and (0 <= y || y < l_columns);
 }
+
+void AbstractSensor::InitHitRegister()
+{
+    simhit_table.clear();
+}
+
+void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit* hit)
+{
+    simhit_table.emplace(l_locate(x, y), hit);
+}
+

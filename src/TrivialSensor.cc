@@ -155,31 +155,35 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
             for (ClusterOfCoordinate c_item : fu_algo.list_clusters())
             {
                 // Very simple implementation: geometric mean
-                float x_acc = 0;
-                float y_acc = 0;
-                float tot_charge = 0;
+                SegmentDigiHit digiHit = {
+                    0., 0., 0.,
+                    init_time + clock_cnt * clock_step,
+                    bf_encoder.lowWord(),
+                    {}
+                };
 
                 for (GridCoordinate gcoor : c_item)
                 {
                     int global_row = SensorRowToLadderRow(h, gcoor.row);
                     int global_col = SensorColToLadderCol(k, gcoor.col);
 
-                    x_acc += PixelRowToX(global_row);
-                    y_acc += PixelColToY(global_col);
+                    digiHit.x += PixelRowToX(global_row);
+                    digiHit.y += PixelColToY(global_col);
 
                     PixelData p_data = GetPixel(global_row, global_col);
-                    tot_charge += p_data.charge;
-                    
+                    digiHit.charge += p_data.charge;
+
+                    auto hit_range = simhit_table.equal_range(l_locate(gcoor));
+                    for (auto it = hit_range.first; it != hit_range.second; ++it)
+                    {
+                        digiHit.sim_hits.emplace(it->second);
+                    }
                 }
 
-                SegmentDigiHit digiHit = {
-                    x_acc / c_item.size(),
-                    y_acc / c_item.size(),
-                    tot_charge,
-                    init_time + clock_cnt * clock_step,
-                    bf_encoder.lowWord()
-                };
-                output.push_back(digiHit);
+                digiHit.x /= c_item.size();
+                digiHit.y /= c_item.size();
+
+                output.push_back(std::move(digiHit));
             }
         }
     }

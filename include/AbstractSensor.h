@@ -3,13 +3,17 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include <UTIL/BitField64.h>
 #include <UTIL/LCTrackerConf.h>
+#include <EVENT/SimTrackerHit.h>
 
 using std::string;
 using std::vector;
 using UTIL::BitField64;
 using lcio::LCTrackerCellID;
+using EVENT::SimTrackerHit;
 
 enum class PixelStatus : char {
     on,
@@ -33,6 +37,8 @@ struct PixelData
     PixelStatus status;
 };
 
+using SimHitSet = std::unordered_set<SimTrackerHit*>;
+
 struct SegmentDigiHit
 {
     float x;
@@ -40,9 +46,10 @@ struct SegmentDigiHit
     float charge;
     float time;
     int cellID0;
+    SimHitSet sim_hits;
 };
 
-typedef vector<SegmentDigiHit> SegmentDigiHitList;
+using SegmentDigiHitList = vector<SegmentDigiHit>;
 
 struct GridCoordinate
 {
@@ -63,6 +70,7 @@ public:
     GridPosition(int rows, int cols) : b_size(cols) {}
     virtual ~GridPosition() {}
     LinearPosition operator()(int row, int col) { return row * b_size + col; }
+    LinearPosition operator()(GridCoordinate gc) { return gc.row * b_size + gc.col;}
     GridCoordinate operator()(LinearPosition pos)
     {
         return { pos / b_size, pos % b_size };
@@ -70,6 +78,8 @@ public:
 private:
     int b_size;
 };
+
+using SimHitTable = std::unordered_multimap<LinearPosition, SimTrackerHit*>;
 
 /**
  * @class AbstractSensor
@@ -125,6 +135,10 @@ public:
 
     virtual inline MatrixStatus GetStatus() { return status; }
 
+    virtual void InitHitRegister();
+
+    virtual void RegisterHit(int x, int y, SimTrackerHit* hit);
+
     virtual void Reset() = 0;
 
     virtual void BeginClockStep() = 0;
@@ -175,6 +189,7 @@ protected:
     GridPosition l_locate;
     GridPosition s_locate;
     MatrixStatus status;
+    SimHitTable simhit_table;
 };
 
 
