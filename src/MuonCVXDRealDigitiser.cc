@@ -279,6 +279,12 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
     LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
 
+    LCCollectionVec* relCol = new LCCollectionVec(LCIO::LCRELATION);
+    // to store the weights
+    LCFlagImpl lcFlag { 0 };
+    lcFlag.setBit(LCIO::LCREL_WEIGHTED);
+    relCol->setFlag(lcFlag.getFlag());
+
     HitTemporalIndexes t_index{STHcol};
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
@@ -363,8 +369,10 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 vector<TrackerHitPlaneImpl*> reco_buffer;
                 reco_buffer.assign(hit_buffer.size(), nullptr);
 
+                vector<LCRelationImpl*> rel_buffer;
+
                 int idx = 0;
-                for (SegmentDigiHit digiHit : hit_buffer)
+                for (SegmentDigiHit& digiHit : hit_buffer)
                 {
                     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
                     recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
@@ -413,6 +421,16 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     recoHit->setdU( _pixelSizeX / sqrt(12) );
                     recoHit->setdV( _pixelSizeY / sqrt(12) );  
 
+                    //All the sim-hits are registered for a given reco-hit
+                    for (SimTrackerHit* st_item : digiHit.sim_hits)
+                    {
+                        LCRelationImpl* t_rel = new LCRelationImpl {};
+                        t_rel->setFrom(recoHit);
+                        t_rel->setTo(st_item);
+                        t_rel->setWeight( 1.0 );
+                        rel_buffer.push_back(t_rel);
+                    }
+
                     reco_buffer[idx] = recoHit;
                     idx++;
                 }
@@ -437,6 +455,11 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                                              << "- charge = " << recoHit->getEDep() << std::endl;
                         }
                     }
+
+                    for (LCRelationImpl* rel_item : rel_buffer)
+                    {
+                        relCol->addElement(rel_item);
+                    }
                 }
             }
 
@@ -445,6 +468,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     }
     streamlog_out(DEBUG) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
+    evt->addCollection(relCol, _colVTXRelation.c_str()) ;
 }
 
 void MuonCVXDRealDigitiser::check(LCEvent *evt)

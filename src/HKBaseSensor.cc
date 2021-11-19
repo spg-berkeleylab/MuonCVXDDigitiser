@@ -243,28 +243,34 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             for (BufferedCluster c_item : c_heap.PopClusters())
             {
                 // Very simple implementation: geometric mean
-                float x_acc = 0;
-                float y_acc = 0;
-                float tot_charge = 0;
+                SegmentDigiHit digiHit = {
+                    0., 0., 0.,
+                    c_item.time,
+                    bf_encoder.lowWord(),
+                    {}
+                };
+
                 for (ChargePoint c_point : c_item.pixels)
                 {
-                    int global_x = SensorRowToLadderRow(h, c_point.row);
-                    int global_y = SensorColToLadderCol(k, c_point.col);
+                    int global_row = SensorRowToLadderRow(h, c_point.row);
+                    int global_col = SensorColToLadderCol(k, c_point.col);
 
-                    x_acc += PixelRowToX(global_x);
-                    y_acc += PixelColToY(global_y);
+                    digiHit.x += PixelRowToX(global_row);
+                    digiHit.y += PixelColToY(global_col);
 
-                    tot_charge += c_point.charge;
+                    digiHit.charge += c_point.charge;
+
+                    auto hit_range = simhit_table.equal_range(l_locate(global_row, global_col));
+                    for (auto it = hit_range.first; it != hit_range.second; ++it)
+                    {
+                        digiHit.sim_hits.emplace(it->second);
+                    }
                 }
 
-                SegmentDigiHit digiHit = {
-                    x_acc / c_item.pixels.size(),
-                    y_acc / c_item.pixels.size(),
-                    tot_charge,
-                    c_item.time,
-                    bf_encoder.lowWord()
-                };
-                output.push_back(digiHit);
+                digiHit.x /= c_item.pixels.size();
+                digiHit.y /= c_item.pixels.size();
+
+                output.push_back(std::move(digiHit));
             }
         }
     }
