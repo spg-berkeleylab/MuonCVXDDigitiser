@@ -285,6 +285,10 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     lcFlag.setBit(LCIO::LCREL_WEIGHTED);
     relCol->setFlag(lcFlag.getFlag());
 
+    std::size_t RELHISTOSIZE { 10 };
+    vector<std::size_t> relHisto {};
+    relHisto.assign(RELHISTOSIZE, 0);
+
     HitTemporalIndexes t_index{STHcol};
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
@@ -358,6 +362,8 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 _map
             };
 
+            vector<std::size_t> histo_buffer {};
+
             while(t_window.active())
             {
                 t_window.process();
@@ -370,6 +376,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 reco_buffer.assign(hit_buffer.size(), nullptr);
 
                 vector<LCRelationImpl*> rel_buffer;
+                histo_buffer.assign(RELHISTOSIZE, 0);
 
                 int idx = 0;
                 for (SegmentDigiHit& digiHit : hit_buffer)
@@ -431,6 +438,11 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                         rel_buffer.push_back(t_rel);
                     }
 
+                    if (digiHit.sim_hits.size() < RELHISTOSIZE)
+                    {
+                        histo_buffer[digiHit.sim_hits.size()]++;
+                    }
+
                     reco_buffer[idx] = recoHit;
                     idx++;
                 }
@@ -460,6 +472,10 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     {
                         relCol->addElement(rel_item);
                     }
+                    for (std::size_t k = 0; k < RELHISTOSIZE; k++)
+                    {
+                        relHisto[k] += histo_buffer[k];
+                    }
                 }
             }
 
@@ -468,7 +484,12 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     }
     streamlog_out(DEBUG) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
-    evt->addCollection(relCol, _colVTXRelation.c_str()) ;
+    evt->addCollection(relCol, _colVTXRelation.c_str());
+    streamlog_out(DEBUG) << "Hit relation histogram:" << std::endl;
+    for (std::size_t k = 0; k < RELHISTOSIZE; k++)
+    {
+        streamlog_out(DEBUG) << k << " " << relHisto[k] << std::endl;
+    }
 }
 
 void MuonCVXDRealDigitiser::check(LCEvent *evt)
