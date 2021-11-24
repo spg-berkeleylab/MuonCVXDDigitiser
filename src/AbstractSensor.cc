@@ -125,3 +125,11 @@ void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit* hit)
     simhit_table.emplace(l_locate(x, y), hit);
 }
 
+void AbstractSensor::fillInHitRelation(SimHitSet& sset, LinearPosition pos)
+{
+    auto hit_range = simhit_table.equal_range(pos);
+    for (auto it = hit_range.first; it != hit_range.second; ++it)
+    {
+        sset.emplace(it->second);
+    }
+}

@@ -165,6 +165,7 @@ protected:
     virtual PixelData getPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     virtual bool checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
     virtual BitField64 getBFEncoder();
+    virtual void fillInHitRelation(SimHitSet& sset, LinearPosition pos);
 
     virtual bool check(int x, int y);
 
@@ -189,6 +190,8 @@ protected:
     GridPosition l_locate;
     GridPosition s_locate;
     MatrixStatus status;
+
+private:
     SimHitTable simhit_table;
 };
 

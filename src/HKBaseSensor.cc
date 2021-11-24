@@ -260,11 +260,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
                     digiHit.charge += c_point.charge;
 
-                    auto hit_range = simhit_table.equal_range(l_locate(global_row, global_col));
-                    for (auto it = hit_range.first; it != hit_range.second; ++it)
-                    {
-                        digiHit.sim_hits.emplace(it->second);
-                    }
+                    fillInHitRelation(digiHit.sim_hits, l_locate(global_row, global_col));
                 }
 
                 digiHit.x /= c_item.pixels.size();
