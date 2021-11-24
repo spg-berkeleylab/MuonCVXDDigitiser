@@ -19,7 +19,8 @@ public:
                     int barrel_id,
                     double thr,
                     float starttime,
-                    float t_step);
+                    float t_step,
+                    bool hk8_on = true);
 
     virtual ~TrivialSensor();
 
@@ -45,6 +46,7 @@ private:
     int charged_pix;
     vector<int> charged_on_sensor;
     int clock_cnt;
+    bool HK8_enabled;
 };
 
 #endif //TrivialSensor_h

@@ -14,7 +14,8 @@ TrivialSensor::TrivialSensor(int layer,
                             int barrel_id,
                             double thr,
                             float starttime,
-                            float t_step) :
+                            float t_step,
+                            bool hk8_on) :
     AbstractSensor(layer,
                    ladder,
                    xsegmentNumber,
@@ -32,7 +33,8 @@ TrivialSensor::TrivialSensor(int layer,
     pixels(),
     charged_pix(0),
     charged_on_sensor(),
-    clock_cnt(0)
+    clock_cnt(0),
+    HK8_enabled(hk8_on)
 {
     Reset();
 }
@@ -131,21 +133,41 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                         continue;
                     }
 
-                    bool up_is_above = checkStatus(h, k, i - 1, j, PixelStatus::on);
-                    bool left_is_above = checkStatus(h, k, i, j - 1, PixelStatus::on);
+                    bool N_is_on = checkStatus(h, k, i - 1, j, PixelStatus::on);
+                    bool W_is_on = checkStatus(h, k, i, j - 1, PixelStatus::on);
+                    bool NW_is_on = HK8_enabled ? checkStatus(h, k, i - 1, j - 1, PixelStatus::on) : false;
+                    bool NE_is_on = HK8_enabled ? checkStatus(h, k, i - 1, j + 1, PixelStatus::on) : false;
 
-                    if (up_is_above && left_is_above)
+                    if (N_is_on and W_is_on)
                     {
                         fu_algo.merge(i - 1, j, i, j - 1);
                         fu_algo.merge(i, j - 1, i, j);
                     }
-                    else if (!up_is_above && left_is_above)
+                    else if (W_is_on and NE_is_on)
+                    {
+                        fu_algo.merge(i, j - 1, i - 1, j + 1);
+                        fu_algo.merge(i - 1, j + 1, i, j);
+                    }
+                    else if (NW_is_on and NE_is_on)
+                    {
+                        fu_algo.merge(i - 1, j - 1, i - 1, j + 1);
+                        fu_algo.merge(i - 1, j + 1, i, j);
+                    }
+                    else if (W_is_on)
                     {
                         fu_algo.merge(i, j - 1, i, j);
                     }
-                    else if (up_is_above && !left_is_above)
+                    else if (N_is_on)
                     {
                         fu_algo.merge(i - 1, j, i, j);
+                    }
+                    else if (NW_is_on)
+                    {
+                        fu_algo.merge(i - 1, j - 1, i, j);
+                    }
+                    else if (NE_is_on)
+                    {
+                        fu_algo.merge(i - 1, j + 1, i, j);
                     }
                 }
             }
