@@ -165,9 +165,9 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                10.0); 
 
     registerProcessorParameter("WindowSize",
-                               "Window size",
+                               "Window size (in nsec)",
                                _window_size,
-                               (float)0.1);
+                               (float)25);
 
     registerProcessorParameter("RD53Aslope",
                                "ADC slope for chip RD53A",
@@ -482,13 +482,13 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             delete sensor;
         }
     }
-    streamlog_out(DEBUG) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
+    streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
     evt->addCollection(relCol, _colVTXRelation.c_str());
-    streamlog_out(DEBUG) << "Hit relation histogram:" << std::endl;
-    for (std::size_t k = 0; k < RELHISTOSIZE; k++)
+    streamlog_out(MESSAGE) << "Hit relation histogram:" << std::endl;
+    for (std::size_t k = 1; k < RELHISTOSIZE; k++)
     {
-        streamlog_out(DEBUG) << k << " " << relHisto[k] << std::endl;
+        streamlog_out(MESSAGE) << k << " " << relHisto[k] << std::endl;
     }
 }
 
