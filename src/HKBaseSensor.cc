@@ -122,20 +122,21 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
    ************************************************************************* */
 
 HKBaseSensor::HKBaseSensor(int layer,
-                     int ladder,
-                     int xsegmentNumber,
-                     int ysegmentNumber,
-                     float ladderLength,
-                     float ladderWidth,
-                     float thickness,
-                     double pixelSizeX,
-                     double pixelSizeY,
-                     string enc_str,
-                     int barrel_id,
-                     double thr,
-                     float fe_slope,
-                     float starttime,
-                     float t_step) :
+                            int ladder,
+                            int xsegmentNumber,
+                            int ysegmentNumber,
+                            float ladderLength,
+                            float ladderWidth,
+                            float thickness,
+                            double pixelSizeX,
+                            double pixelSizeY,
+                            string enc_str,
+                            int barrel_id,
+                            double thr,
+                            float fe_slope,
+                            float starttime,
+                            float t_step,
+                            bool hk8_on) :
     PixelDigiMatrix(layer,
                     ladder,
                     xsegmentNumber,
@@ -151,8 +152,8 @@ HKBaseSensor::HKBaseSensor(int layer,
                     fe_slope,
                     starttime,
                     t_step),
-    _gridSet(s_rows, s_colums),
-    heap_table(0, { 0, 0 })
+    heap_table(0, { 0, 0 }),
+    HK8_enabled(hk8_on)
 {
     if (GetStatus() == MatrixStatus::ok)
     {
@@ -172,7 +173,10 @@ HKBaseSensor::HKBaseSensor(int layer,
 
 void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 {
+    FindUnionAlgorithm  fu_algo { s_rows, s_colums };
     BitField64 bf_encoder = getBFEncoder();
+
+    if (!IsActive()) return;
 
     for (int h = 0; h < this->GetSegNumX(); h++)
     {
@@ -192,7 +196,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                    https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
                    ************************************************************** */
 
-                _gridSet.init();
+                fu_algo.init();
 
                 for (int i = 0; i < this->GetSensorRows(); i++)
                 {
@@ -200,36 +204,56 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                     {
                         if (!checkStatus(h, k, i, j, PixelStatus::start))
                         {
-                            _gridSet.invalidate(i, j);
+                            fu_algo.invalidate(i, j);
                             continue;
                         }
 
-                        bool up_is_above = checkStatus(h, k, i - 1, j, PixelStatus::start);
-                        bool left_is_above = checkStatus(h, k, i, j - 1, PixelStatus::start);
+                        bool N_is_on = checkStatus(h, k, i - 1, j, PixelStatus::start);
+                        bool W_is_on = checkStatus(h, k, i, j - 1, PixelStatus::start);
+                        bool NW_is_on = HK8_enabled ? checkStatus(h, k, i - 1, j - 1, PixelStatus::start) : false;
+                        bool NE_is_on = HK8_enabled ? checkStatus(h, k, i - 1, j + 1, PixelStatus::start) : false;
 
-                        if (up_is_above && left_is_above)
+                        if (N_is_on and W_is_on)
                         {
-                            _gridSet.merge(i - 1, j, i, j - 1);
-                            _gridSet.merge(i, j - 1, i, j);
+                            fu_algo.merge(i - 1, j, i, j - 1);
+                            fu_algo.merge(i, j - 1, i, j);
                         }
-                        else if (!up_is_above && left_is_above)
+                        else if (W_is_on and NE_is_on)
                         {
-                            _gridSet.merge(i, j - 1, i, j);
+                            fu_algo.merge(i, j - 1, i - 1, j + 1);
+                            fu_algo.merge(i - 1, j + 1, i, j);
                         }
-                        else if (up_is_above && !left_is_above)
+                        else if (NW_is_on and NE_is_on)
                         {
-                            _gridSet.merge(i - 1, j, i, j);
+                            fu_algo.merge(i - 1, j - 1, i - 1, j + 1);
+                            fu_algo.merge(i - 1, j + 1, i, j);
+                        }
+                        else if (W_is_on)
+                        {
+                            fu_algo.merge(i, j - 1, i, j);
+                        }
+                        else if (N_is_on)
+                        {
+                            fu_algo.merge(i - 1, j, i, j);
+                        }
+                        else if (NW_is_on)
+                        {
+                            fu_algo.merge(i - 1, j - 1, i, j);
+                        }
+                        else if (NE_is_on)
+                        {
+                            fu_algo.merge(i - 1, j + 1, i, j);
                         }
                     }
                 }
 
-                _gridSet.close();
+                fu_algo.close();
 
                 /* ****************************************************************
                    Cluster buffering
                    ************************************************************** */
 
-                for (ClusterOfPixel c_item : _gridSet.get_clusters())
+                for (ClusterOfPixel c_item : fu_algo.get_clusters())
                 {
                     c_heap.AddCluster(c_item);
                 }

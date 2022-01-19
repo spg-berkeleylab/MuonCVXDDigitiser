@@ -83,14 +83,15 @@ public:
                           double thr,
                           float fe_slope,
                           float starttime,
-                          float t_step);
+                          float t_step,
+                          bool hk8_on = true);
     virtual ~HKBaseSensor() {}
 
     void buildHits(SegmentDigiHitList& output) override;
 
 protected:
-    FindUnionAlgorithm  _gridSet;
     vector<ClusterHeap> heap_table;
+    bool HK8_enabled;
 };
 
 #endif //HKBaseSensor_h
