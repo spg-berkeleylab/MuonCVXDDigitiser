@@ -96,36 +96,37 @@ void PixelDigiMatrix::EndClockStep()
         if (pix == pixels.end())
         {
             pix_expir = calc_end_clock(chrg);
-            if (pix_expir > 0)
-            {
-                pix_expir += clock_cnt;
-                PixelRawData p_data { chrg, clock_cnt, pix_expir };
-                pixels.emplace(lpos, p_data);
-            }
+            if (pix_expir == 0) continue;
+
+            pix_expir += clock_cnt;
+            PixelRawData p_data { chrg, clock_cnt, pix_expir };
+            pixels.emplace(lpos, p_data);
+
             start_table.emplace(s_pos, lpos);
         }
         else
         {
+            // Pixel pile-up
             float new_chrg = (pix->second).charge + chrg;
             pixels[lpos].charge = new_chrg;
 
             pix_expir = calc_end_clock(new_chrg);
-            if (pix_expir > 0)
-            {
-                pix_expir += pixels[lpos].t_begin;
-                ClockTicks prev_expir = pixels[lpos].t_end;
-                auto d_range = expir_table[prev_expir].equal_range(s_pos);
-                for (auto it = d_range.first; it != d_range.second; it++)
-                {
-                    if (it->second == lpos)
-                    {
-                        expir_table[prev_expir].erase(it);
-                        break;
-                    }
-                }
+            if (pix_expir == 0) continue;
 
-                pixels[lpos].t_end = pix_expir;
+            pix_expir += pixels[lpos].t_begin;
+            ClockTicks prev_expir = pixels[lpos].t_end;
+            auto d_range = expir_table[prev_expir].equal_range(s_pos);
+            for (auto it = d_range.first; it != d_range.second; it++)
+            {
+                if (it->second == lpos)
+                {
+                    expir_table[prev_expir].erase(it);
+                    break;
+                }
             }
+
+            pixels[lpos].t_end = pix_expir;
+
         }
 
         if (expir_table.find(pix_expir) == expir_table.end())
