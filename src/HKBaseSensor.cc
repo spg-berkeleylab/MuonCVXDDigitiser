@@ -169,6 +169,8 @@ HKBaseSensor::HKBaseSensor(int layer,
             }
         }
     }
+
+    reset_simtable_at_once = false;
 }
 
 void HKBaseSensor::buildHits(SegmentDigiHitList& output)

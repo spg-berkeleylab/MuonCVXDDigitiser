@@ -34,6 +34,7 @@ AbstractSensor::AbstractSensor( int layer,
     l_locate({ 0, 0 }),
     s_locate({ 0, 0 }),
     status(MatrixStatus::ok),
+    reset_simtable_at_once(true),
     simhit_table()
 {
     int lwid = floor(ladderWidth * 1e4);
@@ -117,7 +118,7 @@ bool AbstractSensor::check(int x, int y)
 
 void AbstractSensor::InitHitRegister()
 {
-    simhit_table.clear();
+    if (reset_simtable_at_once) simhit_table.clear();
 }
 
 void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit* hit)
@@ -132,4 +133,6 @@ void AbstractSensor::fillInHitRelation(SimHitSet& sset, LinearPosition pos)
     {
         sset.emplace(it->second);
     }
+
+    if (!reset_simtable_at_once) simhit_table.erase(pos);
 }

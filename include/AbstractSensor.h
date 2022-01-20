@@ -190,6 +190,7 @@ protected:
     GridPosition l_locate;
     GridPosition s_locate;
     MatrixStatus status;
+    bool reset_simtable_at_once;
 
 private:
     SimHitTable simhit_table;
