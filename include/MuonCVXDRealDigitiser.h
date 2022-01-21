@@ -118,6 +118,7 @@ public:
 protected:
 
     void PrintGeometryInfo();
+    void DumpStatistics(LCEvent *evt);
 
     int _nRun;
     int _nEvt;

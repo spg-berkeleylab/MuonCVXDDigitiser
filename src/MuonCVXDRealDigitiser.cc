@@ -30,6 +30,9 @@
 // ----- include for verbosity dependend logging ---------
 #include "marlin/VerbosityLevels.h"
 
+#include <TFile.h>
+#include <TH1.h>
+
 using CLHEP::RandGauss;
 using CLHEP::RandPoisson;
 using CLHEP::RandFlat;
@@ -490,6 +493,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     {
         streamlog_out(MESSAGE) << k << " " << relHisto[k] << std::endl;
     }
+    DumpStatistics(evt);
 }
 
 void MuonCVXDRealDigitiser::check(LCEvent *evt)
@@ -522,5 +526,24 @@ void MuonCVXDRealDigitiser::PrintGeometryInfo()
     }
 }
 
+void MuonCVXDRealDigitiser::DumpStatistics(LCEvent *evt)
+{
+    TFile statFile {"statistics.root", "recreate"};
+    TH1F distHisto {"HitDistance", "Sim-reco hit distance", 1000, 0, _layerLadderLength[0] / 5};
+    LCCollection* relCol = evt->getCollection(_colVTXRelation.c_str());
+    for (int i = 0; i < relCol->getNumberOfElements(); ++i)
+    {
+        LCRelationImpl* hitRel = dynamic_cast<LCRelationImpl*>(relCol->getElementAt(i));
+        TrackerHitPlaneImpl* recoHit = dynamic_cast<TrackerHitPlaneImpl*>(hitRel->getFrom());
+        SimTrackerHit* simTrkHit = dynamic_cast<SimTrackerHit*>(hitRel->getTo());
 
+        float tmpf = pow(recoHit->getPosition()[0] - simTrkHit->getPosition()[0], 2);
+        tmpf += pow(recoHit->getPosition()[1] - simTrkHit->getPosition()[1], 2);
+        tmpf += pow(recoHit->getPosition()[2] - simTrkHit->getPosition()[2], 2);
+        distHisto.Fill(sqrt(tmpf));
+    }
+    distHisto.Write();
+    statFile.Flush();
+    statFile.Close();
+}
 
