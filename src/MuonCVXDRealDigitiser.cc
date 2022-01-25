@@ -31,7 +31,6 @@
 #include "marlin/VerbosityLevels.h"
 
 #include <TFile.h>
-#include <TH1.h>
 
 using CLHEP::RandGauss;
 using CLHEP::RandPoisson;
@@ -53,7 +52,10 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     _nRun(0),
     _nEvt(0),
     _totEntries(0),
-    _barrelID(0)
+    _barrelID(0),
+    create_stats(false),
+    signal_dHisto(nullptr),
+    bib_dHisto(nullptr)
 {
     _description = "MuonCVXDRealDigitiser should create VTX TrackerHits from SimTrackerHits";
 
@@ -181,6 +183,10 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
                                "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)",
                                sensor_type,
                                int(1));
+    registerProcessorParameter("StatisticsFilename",
+                               "File name for statistics (None for disabling the feature)",
+                               stat_filename,
+                               std::string("None"));
 }
 
 
@@ -193,6 +199,15 @@ void MuonCVXDRealDigitiser::init()
     _nRun = 0 ;
     _nEvt = 0 ;
     _totEntries = 0;
+
+    create_stats = stat_filename.compare(std::string { "None" }) != 0;
+
+    if (create_stats)
+    {
+        double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
+        signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
+        bib_dHisto = new TH1F("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
+    }
 }
 
 
@@ -493,7 +508,29 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     {
         streamlog_out(MESSAGE) << k << " " << relHisto[k] << std::endl;
     }
-    DumpStatistics(evt);
+
+    if (create_stats)
+    {
+        for (int i = 0; i < relCol->getNumberOfElements(); ++i)
+        {
+            LCRelationImpl* hitRel = dynamic_cast<LCRelationImpl*>(relCol->getElementAt(i));
+            TrackerHitPlaneImpl* recoHit = dynamic_cast<TrackerHitPlaneImpl*>(hitRel->getFrom());
+            SimTrackerHit* simTrkHit = dynamic_cast<SimTrackerHit*>(hitRel->getTo());
+
+            float tmpf = pow(recoHit->getPosition()[0] - simTrkHit->getPosition()[0], 2);
+            tmpf += pow(recoHit->getPosition()[1] - simTrkHit->getPosition()[1], 2);
+            tmpf += pow(recoHit->getPosition()[2] - simTrkHit->getPosition()[2], 2);
+            
+            if (simTrkHit->isOverlay())
+            {
+                bib_dHisto->Fill(sqrt(tmpf));
+            }
+            else
+            {
+                signal_dHisto->Fill(sqrt(tmpf));
+            }
+        }
+    }
 }
 
 void MuonCVXDRealDigitiser::check(LCEvent *evt)
@@ -502,6 +539,18 @@ void MuonCVXDRealDigitiser::check(LCEvent *evt)
 void MuonCVXDRealDigitiser::end()
 {
     streamlog_out(DEBUG) << "   end called  " << std::endl;
+
+    if (create_stats)
+    {
+        TFile statFile = TFile(stat_filename.c_str(), "recreate");
+        statFile.WriteObject(signal_dHisto, "Signal offset");
+        statFile.WriteObject(bib_dHisto, "BIB offset");
+        statFile.Flush();
+        statFile.Close();
+    }
+
+    if (signal_dHisto != nullptr) delete(signal_dHisto);
+    if (bib_dHisto != nullptr) delete(bib_dHisto);
 }
 
 void MuonCVXDRealDigitiser::PrintGeometryInfo()
@@ -524,26 +573,5 @@ void MuonCVXDRealDigitiser::PrintGeometryInfo()
         streamlog_out(MESSAGE) << "  Thickness: " << _layerThickness[i] << std::endl;
         streamlog_out(MESSAGE) << "  Half thickness: " << _layerHalfThickness[i] << std::endl;
     }
-}
-
-void MuonCVXDRealDigitiser::DumpStatistics(LCEvent *evt)
-{
-    TFile statFile {"statistics.root", "recreate"};
-    TH1F distHisto {"HitDistance", "Sim-reco hit distance", 1000, 0, _layerLadderLength[0] / 5};
-    LCCollection* relCol = evt->getCollection(_colVTXRelation.c_str());
-    for (int i = 0; i < relCol->getNumberOfElements(); ++i)
-    {
-        LCRelationImpl* hitRel = dynamic_cast<LCRelationImpl*>(relCol->getElementAt(i));
-        TrackerHitPlaneImpl* recoHit = dynamic_cast<TrackerHitPlaneImpl*>(hitRel->getFrom());
-        SimTrackerHit* simTrkHit = dynamic_cast<SimTrackerHit*>(hitRel->getTo());
-
-        float tmpf = pow(recoHit->getPosition()[0] - simTrkHit->getPosition()[0], 2);
-        tmpf += pow(recoHit->getPosition()[1] - simTrkHit->getPosition()[1], 2);
-        tmpf += pow(recoHit->getPosition()[2] - simTrkHit->getPosition()[2], 2);
-        distHisto.Fill(sqrt(tmpf));
-    }
-    distHisto.Write();
-    statFile.Flush();
-    statFile.Close();
 }
 

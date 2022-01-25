@@ -15,6 +15,8 @@
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 
+#include <TH1.h>
+
 using marlin::Processor;
 
 struct IonisationPoint
@@ -118,7 +120,6 @@ public:
 protected:
 
     void PrintGeometryInfo();
-    void DumpStatistics(LCEvent *evt);
 
     int _nRun;
     int _nEvt;
@@ -167,6 +168,11 @@ protected:
     std::vector<float> _layerHalfPhi{};
     std::vector<float> _layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
+
+    std::string stat_filename;
+    bool create_stats;
+    TH1F* signal_dHisto;
+    TH1F* bib_dHisto;
 };
 
 #endif //MuonCVXDRealDigitiser_h
