@@ -59,14 +59,16 @@ void TrivialSensor::BeginClockStep()
 void TrivialSensor::UpdatePixel(int x, int y, float chrg)
 {
     LinearPosition lpos = l_locate(x, y);
-    if (pixels[lpos] == 0)
+    float new_charge = pixels[lpos] + chrg;
+
+    if (pixels[lpos] < _thr_level and new_charge >= _thr_level)
     {
         charged_pix++;
         int m_row = x / GetSensorRows();
         int m_col = y / GetSensorCols();
         charged_on_sensor[s_locate(m_row, m_col)] += 1;
     }
-    pixels[lpos] += chrg;
+    pixels[lpos] = new_charge;
 }
 
 void TrivialSensor::EndClockStep()
@@ -79,9 +81,9 @@ PixelData TrivialSensor::GetPixel(int x, int y)
     PixelData result { 0, 0, PixelStatus::off };
     LinearPosition lpos = l_locate(x, y);
 
-    if (pixels[lpos] != 0)
+    if (pixels[lpos] >= _thr_level)
     {
-        result.charge = pixels[lpos] < _thr_level ? 0 : pixels[lpos];
+        result.charge = pixels[lpos];
         result.time = init_time + clock_cnt * clock_step;
         result.status = PixelStatus::on;
     }
@@ -99,9 +101,9 @@ bool TrivialSensor::CheckStatus(int x, int y, PixelStatus pstat)
     if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
 
     LinearPosition lpos = l_locate(x, y);
-    bool result = pixels[lpos] == 0 and pstat == PixelStatus::off;
-    result |= pixels[lpos] != 0 and pstat == PixelStatus::on;
-    return result;
+    bool cond1 = pixels[lpos] < _thr_level and pstat == PixelStatus::off;
+    bool cond2 = pixels[lpos] >= _thr_level and pstat == PixelStatus::on;
+    return cond1 or cond2;
 }
 
 void TrivialSensor::buildHits(SegmentDigiHitList& output)
