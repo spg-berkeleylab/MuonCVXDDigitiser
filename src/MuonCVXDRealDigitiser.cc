@@ -1,6 +1,7 @@
 #include "MuonCVXDRealDigitiser.h"
 #include <iostream>
 #include <algorithm>
+#include <math.h>
 
 #include <EVENT/LCIO.h>
 #include <EVENT/LCCollection.h>
@@ -307,7 +308,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     vector<std::size_t> relHisto {};
     relHisto.assign(RELHISTOSIZE, 0);
 
-    HitTemporalIndexes t_index{STHcol};
+    HitTemporalIndexes t_index { STHcol };
 
     for (int layer = 0; layer < _numberOfLayers; layer++)
     {
@@ -317,8 +318,8 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
             int num_segment_x = 1;
             int nun_segment_y = _sensorsPerLadder[layer];
 
-            float start_time = t_index.GetMinTime(layer, ladder);
-            if (start_time == HitTemporalIndexes::MAXTIME)
+            float m_time = t_index.GetMinTime(layer, ladder);
+            if (m_time == HitTemporalIndexes::MAXTIME)
             {
                 if (streamlog::out.write<streamlog::DEBUG6>())
 #pragma omp critical
@@ -328,6 +329,9 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                 }
                 continue;
             }
+            //clock time centered at 0
+            float nw = floor(fabs(m_time) / _window_size);
+            float start_time = (m_time >= 0) ? nw * _window_size : -1 * (nw + 1) * _window_size;
 
             AbstractSensor* sensor = nullptr;
             if (sensor_type == 1)
@@ -336,7 +340,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                                             _layerLadderLength[layer], _layerLadderWidth[layer],
                                             _layerThickness[layer], _pixelSizeX, _pixelSizeY,
                                             encoder_str, _barrelID, _threshold,
-                                            start_time - _window_size / 2, _window_size);
+                                            start_time, _window_size);
             }
             else
             {
@@ -344,7 +348,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                                             _layerLadderLength[layer], _layerLadderWidth[layer],
                                             _layerThickness[layer], _pixelSizeX, _pixelSizeY,
                                             encoder_str, _barrelID, _threshold, _fe_slope,
-                                            start_time - _window_size / 2, _window_size);
+                                            start_time, _window_size);
             }
 
             if (sensor->GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())

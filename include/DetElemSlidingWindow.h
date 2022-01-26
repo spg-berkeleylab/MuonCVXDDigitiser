@@ -57,7 +57,6 @@ private:
 
     float curr_time;
     float time_click;
-    float window_radius;
 
     HitTemporalIndexes& _htable;
     AbstractSensor& _sensor;

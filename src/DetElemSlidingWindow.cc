@@ -41,9 +41,8 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
                                            double maxTrkLen,
                                            double maxEnergyDelta,
                                            const SurfaceMap* s_map):
-    curr_time(starttime),
+    curr_time(starttime + wsize / 2),  // window centered in the middle
     time_click(wsize),
-    window_radius(wsize / 2),
     _htable(htable),
     _sensor(sensor),
     _tanLorentzAngleX(tanLorentzAngleX),
@@ -79,6 +78,8 @@ bool DetElemSlidingWindow::active()
 
 int DetElemSlidingWindow::process()
 {
+    float window_radius = time_click / 2;
+
     for (SimTrackerHit* hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
          hit != nullptr && hit->getTime() - curr_time < window_radius;
          hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder()))
@@ -147,6 +148,8 @@ void DetElemSlidingWindow::UpdatePixels()
 {
     _sensor.InitHitRegister();
     _sensor.BeginClockStep();
+
+    float window_radius = time_click / 2;
 
     for (auto spoint : signals)
     {
