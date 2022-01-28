@@ -173,6 +173,9 @@ protected:
     bool create_stats;
     TH1F* signal_dHisto;
     TH1F* bib_dHisto;
+    TH1F* signal_cSizeHisto;
+    TH1F* bib_cSizeHisto;
+
 };
 
 #endif //MuonCVXDRealDigitiser_h

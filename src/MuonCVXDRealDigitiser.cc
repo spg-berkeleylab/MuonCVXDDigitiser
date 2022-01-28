@@ -56,7 +56,10 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     _barrelID(0),
     create_stats(false),
     signal_dHisto(nullptr),
-    bib_dHisto(nullptr)
+    bib_dHisto(nullptr),
+    signal_cSizeHisto(nullptr),
+    bib_cSizeHisto(nullptr)
+
 {
     _description = "MuonCVXDRealDigitiser should create VTX TrackerHits from SimTrackerHits";
 
@@ -208,6 +211,9 @@ void MuonCVXDRealDigitiser::init()
         double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
         signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
         bib_dHisto = new TH1F("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
+        signal_cSizeHisto = new TH1F("SignalClusterSize", "Signal Cluster Size", 1000, 0., 100);
+        bib_cSizeHisto = new TH1F("BIBClusterSize", "BIB Cluster Size", 1000, 0., 100);
+
     }
 }
 
@@ -406,6 +412,8 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
                     recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
 
+                    bool sig = false;            
+
                     double loc_pos[3] = { 
                         digiHit.x - _layerHalfThickness[layer] * _tanLorentzAngleX,
                         digiHit.y - _layerHalfThickness[layer] * _tanLorentzAngleY,
@@ -453,6 +461,8 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     //All the sim-hits are registered for a given reco-hit
                     for (SimTrackerHit* st_item : digiHit.sim_hits)
                     {
+                        if (!st_item->isOverlay()) sig = true;
+                        recoHit->rawHits().push_back( st_item );
                         LCRelationImpl* t_rel = new LCRelationImpl {};
                         t_rel->setFrom(recoHit);
                         t_rel->setTo(st_item);
@@ -467,6 +477,12 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
                     reco_buffer[idx] = recoHit;
                     idx++;
+                    if (create_stats) {
+                      if ( !sig )
+                        bib_cSizeHisto->Fill(recoHit->getRawHits().size());
+                      else
+                        signal_cSizeHisto->Fill(recoHit->getRawHits().size());
+                   }
                 }
 
                 if (reco_buffer.size() > 0)
@@ -507,11 +523,14 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
     evt->addCollection(THcol, _outputCollectionName.c_str());
     evt->addCollection(relCol, _colVTXRelation.c_str());
-    streamlog_out(MESSAGE) << "Hit relation histogram:" << std::endl;
-    for (std::size_t k = 1; k < RELHISTOSIZE; k++)
-    {
-        streamlog_out(MESSAGE) << k << " " << relHisto[k] << std::endl;
-    }
+    int count = 0;
+      streamlog_out(DEBUG) << "Hit relation histogram:" << std::endl;
+      for (std::size_t k = 0; k < RELHISTOSIZE; k++)
+      {
+        streamlog_out(DEBUG) << k << " " << relHisto[k] << std::endl;
+        count += relHisto[k];
+      }
+      streamlog_out(DEBUG) << "> " << THcol->getNumberOfElements() - count << std::endl;
 
     if (create_stats)
     {
@@ -549,12 +568,17 @@ void MuonCVXDRealDigitiser::end()
         TFile statFile = TFile(stat_filename.c_str(), "recreate");
         statFile.WriteObject(signal_dHisto, "Signal offset");
         statFile.WriteObject(bib_dHisto, "BIB offset");
+        statFile.WriteObject(signal_cSizeHisto, "Signal cluster size");
+        statFile.WriteObject(bib_cSizeHisto, "BIB cluster size");
         statFile.Flush();
         statFile.Close();
     }
 
     if (signal_dHisto != nullptr) delete(signal_dHisto);
     if (bib_dHisto != nullptr) delete(bib_dHisto);
+    if (signal_cSizeHisto != nullptr) delete(signal_cSizeHisto);
+    if (bib_cSizeHisto != nullptr) delete(bib_cSizeHisto);
+
 }
 
 void MuonCVXDRealDigitiser::PrintGeometryInfo()
