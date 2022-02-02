@@ -67,7 +67,6 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     bib_ySizeHisto(nullptr),
     bib_zSizeHisto(nullptr),
     bib_eDepHisto(nullptr)
-
 {
     _description = "MuonCVXDRealDigitiser should create VTX TrackerHits from SimTrackerHits";
 
@@ -427,7 +426,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
                     recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
 
-                    bool sig = false;            
+                    bool sig = false;
                     double minx = 999;
                     double maxx = -999;
                     double miny = 999;
