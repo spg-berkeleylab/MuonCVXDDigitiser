@@ -174,7 +174,15 @@ protected:
     TH1F* signal_dHisto;
     TH1F* bib_dHisto;
     TH1F* signal_cSizeHisto;
+    TH1F* signal_xSizeHisto;
+    TH1F* signal_ySizeHisto;
+    TH1F* signal_zSizeHisto;
+    TH1F* signal_eDepHisto;
     TH1F* bib_cSizeHisto;
+    TH1F* bib_xSizeHisto;
+    TH1F* bib_ySizeHisto;
+    TH1F* bib_zSizeHisto;
+    TH1F* bib_eDepHisto;
 
 };
 

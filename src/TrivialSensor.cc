@@ -185,7 +185,6 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                     bf_encoder.lowWord(),
                     {}
                 };
-
                 for (GridCoordinate gcoor : c_item)
                 {
                     int global_row = SensorRowToLadderRow(h, gcoor.row);
@@ -202,6 +201,8 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
 
                 digiHit.x /= c_item.size();
                 digiHit.y /= c_item.size();
+
+                digiHit.size = c_item.size();
 
                 output.push_back(std::move(digiHit));
             }
