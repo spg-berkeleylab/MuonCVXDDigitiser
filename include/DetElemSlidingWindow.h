@@ -4,7 +4,7 @@
 #include <list>
 
 #include "HitTemporalIndexes.h"
-#include "PixelDigiMatrix.h"
+#include "AbstractSensor.h"
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
@@ -21,7 +21,7 @@ struct TimedSignalPoint
     double sigmaX;
     double sigmaY;
     double charge;
-    float time;
+    SimTrackerHit* sim_hit;
 };
 
 typedef std::list<TimedSignalPoint> TimedSignalPointList;
@@ -30,7 +30,7 @@ class DetElemSlidingWindow
 {
 public:
     DetElemSlidingWindow(HitTemporalIndexes& htable,
-                         PixelDigiMatrix& sensor,
+                         AbstractSensor& sensor,
                          float wsize,
                          float starttime,
                          double tanLorentzAngleX,
@@ -57,10 +57,9 @@ private:
 
     float curr_time;
     float time_click;
-    float window_radius;
 
     HitTemporalIndexes& _htable;
-    PixelDigiMatrix& _sensor;
+    AbstractSensor& _sensor;
     double _tanLorentzAngleX;
     double _tanLorentzAngleY;
     double _cutOnDeltaRays;

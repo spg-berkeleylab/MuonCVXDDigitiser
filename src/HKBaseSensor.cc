@@ -1,7 +1,4 @@
 #include "HKBaseSensor.h"
-#include <UTIL/BitField64.h>
-#include <UTIL/LCTrackerConf.h>
-#include <UTIL/ILDConf.h>
 
 #include "streamlog/streamlog.h"
 
@@ -12,112 +9,7 @@
 
 using std::sort;
 using std::stringstream;
-using UTIL::BitField64;
-using lcio::LCTrackerCellID;
-using lcio::ILDDetID;
 using int_limits = std::numeric_limits<int>;
-
-/* ****************************************************************************
-
-    Find-Union Algorithm
-
-   ************************************************************************* */
-
-GridPartitionedSet::GridPartitionedSet(int n_row, int n_col) :
-    rows(n_row),
-    columns(n_col),
-    c_table(),
-    locate(n_row, n_col),
-    data(rows * columns, 0)
-{}
-
-void GridPartitionedSet::init()
-{
-    for (size_t k = 0; k < data.size(); k++) data[k] = k;
-    c_table.clear();
-}
-
-void GridPartitionedSet::close()
-{
-    /*
-     * Remove internal references in the grid, each cell contains the cluster ID
-     */
-    for (int h = 0; h < rows; h++)
-    {
-        for (int k = 0; k < columns; k++)
-        {
-            if (data[locate(h, k)] >= 0) find(h, k);
-        }
-    }
-
-    /*
-     * Prepare the set of clusters
-     */
-    for (size_t k = 0; k < data.size(); k++)
-    {
-        auto c_item = c_table.find(data[k]);
-        if (c_item != c_table.end())
-        {
-            (c_item->second).push_back(k);
-        }
-        else if (data[k] >= 0)
-        {
-            ClusterOfPixel p_list { k };
-            c_table.emplace(data[k], p_list);
-        }
-    }
-}
-
-int GridPartitionedSet::find(int x, int y)
-{
-    int res = locate(x, y);
-    while (data[res] != res)
-    {
-        if (res < 0) return -1;
-        res = data[res];
-    }
-
-    int pos = locate(x, y);
-    while (data[pos] != pos)
-    {
-        int curr = data[pos];
-        data[pos] = res;
-        pos = curr;
-    }
-    return res;
-}
-
-void GridPartitionedSet::merge(int x1, int y1, int x2, int y2)
-{
-    int pset1 = find(x1, y1);
-    int pset2 = find(x2, y2);
-
-    if (pset1 < 0 || pset2 < 0) return;
-
-    if (pset1 >= pset2)
-    {
-        data[pset1] = pset2;
-    }
-    else
-    {
-        data[pset2] = pset1;
-    }
-}
-
-void GridPartitionedSet::invalidate(int x, int y)
-{
-    data[locate(x, y)] = -1;
-}
-
-vector<ClusterOfPixel> GridPartitionedSet::get_clusters()
-{
-    vector<ClusterOfPixel> result;
-    for (auto c_item : c_table)
-    {
-        result.push_back(std::move(c_item.second));
-    }
-    return result;
-}
 
 tuple<int, int, int, int> GetBound(const ClusterOfPixel& cluster, GridPosition locate)
 {
@@ -230,20 +122,21 @@ vector<BufferedCluster> ClusterHeap::PopClusters()
    ************************************************************************* */
 
 HKBaseSensor::HKBaseSensor(int layer,
-                     int ladder,
-                     int xsegmentNumber,
-                     int ysegmentNumber,
-                     float ladderLength,
-                     float ladderWidth,
-                     float thickness,
-                     double pixelSizeX,
-                     double pixelSizeY,
-                     string enc_str,
-                     int barrel_id,
-                     double thr,
-                     float fe_slope,
-                     float starttime,
-                     float t_step) :
+                            int ladder,
+                            int xsegmentNumber,
+                            int ysegmentNumber,
+                            float ladderLength,
+                            float ladderWidth,
+                            float thickness,
+                            double pixelSizeX,
+                            double pixelSizeY,
+                            string enc_str,
+                            int barrel_id,
+                            double thr,
+                            float fe_slope,
+                            float starttime,
+                            float t_step,
+                            bool hk8_on) :
     PixelDigiMatrix(layer,
                     ladder,
                     xsegmentNumber,
@@ -259,8 +152,8 @@ HKBaseSensor::HKBaseSensor(int layer,
                     fe_slope,
                     starttime,
                     t_step),
-    _gridSet(s_rows, s_colums),
-    heap_table(0, { 0, 0 })
+    heap_table(0, { 0, 0 }),
+    HK8_enabled(hk8_on)
 {
     if (GetStatus() == MatrixStatus::ok)
     {
@@ -276,16 +169,16 @@ HKBaseSensor::HKBaseSensor(int layer,
             }
         }
     }
+
+    reset_simtable_at_once = false;
 }
 
 void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 {
-    BitField64 bf_encoder { cellFmtStr };
-    bf_encoder.reset();
-    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
-    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
-    bf_encoder[LCTrackerCellID::layer()] = this->GetLayer();
-    bf_encoder[LCTrackerCellID::module()] = this->GetLadder();
+    FindUnionAlgorithm  fu_algo { s_rows, s_colums };
+    BitField64 bf_encoder = getBFEncoder();
+
+    if (!IsActive()) return;
 
     for (int h = 0; h < this->GetSegNumX(); h++)
     {
@@ -305,44 +198,64 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                    https://www.ocf.berkeley.edu/~fricke/projects/hoshenkopelman/hoshenkopelman.html
                    ************************************************************** */
 
-                _gridSet.init();
+                fu_algo.init();
 
                 for (int i = 0; i < this->GetSensorRows(); i++)
                 {
                     for (int j = 0; j < this->GetSensorCols(); j++)
                     {
-                        if (!CheckStatus(h, k, i, j, PixelStatus::start))
+                        if (!checkStatus(h, k, i, j, PixelStatus::start))
                         {
-                            _gridSet.invalidate(i, j);
+                            fu_algo.invalidate(i, j);
                             continue;
                         }
 
-                        bool up_is_above = CheckStatus(h, k, i - 1, j, PixelStatus::start);
-                        bool left_is_above = CheckStatus(h, k, i, j - 1, PixelStatus::start);
+                        bool N_is_on = checkStatus(h, k, i - 1, j, PixelStatus::start);
+                        bool W_is_on = checkStatus(h, k, i, j - 1, PixelStatus::start);
+                        bool NW_is_on = HK8_enabled ? checkStatus(h, k, i - 1, j - 1, PixelStatus::start) : false;
+                        bool NE_is_on = HK8_enabled ? checkStatus(h, k, i - 1, j + 1, PixelStatus::start) : false;
 
-                        if (up_is_above && left_is_above)
+                        if (N_is_on and W_is_on)
                         {
-                            _gridSet.merge(i - 1, j, i, j - 1);
-                            _gridSet.merge(i, j - 1, i, j);
+                            fu_algo.merge(i - 1, j, i, j - 1);
+                            fu_algo.merge(i, j - 1, i, j);
                         }
-                        else if (!up_is_above && left_is_above)
+                        else if (W_is_on and NE_is_on)
                         {
-                            _gridSet.merge(i, j - 1, i, j);
+                            fu_algo.merge(i, j - 1, i - 1, j + 1);
+                            fu_algo.merge(i - 1, j + 1, i, j);
                         }
-                        else if (up_is_above && !left_is_above)
+                        else if (NW_is_on and NE_is_on)
                         {
-                            _gridSet.merge(i - 1, j, i, j);
+                            fu_algo.merge(i - 1, j - 1, i - 1, j + 1);
+                            fu_algo.merge(i - 1, j + 1, i, j);
+                        }
+                        else if (W_is_on)
+                        {
+                            fu_algo.merge(i, j - 1, i, j);
+                        }
+                        else if (N_is_on)
+                        {
+                            fu_algo.merge(i - 1, j, i, j);
+                        }
+                        else if (NW_is_on)
+                        {
+                            fu_algo.merge(i - 1, j - 1, i, j);
+                        }
+                        else if (NE_is_on)
+                        {
+                            fu_algo.merge(i - 1, j + 1, i, j);
                         }
                     }
                 }
 
-                _gridSet.close();
+                fu_algo.close();
 
                 /* ****************************************************************
                    Cluster buffering
                    ************************************************************** */
 
-                for (ClusterOfPixel c_item : _gridSet.get_clusters())
+                for (ClusterOfPixel c_item : fu_algo.get_clusters())
                 {
                     c_heap.AddCluster(c_item);
                 }
@@ -356,28 +269,30 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
             for (BufferedCluster c_item : c_heap.PopClusters())
             {
                 // Very simple implementation: geometric mean
-                float x_acc = 0;
-                float y_acc = 0;
-                float tot_charge = 0;
+                SegmentDigiHit digiHit = {
+                    0., 0., 0.,
+                    c_item.time,
+                    bf_encoder.lowWord(),
+                    {}
+                };
+
                 for (ChargePoint c_point : c_item.pixels)
                 {
-                    int global_x = SensorRowToLadderRow(h, c_point.row);
-                    int global_y = SensorColToLadderCol(k, c_point.col);
+                    int global_row = SensorRowToLadderRow(h, c_point.row);
+                    int global_col = SensorColToLadderCol(k, c_point.col);
 
-                    x_acc += PixelRowToX(global_x);
-                    y_acc += PixelColToY(global_y);
+                    digiHit.x += PixelRowToX(global_row);
+                    digiHit.y += PixelColToY(global_col);
 
-                    tot_charge += c_point.charge;
+                    digiHit.charge += c_point.charge;
+
+                    fillInHitRelation(digiHit.sim_hits, l_locate(global_row, global_col));
                 }
 
-                SegmentDigiHit digiHit = {
-                    x_acc / c_item.pixels.size(),
-                    y_acc / c_item.pixels.size(),
-                    tot_charge,
-                    c_item.time,
-                    bf_encoder.lowWord()
-                };
-                output.push_back(digiHit);
+                digiHit.x /= c_item.pixels.size();
+                digiHit.y /= c_item.pixels.size();
+
+                output.push_back(std::move(digiHit));
             }
         }
     }

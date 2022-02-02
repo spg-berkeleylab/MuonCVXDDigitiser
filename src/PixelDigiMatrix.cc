@@ -17,54 +17,27 @@ PixelDigiMatrix::PixelDigiMatrix(int layer,
                                  float fe_slope,
                                  float starttime,
                                  float t_step):
-    _barrel_id(barrel_id),
-    _layer(layer),
-    _ladder(ladder),
-    _thickness(thickness),
-    _pixelSizeX(fabs(pixelSizeX)),
-    _pixelSizeY(fabs(pixelSizeY)),
-    _ladderLength(ladderLength > 0 ? ladderLength : 0),
-    _ladderWidth(ladderWidth > 0 ? ladderWidth : 0),
-    cellFmtStr(enc_str),
-    _thr_level(thr),
-    init_time(starttime),
-    clock_cnt(0),
-    clock_step(t_step),
+    AbstractSensor( layer,
+                    ladder,
+                    xsegmentNumber,
+                    ysegmentNumber,
+                    ladderLength,
+                    ladderWidth,
+                    thickness,
+                    pixelSizeX,
+                    pixelSizeY,
+                    enc_str,
+                    barrel_id,
+                    thr,
+                    starttime,
+                    t_step),
     delta_c(t_step * fe_slope),
-    l_locate({ 0, 0 }),
-    s_locate({ 0, 0 }),
-    status(MatrixStatus::ok),
+    clock_cnt(0),
     pixels(),
     expir_table(),
     charge_buffer(),
     start_table()
-{
-    int lwid = floor(ladderWidth * 1e4);
-    int psx = floor(pixelSizeX * 1e4);
-    int llen = floor(ladderLength * 1e4);
-    int psy = floor(pixelSizeY * 1e4);
-
-    l_rows = lwid / psx;
-    l_columns = llen / psy;
-
-    x_segnum = xsegmentNumber;
-    y_segnum = ysegmentNumber;
-
-    s_rows = xsegmentNumber > 0 ? l_rows / xsegmentNumber : 1;
-    s_colums = ysegmentNumber > 0 ? l_columns / ysegmentNumber : 1;
-    
-    if (lwid % psx > 0 || llen % psy > 0)
-    {
-        status = MatrixStatus::pixel_number_error;
-    }
-    else if (l_rows % xsegmentNumber > 0 || l_columns % ysegmentNumber > 0)
-    {
-        status = MatrixStatus::segment_number_error;
-    }
-
-    l_locate = GridPosition(l_rows, l_columns);
-    s_locate = GridPosition(x_segnum, y_segnum);
-}
+{}
 
 PixelDigiMatrix::~PixelDigiMatrix()
 {}
@@ -123,36 +96,37 @@ void PixelDigiMatrix::EndClockStep()
         if (pix == pixels.end())
         {
             pix_expir = calc_end_clock(chrg);
-            if (pix_expir > 0)
-            {
-                pix_expir += clock_cnt;
-                PixelRawData p_data { chrg, clock_cnt, pix_expir };
-                pixels.emplace(lpos, p_data);
-            }
+            if (pix_expir == 0) continue;
+
+            pix_expir += clock_cnt;
+            PixelRawData p_data { chrg, clock_cnt, pix_expir };
+            pixels.emplace(lpos, p_data);
+
             start_table.emplace(s_pos, lpos);
         }
         else
         {
+            // Pixel pile-up
             float new_chrg = (pix->second).charge + chrg;
             pixels[lpos].charge = new_chrg;
 
             pix_expir = calc_end_clock(new_chrg);
-            if (pix_expir > 0)
-            {
-                pix_expir += pixels[lpos].t_begin;
-                ClockTicks prev_expir = pixels[lpos].t_end;
-                auto d_range = expir_table[prev_expir].equal_range(s_pos);
-                for (auto it = d_range.first; it != d_range.second; it++)
-                {
-                    if (it->second == lpos)
-                    {
-                        expir_table[prev_expir].erase(it);
-                        break;
-                    }
-                }
+            if (pix_expir == 0) continue;
 
-                pixels[lpos].t_end = pix_expir;
+            pix_expir += pixels[lpos].t_begin;
+            ClockTicks prev_expir = pixels[lpos].t_end;
+            auto d_range = expir_table[prev_expir].equal_range(s_pos);
+            for (auto it = d_range.first; it != d_range.second; it++)
+            {
+                if (it->second == lpos)
+                {
+                    expir_table[prev_expir].erase(it);
+                    break;
+                }
             }
+
+            pixels[lpos].t_end = pix_expir;
+
         }
 
         if (expir_table.find(pix_expir) == expir_table.end())
@@ -191,11 +165,6 @@ PixelData PixelDigiMatrix::GetPixel(int x, int y)
     return result;
 }
 
-PixelData PixelDigiMatrix::GetPixel(int seg_x, int seg_y, int pos_x, int pos_y)
-{
-    return GetPixel(SensorRowToLadderRow(seg_x, pos_x), SensorColToLadderCol(seg_y, pos_y));
-}
-
 bool PixelDigiMatrix::IsActive()
 {
     return pixels.size() > 0;
@@ -206,13 +175,6 @@ bool PixelDigiMatrix::CheckStatus(int x, int y, PixelStatus pstat)
     if (!check(x, y)) return pstat == PixelStatus::out_of_bounds;
 
     return pstat == calc_status(l_locate(x, y));
-}
-
-bool PixelDigiMatrix::CheckStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat)
-{
-    return CheckStatus(SensorRowToLadderRow(seg_x, pos_x),
-                        SensorColToLadderCol(seg_y, pos_y),
-                        pstat);
 }
 
 bool PixelDigiMatrix::CheckStatusOnSensor(int seg_x, int seg_y, PixelStatus pstat)

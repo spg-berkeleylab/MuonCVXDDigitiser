@@ -82,7 +82,10 @@ INSTALL_SHARED_LIBRARY( ${PROJECT_NAME} DESTINATION ${PACKAGE_INSTALL_LIB_DIR} )
 
 ADD_SHARED_LIBRARY( MuonCVXDRealDigitiser   src/DetElemSlidingWindow.cc
                                             src/G4UniversalFluctuation.cc
+                                            src/FindUnionAlgorithm.cc
+                                            src/AbstractSensor.cc
                                             src/HKBaseSensor.cc
+                                            src/TrivialSensor.cc
                                             src/HitTemporalIndexes.cc
                                             src/MuonCVXDRealDigitiser.cc
                                             src/PixelDigiMatrix.cc)

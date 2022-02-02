@@ -15,6 +15,8 @@
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 
+#include <TH1.h>
+
 using marlin::Processor;
 
 struct IonisationPoint
@@ -150,6 +152,7 @@ protected:
     int _PoissonSmearing;
     int _electronicEffects;
     int _produceFullPattern;
+    int sensor_type;
 
     // geometry
     int _numberOfLayers;
@@ -165,6 +168,22 @@ protected:
     std::vector<float> _layerHalfPhi{};
     std::vector<float> _layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
+
+    std::string stat_filename;
+    bool create_stats;
+    TH1F* signal_dHisto;
+    TH1F* bib_dHisto;
+    TH1F* signal_cSizeHisto;
+    TH1F* signal_xSizeHisto;
+    TH1F* signal_ySizeHisto;
+    TH1F* signal_zSizeHisto;
+    TH1F* signal_eDepHisto;
+    TH1F* bib_cSizeHisto;
+    TH1F* bib_xSizeHisto;
+    TH1F* bib_ySizeHisto;
+    TH1F* bib_zSizeHisto;
+    TH1F* bib_eDepHisto;
+
 };
 
 #endif //MuonCVXDRealDigitiser_h
