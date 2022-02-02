@@ -46,6 +46,7 @@ struct SegmentDigiHit
     float charge;
     float time;
     int cellID0;
+    int size;
     SimHitSet sim_hits;
 };
 

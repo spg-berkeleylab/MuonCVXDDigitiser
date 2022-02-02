@@ -58,8 +58,15 @@ MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
     signal_dHisto(nullptr),
     bib_dHisto(nullptr),
     signal_cSizeHisto(nullptr),
-    bib_cSizeHisto(nullptr)
-
+    signal_xSizeHisto(nullptr),
+    signal_ySizeHisto(nullptr),
+    signal_zSizeHisto(nullptr),
+    signal_eDepHisto(nullptr),
+    bib_cSizeHisto(nullptr),
+    bib_xSizeHisto(nullptr),
+    bib_ySizeHisto(nullptr),
+    bib_zSizeHisto(nullptr),
+    bib_eDepHisto(nullptr)
 {
     _description = "MuonCVXDRealDigitiser should create VTX TrackerHits from SimTrackerHits";
 
@@ -211,9 +218,16 @@ void MuonCVXDRealDigitiser::init()
         double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
         signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
         bib_dHisto = new TH1F("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
-        signal_cSizeHisto = new TH1F("SignalClusterSize", "Signal Cluster Size", 1000, 0., 100);
-        bib_cSizeHisto = new TH1F("BIBClusterSize", "BIB Cluster Size", 1000, 0., 100);
-
+        signal_cSizeHisto = new TH1F("SignalClusterSize", "Signal Cluster Size", 1000, 0., 50);
+        signal_xSizeHisto = new TH1F("SignalClusterSizeinX", "Signal Cluster Size in x", 1000, 0., 20);
+        signal_ySizeHisto = new TH1F("SignalClusterSizeinY", "Signal Cluster Size in y", 1000, 0., 20);
+        signal_zSizeHisto = new TH1F("SignalClusterSizeinZ", "Signal Cluster Size in z", 1000, 0., 20);
+        signal_eDepHisto = new TH1F("SignalClustereDep", "Signal Cluster Energy (MeV)", 1000, 0., 10e-1);
+        bib_cSizeHisto = new TH1F("BIBClusterSize", "BIB Cluster Size", 1000, 0., 50);
+        bib_xSizeHisto = new TH1F("BIBClusterSizeinX", "BIB Cluster Size in x", 1000, 0., 20);
+        bib_ySizeHisto = new TH1F("BIBClusterSizeinY", "BIB Cluster Size in y", 1000, 0., 20);
+        bib_zSizeHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Size in z", 1000, 0., 20);
+        bib_eDepHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Energy (MeV)", 1000, 0., 10e-1);
     }
 }
 
@@ -412,7 +426,13 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
                     recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
 
-                    bool sig = false;            
+                    bool sig = false;
+                    double minx = 999;
+                    double maxx = -999;
+                    double miny = 999;
+                    double maxy = -999;
+                    double minz = 999;
+                    double maxz = -999;
 
                     double loc_pos[3] = { 
                         digiHit.x - _layerHalfThickness[layer] * _tanLorentzAngleX,
@@ -461,7 +481,16 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     //All the sim-hits are registered for a given reco-hit
                     for (SimTrackerHit* st_item : digiHit.sim_hits)
                     {
+                      if (create_stats)
+                      {
                         if (!st_item->isOverlay()) sig = true;
+                        if ( st_item->getPosition()[0] < minx ) minx = st_item->getPosition()[0];
+                        else if ( st_item->getPosition()[0] > maxx ) maxx = st_item->getPosition()[0];
+                        if ( st_item->getPosition()[1] < miny ) miny = st_item->getPosition()[1];
+                        else if ( st_item->getPosition()[1] > maxy ) maxy = st_item->getPosition()[1];
+                        if ( st_item->getPosition()[2] < minz ) minz = st_item->getPosition()[2];
+                        else if ( st_item->getPosition()[2] > maxz ) maxz = st_item->getPosition()[2];
+                      }
                         recoHit->rawHits().push_back( st_item );
                         LCRelationImpl* t_rel = new LCRelationImpl {};
                         t_rel->setFrom(recoHit);
@@ -477,11 +506,26 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 
                     reco_buffer[idx] = recoHit;
                     idx++;
-                    if (create_stats) {
+
+                    if (create_stats)
+                    {
+                      // cluster size histograms
                       if ( !sig )
-                        bib_cSizeHisto->Fill(recoHit->getRawHits().size());
-                      else
-                        signal_cSizeHisto->Fill(recoHit->getRawHits().size());
+                      {
+                        //bib_cSizeHisto->Fill(recoHit->getRawHits().size());
+                        bib_cSizeHisto->Fill(digiHit.size);
+                        bib_xSizeHisto->Fill(maxx-minx);
+                        bib_ySizeHisto->Fill(maxy-miny);
+                        bib_zSizeHisto->Fill(maxz-minz);
+                        bib_eDepHisto->Fill(1000*recoHit->getEDep());
+                      } else {
+                        //signal_cSizeHisto->Fill(recoHit->getRawHits().size());
+                        signal_cSizeHisto->Fill(digiHit.size);
+                        signal_xSizeHisto->Fill(maxx-minx);
+                        signal_ySizeHisto->Fill(maxy-miny);
+                        signal_zSizeHisto->Fill(maxz-minz);
+                        signal_eDepHisto->Fill(1000*recoHit->getEDep());
+                      }
                    }
                 }
 
@@ -569,7 +613,15 @@ void MuonCVXDRealDigitiser::end()
         statFile.WriteObject(signal_dHisto, "Signal offset");
         statFile.WriteObject(bib_dHisto, "BIB offset");
         statFile.WriteObject(signal_cSizeHisto, "Signal cluster size");
+        statFile.WriteObject(signal_xSizeHisto, "Signal cluster size in x");
+        statFile.WriteObject(signal_ySizeHisto, "Signal cluster size in y");
+        statFile.WriteObject(signal_zSizeHisto, "Signal cluster size in z");
+        statFile.WriteObject(signal_eDepHisto, "Signal energy");
         statFile.WriteObject(bib_cSizeHisto, "BIB cluster size");
+        statFile.WriteObject(bib_xSizeHisto, "BIB cluster size in x");
+        statFile.WriteObject(bib_ySizeHisto, "BIB cluster size in y");
+        statFile.WriteObject(bib_zSizeHisto, "BIB cluster size in z");
+        statFile.WriteObject(bib_eDepHisto, "BIB energy");
         statFile.Flush();
         statFile.Close();
     }
@@ -577,7 +629,15 @@ void MuonCVXDRealDigitiser::end()
     if (signal_dHisto != nullptr) delete(signal_dHisto);
     if (bib_dHisto != nullptr) delete(bib_dHisto);
     if (signal_cSizeHisto != nullptr) delete(signal_cSizeHisto);
+    if (signal_xSizeHisto != nullptr) delete(signal_xSizeHisto);
+    if (signal_ySizeHisto != nullptr) delete(signal_ySizeHisto);
+    if (signal_zSizeHisto != nullptr) delete(signal_zSizeHisto);
+    if (signal_eDepHisto != nullptr) delete(signal_eDepHisto);
     if (bib_cSizeHisto != nullptr) delete(bib_cSizeHisto);
+    if (bib_xSizeHisto != nullptr) delete(bib_xSizeHisto);
+    if (bib_ySizeHisto != nullptr) delete(bib_ySizeHisto);
+    if (bib_zSizeHisto != nullptr) delete(bib_zSizeHisto);
+    if (bib_eDepHisto != nullptr) delete(bib_eDepHisto);
 
 }
 
