@@ -180,6 +180,12 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
     _nRun++ ;
 
+    LoadGeometry() ;
+}
+
+
+void MuonCVXDDigitiser::LoadGeometry()
+{
     Detector& theDetector = Detector::getInstance();
     DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
     ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
@@ -256,6 +262,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
 
+if ((_nEvt == 0) and (!_map)){
+    LoadGeometry() ;
+}
+
     LCCollection * STHcol = nullptr;
     try
     {
@@ -309,7 +319,8 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             if (simTrkHit->getMCParticle()==0){
               streamlog_out (DEBUG6) << "- MCParticle not saved" << std::endl;}
             else{
-              streamlog_out (DEBUG6) << "- MC particle pdg = " << simTrkHit->getMCParticle()->getPDG() << std::endl;}            streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
+              streamlog_out (DEBUG6) << "- MC particle pdg = " << simTrkHit->getMCParticle()->getPDG() << std::endl;}            
+            streamlog_out (DEBUG6) << "- MC particle p (GeV) = " << std::sqrt(simTrkHit->getMomentum()[0]*simTrkHit->getMomentum()[0]+simTrkHit->getMomentum()[1]*simTrkHit->getMomentum()[1]+simTrkHit->getMomentum()[2]*simTrkHit->getMomentum()[2]) << std::endl;
             streamlog_out (DEBUG6) << "- isSecondary = " << simTrkHit->isProducedBySecondary() << ", isOverlay = " << simTrkHit->isOverlay() << std::endl;
             streamlog_out (DEBUG6) << "- Quality = " << simTrkHit->getQuality() << std::endl;
 
