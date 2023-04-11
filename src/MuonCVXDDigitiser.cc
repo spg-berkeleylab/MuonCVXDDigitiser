@@ -264,7 +264,7 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
     PrintGeometryInfo();
 
     // Bins for charge discretization
-    // Will move to assign more dynamically 
+    // FIXME: Will move to assign more dynamically 
     if (_ChargeDiscretizeNumBits == 3) _discretizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
     if (_ChargeDiscretizeNumBits == 4) _discretizedBins = {500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};
     if (_ChargeDiscretizeNumBits == 5) _discretizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
