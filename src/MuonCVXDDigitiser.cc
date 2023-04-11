@@ -290,7 +290,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     {
         STHcol = evt->getCollection(_colName);
     }
-    catch( lcio::DataNotAvailableException ex )
+    catch( lcio::DataNotAvailableException &ex )
     {
         streamlog_out(WARNING) << _colName << " collection not available" << std::endl;
         STHcol = nullptr;
@@ -361,9 +361,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
             if (_electronicEffects != 0) GainSmearer(simTrkHitVec);
 
-	    ApplyThreshold(simTrkHitVec);
+	        ApplyThreshold(simTrkHitVec);
 
-	    if (_ChargeDiscretize != 0) ChargeDiscretizer(simTrkHitVec);
+	        if (_ChargeDiscretize != 0) ChargeDiscretizer(simTrkHitVec);
 	    
             TrackerHitPlaneImpl *recoHit = ReconstructTrackerHit(simTrkHitVec);
             if (recoHit == nullptr)
@@ -445,8 +445,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
               for (int iS = 0; iS < (int)simTrkHitVec.size(); ++iS)
               {
                 SimTrackerHitImpl *sth = simTrkHitVec[iS];
-                float charge = sth->getEDep()  ;
-                if (charge >1.0)
+                float charge = sth->getEDep();
+                //store hits that are above threshold. In case of _ChargeDiscretization, just check for a small non-zero value                
+                if ( ((_ChargeDiscretize > 0) and (charge >1.0)) or
+                    (charge > _threshold) )
                 {
                    SimTrackerHitImpl *newsth = new SimTrackerHitImpl();
                    // hit's layer/ladder position is the same for all fired points 
@@ -767,17 +769,17 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec)
                 TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
                 
                 gsl_sf_result result;
-                int status = gsl_sf_erf_Q_e((xCurrent - 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
+                /*int status = */gsl_sf_erf_Q_e((xCurrent - 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
                 double LowerBound = 1 - result.val;
 
-                status = gsl_sf_erf_Q_e((xCurrent + 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
+                /*status = */gsl_sf_erf_Q_e((xCurrent + 0.5 * _pixelSizeX - xCentre)/sigmaX, &result);
                 double UpperBound = 1 - result.val;
                 double integralX = UpperBound - LowerBound;
 
-                status = gsl_sf_erf_Q_e((yCurrent - 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
+                /*status = */gsl_sf_erf_Q_e((yCurrent - 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
                 LowerBound = 1 - result.val;
 
-                status = gsl_sf_erf_Q_e((yCurrent + 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
+                /*status = */gsl_sf_erf_Q_e((yCurrent + 0.5 * _pixelSizeY - yCentre)/sigmaY, &result);
                 UpperBound = 1 - result.val;
                 double integralY = UpperBound - LowerBound;
 
@@ -900,7 +902,7 @@ void MuonCVXDDigitiser::ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec)
   
   float minThreshold = _threshold;
   float maxThreshold = 15000;
-  int split = 0.3;
+  //int split = 0.3; -- future use
   int numBins = pow(2, _ChargeDiscretizeNumBits)-1;
 
   double discCharge=-999; 
@@ -952,9 +954,8 @@ void MuonCVXDDigitiser::ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec)
 
 /**
  * Emulates reconstruction of Tracker Hit 
- * Tracker hit position is reconstructed as center-of-gravity 
- * of cluster of fired cells. Position is corrected for Lorentz shift.
- * TODO check the track reco algorithm (is it the one we need?)
+ * Tracker hit position is reconstructed as weighted average of edge pixels.
+ * The position is corrected for Lorentz shift.
  */
 TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
 {
@@ -975,7 +976,8 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     {
         SimTrackerHit *hit = simTrkVec[iHit];
 
-	if (hit->getEDep() < 1.0) continue;
+        //check for non-zero value (pixels below threshold have already been set to zero)
+	    if (hit->getEDep() < 1.0) continue;
 	
         size += 1;
         charge += hit->getEDep();
@@ -983,17 +985,14 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
         pos[1] += hit->getPosition()[1];
         streamlog_out (DEBUG0) << iHit << ": Averaging position, x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", weight(EDep)=" << hit->getEDep() << std::endl;
 
-    }
-    /*
-	if (hit->getPosition()[0] < minX) {
-	  minX = hit->getPosition()[0];
-	  minIdx.push_back(iHit);
-	}
-	if (hit->getPosition()[0] > maxX) {
+        if (hit->getPosition()[0] < minX) {
+	        minX = hit->getPosition()[0];
+	        minIdx.push_back(iHit);
+	    }
+	    if (hit->getPosition()[0] > maxX) {
           maxX = hit->getPosition()[0];
           maxIdx.push_back(iHit);
-	}
-	charge += hit->getEDep();
+	    }
     }
     
     for (unsigned int i = 0; i < minIdx.size(); i++){
@@ -1015,7 +1014,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
       pos[0] += hit->getPosition()[0];
       pos[1] += hit->getPosition()[1];
     }
-    */
+
     if (charge > 0.)
     {
         TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
