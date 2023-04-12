@@ -77,11 +77,11 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 1) <br>
  * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
  * (default parameter value: 25) <br>
- * @param ChargeDiscretize flag to switch on charge discretization <br>
+ * @param ChargeDigitize flag to switch on charge discretization <br>
  * (default parameter value: 1) <br>
- * @param ChargeDiscretizeNumBits number of bits used to determine bins for charge discretization <br>
+ * @param ChargeDigitizeNumBits number of bits used to determine bins for charge discretization <br>
  * (default parameter value: 4) <br>
- * @param ChargeDiscretizeBinning binning scheme for charge discretization
+ * @param ChargeDigitizeBinning binning scheme for charge discretization
  * (default parameter value; 1) <br>
  * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
  * (default parameter value : 1) <br>
@@ -153,16 +153,22 @@ protected:
   	double _maxTrkLen;	
     int _PoissonSmearing;
     int _thresholdSmearSigma;
-    int _ChargeDiscretize;
-    int _ChargeDiscretizeNumBits;
-    int _ChargeDiscretizeBinning;
+    int _DigitizeCharge;
+    int _ChargeDigitizeNumBits;
+    int _ChargeDigitizeBinning;
+    double _chargeMax;
+    int _DigitizeTime;
+    int _TimeDigitizeNumBits;
+    double _timeMax;
+    int _TimeDigitizeBinning;
+    double _timeSmearingSigma;
     int _electronicEffects;
     int _produceFullPattern;
 
     MyG4UniversalFluctuationForSi *_fluctuate;
 
     // charge discretization
-    std::vector<double> _discretizedBins{};
+    std::vector<double> _DigitizedBins{};
     
     // geometry
     int _numberOfLayers;
@@ -196,13 +202,20 @@ protected:
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
 
+    /* Charge digitization helpers */
     void ProduceIonisationPoints(SimTrackerHit *hit);
     void ProduceSignalPoints();
-    void ProduceHits(SimTrackerHitImplVec &simTrkVec);
+    void ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerHit &simHit);
     void PoissonSmearer(SimTrackerHitImplVec &simTrkVec);
     void GainSmearer(SimTrackerHitImplVec &simTrkVec);
     void ApplyThreshold(SimTrackerHitImplVec &simTrkVec);
-    void ChargeDiscretizer(SimTrackerHitImplVec &simTrkVec);
+    void ChargeDigitizer(SimTrackerHitImplVec &simTrkVec);
+
+    /* Time digitization helpers */
+    void TimeSmearer(SimTrackerHitImplVec &simTrkVec);
+    void TimeDigitizer(SimTrackerHitImplVec &simTrkVec);
+
+    /* Reconstruction of measurement and helpers */
     TrackerHitPlaneImpl *ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec);
     void TransformToLab(const int cellID, const double *xLoc, double *xLab);
     void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
