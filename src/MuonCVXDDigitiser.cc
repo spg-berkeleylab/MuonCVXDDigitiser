@@ -230,6 +230,12 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 { 
     _nRun++ ;
 
+    LoadGeometry() ;
+}
+
+
+void MuonCVXDDigitiser::LoadGeometry()
+{
     Detector& theDetector = Detector::getInstance();
     DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
     ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
@@ -314,6 +320,10 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     // - include threshold dispersion effects
     // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
+
+    if ((_nEvt == 0) and (!_map)){
+        LoadGeometry() ;
+    }
 
     LCCollection * STHcol = nullptr;
     try
