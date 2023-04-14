@@ -224,6 +224,7 @@ protected:
     int GetPixelsInaRow();
     int GetPixelsInaColumn();
 
+    void LoadGeometry();
     void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax );
 };
