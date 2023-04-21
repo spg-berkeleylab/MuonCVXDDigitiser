@@ -327,7 +327,9 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     if (STHcol == nullptr or STHcol->getNumberOfElements() == 0)
     {
         streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
+        return;
     }
+
     std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
     CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { encoder_str };
 
