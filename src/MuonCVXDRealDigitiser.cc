@@ -299,6 +299,18 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
 
 void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
 { 
+    LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
+    CellIDEncoder<TrackerHitPlaneImpl> cellid_encoder(lcio::LCTrackerCellID::encoding_string(), THcol);
+
+    LCCollectionVec* relCol = new LCCollectionVec(LCIO::LCRELATION);
+    // to store the weights
+    LCFlagImpl lcFlag { 0 };
+    lcFlag.setBit(LCIO::LCREL_WEIGHTED);
+    relCol->setFlag(lcFlag.getFlag());
+
+    evt->addCollection(THcol, _outputCollectionName.c_str());
+    evt->addCollection(relCol, _colVTXRelation.c_str());
+
     LCCollection* STHcol = nullptr;
     try
     {
@@ -312,17 +324,12 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
         STHcol = nullptr;
     }
 
-    if (STHcol == nullptr or STHcol->getNumberOfElements() == 0) return;
+    if (STHcol == nullptr or STHcol->getNumberOfElements() == 0)
+    {
+        streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
+    }
     std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
     CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { encoder_str };
-
-    LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
-
-    LCCollectionVec* relCol = new LCCollectionVec(LCIO::LCRELATION);
-    // to store the weights
-    LCFlagImpl lcFlag { 0 };
-    lcFlag.setBit(LCIO::LCREL_WEIGHTED);
-    relCol->setFlag(lcFlag.getFlag());
 
     std::size_t RELHISTOSIZE { 10 };
     vector<std::size_t> relHisto {};
@@ -565,8 +572,6 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
         }
     }
     streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
-    evt->addCollection(THcol, _outputCollectionName.c_str());
-    evt->addCollection(relCol, _colVTXRelation.c_str());
     int count = 0;
       streamlog_out(DEBUG) << "Hit relation histogram:" << std::endl;
       for (std::size_t k = 0; k < RELHISTOSIZE; k++)
