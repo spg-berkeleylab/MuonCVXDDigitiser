@@ -312,7 +312,7 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
         STHcol = nullptr;
     }
 
-    if( STHcol == nullptr ) return;
+    if (STHcol == nullptr or STHcol->getNumberOfElements() == 0) return;
     std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
     CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { encoder_str };
 
