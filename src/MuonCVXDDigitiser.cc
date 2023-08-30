@@ -328,7 +328,7 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  // see /opt/ilcsoft/muonc/lcgeo/v00-18-01-MC/detector/tracker/VertexEndcap_o1_v06_geo.cpp, L144+
 	  // for how the endcap (VXD) geometry is built
 	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
-	  //
+	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
 	  
 	  curr_layer++;
 	}
