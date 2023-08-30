@@ -32,6 +32,7 @@ using CLHEP::RandFlat;
 using dd4hep::Detector;
 using dd4hep::DetElement;
 using dd4hep::rec::ZPlanarData;
+using dd4hep::rec::ZDiskPetalsData;
 using dd4hep::rec::SurfaceManager;
 using dd4hep::rec::SurfaceMap;
 using dd4hep::rec::ISurface;
@@ -219,6 +220,16 @@ void MuonCVXDDigitiser::init()
 
     printParameters() ;
 
+    // Determine if we're handling barrel or endcap geometry
+    if (_subDetName.find("Barrel") != std::string::npos) {
+      isBarrel=true;
+    } else if (_subDetName.find("Endcap") != std::string::npos) {
+      isBarrel=false;
+    } else {
+      std::stringstream err  ; err << " Could not determine sub-detector type for: " << _subDetName;
+      throw Exception ( err.str() );
+    }
+
     _nRun = 0 ;
     _nEvt = 0 ;
     _totEntries = 0;
@@ -237,13 +248,35 @@ void MuonCVXDDigitiser::processRunHeader(LCRunHeader* run)
 void MuonCVXDDigitiser::LoadGeometry()
 {
     Detector& theDetector = Detector::getInstance();
-    DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
-    ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
-    std::vector<ZPlanarData::LayerLayout> vx_layers = zPlanarData.layers;
-    _numberOfLayers  = vx_layers.size();
+    DetElement subDetector = theDetector.detector(_subDetName);
+    std::vector<ZPlanarData::LayerLayout> barrelLayers;
+    std::vector<ZDiskPetalsData::LayerLayout> endcapLayers;
+    if (isBarrel) {
+      ZPlanarData*  zPlanarData=nullptr;
+      // Barrel-like geometry
+      zPlanarData = subDetector.extension<ZPlanarData>();
+      if (! zPlanarData) {
+	std::stringstream err  ; err << " Could not find surface of type ZPlanarData for subdetector: "
+				     << _subDetName;
+	throw Exception ( err.str() );
+      }
+      barrelLayers = zPlanarData->layers;
+      _numberOfLayers  = barrelLayers.size();
+    } else {
+      ZDiskPetalsData *zDiskPetalData=nullptr;
+      //Endcap-like geometry
+      zDiskPetalData = subDetector.extension<ZDiskPetalsData>();
+      if (! zDiskPetalData) {
+	std::stringstream err  ; err << " Could not find surface of type ZDiskPetalsData for subdetector: "
+				     << _subDetName;
+	throw Exception ( err.str() );	
+      }
+      endcapLayers = zDiskPetalData->layers;
+      _numberOfLayers = endcapLayers.size();
+    } 
 
     SurfaceManager& surfMan = *theDetector.extension<SurfaceManager>();
-    _map = surfMan.map( vxBarrel.name() ) ;
+    _map = surfMan.map( subDetector.name() ) ;
     if( ! _map ) 
     {
       std::stringstream err  ; err << " Could not find surface map for detector: "
@@ -266,35 +299,35 @@ void MuonCVXDDigitiser::LoadGeometry()
     _layerPhiOffset.resize(_numberOfLayers);
 
     int curr_layer = 0;
-    for(ZPlanarData::LayerLayout z_layout : vx_layers)
-    {
-        // ALE: Geometry is in cm, convert all lenght in mm
-        _laddersInLayer[curr_layer] = z_layout.ladderNumber;
-
-        _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
-
-        _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
-
-        _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
-
-        _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
-
+    if (isBarrel) {
+      for(ZPlanarData::LayerLayout z_layout : barrelLayers)
+	{
+	  // ALE: Geometry is in cm, convert all lenght in mm
+	  _laddersInLayer[curr_layer] = z_layout.ladderNumber;
+	  _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
+	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
+	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
+	  _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
 #ifdef ZSEGMENTED
-        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
-
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+	  _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
+	  _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
 #else
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+	  _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
 #endif
-        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
-
-        _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
-
-        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
-
-        _layerPhiOffset[curr_layer] = z_layout.phi0;
-
-        curr_layer++;
+	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
+	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
+	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
+	  _layerPhiOffset[curr_layer] = z_layout.phi0;
+	  
+	  curr_layer++;
+	}
+    } else {
+      // TODO.. fill info necessary for endcap
+      for (ZDiskPetalsData::LayerLayout z_layout : endcapLayers)
+	{
+	  //...
+	  curr_layer++;
+	}
     }
 
     PrintGeometryInfo();

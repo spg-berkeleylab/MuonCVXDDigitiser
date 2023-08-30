@@ -131,6 +131,7 @@ protected:
     int _debug;
     int _totEntries;
     std::string _subDetName;
+    bool isBarrel;
 
     // input/output collections
     std::string _colName;
