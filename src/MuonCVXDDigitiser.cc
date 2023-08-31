@@ -298,6 +298,7 @@ void MuonCVXDDigitiser::LoadGeometry()
     _layerActiveSiOffset.resize(_numberOfLayers);
     _layerPhiOffset.resize(_numberOfLayers);
 
+    _petalsInLayer.resize(_numberOfLayers);
     _layerPetalLength.resize(_numberOfLayers);
     _layerPetalInnerWidth.resize(_numberOfLayers);
     _layerPetalOuterWidth.resize(_numberOfLayers);
@@ -344,7 +345,13 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
 
 	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
-      _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;	  
+      _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;
+      _petalsInLayer[curr_layer] = z_layout.petalNumber;
+
+      if (_layerPetalOuterWidth[curr_layer] == 0){
+        float outerEndcapRadius = 112.0 * dd4hep::cm / dd4hep::mm ;// FIX find source
+        _layerPetalOuterWidth[curr_layer] = 2 * outerEndcapRadius * std::tan(M_PI/_petalsInLayer[curr_layer]);
+      }
 
 	  //_layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
 	  //_layerPhiOffset[curr_layer] = z_layout.phi0;
@@ -856,13 +863,19 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerH
             <<  ", ixUp=" << ixUp << ", iyUp=" << iyUp << std::endl;
 
         for (int ix = ixLo; ix< ixUp + 1; ++ix)
-        {
-            if ( (ix < 0) or (ix >= GetPixelsInaColumn()) ) continue;
-
+        {   
+            if ( (ix < 0) or (ix >= GetPixelsInaColumn()) ) {
+                streamlog_out (DEBUG3) << "Pixels in a column: " << GetPixelsInaColumn() << std::endl;
+                streamlog_out (DEBUG3) << "Skipping pixels with ix =" << ix << std::endl;
+                continue;
+            }
             for (int iy = iyLo; iy < iyUp + 1; ++iy)
             {
-                if ( (iy < 0) or (iy >= GetPixelsInaRow()) ) continue;
-
+                if ( (iy < 0) or (iy >= GetPixelsInaRow()) ) {
+                    streamlog_out (DEBUG3) << "Pixels in a row: " << GetPixelsInaRow() << std::endl;
+                     streamlog_out (DEBUG3) << "Skipping pixels with iy =" << iy << std::endl;
+                    continue;
+                }
                 double xCurrent, yCurrent;
                 TransformCellIDToXY(ix, iy, xCurrent, yCurrent);
                 
@@ -881,6 +894,7 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerH
                 UpperBound = 1 - result.val;
                 double integralY = UpperBound - LowerBound;
 
+                streamlog_out (DEBUG1) << "Integral x=" << integralX << ", Integral y=" << integralY << ", signal pt charge=" << spoint.charge << std::endl;
                 float totCharge = float(spoint.charge * integralX * integralY);
 
                 int pixelID = GetPixelsInaRow() * ix + iy;
@@ -1250,8 +1264,14 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
 {
     int layer = _currentLayer;
     // Put the point in the cell center
-    y = ((0.5 + double(iy)) * _pixelSizeY) - _layerLadderLength[layer] / 2;
-    x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
+    if (isBarrel){
+        y = ((0.5 + double(iy)) * _pixelSizeY) - _layerLadderLength[layer] / 2;
+        x = ((0.5 + double(ix)) * _pixelSizeX) - _layerLadderHalfWidth[layer];
+    }
+    else {
+        y = ((0.5 + double(iy)) * _pixelSizeY) - _layerPetalLength[layer] / 2;
+        x = ((0.5 + double(ix)) * _pixelSizeX) - _layerPetalOuterWidth[layer] /2;
+    }
 }
 
 int MuonCVXDDigitiser::GetPixelsInaColumn() //SP: why columns!?! I would have guess row..
@@ -1294,6 +1314,11 @@ void MuonCVXDDigitiser::PrintGeometryInfo()
         streamlog_out(MESSAGE) << "  Half phi: " << _layerHalfPhi[i] << std::endl;
         streamlog_out(MESSAGE) << "  Thickness: " << _layerThickness[i] << std::endl;
         streamlog_out(MESSAGE) << "  Half thickness: " << _layerHalfThickness[i] << std::endl;
+
+        //TODO: organize which get printed based on barrel/endcap
+        streamlog_out(MESSAGE) << "  Petal length: " << _layerPetalLength[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Petal Inner Width: " << _layerPetalInnerWidth[i] << std::endl;
+        streamlog_out(MESSAGE) << "  Petal Outer Width: " << _layerPetalOuterWidth[i] << std::endl;
     }
 }
 
