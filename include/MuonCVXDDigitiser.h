@@ -132,7 +132,6 @@ protected:
     int _totEntries;
     std::string _subDetName;
     bool isBarrel;
-
     bool isVertex;
     bool isInnerTracker;
     bool isOuterTracker;
