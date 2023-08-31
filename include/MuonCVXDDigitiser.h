@@ -186,6 +186,10 @@ protected:
     std::vector<float> _layerActiveSiOffset{};
     std::vector<float> _layerHalfPhi{};
     std::vector<float> _layerLadderWidth{};
+    // endcap specific
+    std::vector<float> _layerPetalLength{};
+    std::vector<float> _layerPetalInnerWidth{};
+    std::vector<float> _layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
 
     // internal state

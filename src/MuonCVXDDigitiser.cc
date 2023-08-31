@@ -256,9 +256,9 @@ void MuonCVXDDigitiser::LoadGeometry()
       // Barrel-like geometry
       zPlanarData = subDetector.extension<ZPlanarData>();
       if (! zPlanarData) {
-	std::stringstream err  ; err << " Could not find surface of type ZPlanarData for subdetector: "
+	    std::stringstream err  ; err << " Could not find surface of type ZPlanarData for subdetector: "
 				     << _subDetName;
-	throw Exception ( err.str() );
+	    throw Exception ( err.str() );
       }
       barrelLayers = zPlanarData->layers;
       _numberOfLayers  = barrelLayers.size();
@@ -298,6 +298,10 @@ void MuonCVXDDigitiser::LoadGeometry()
     _layerActiveSiOffset.resize(_numberOfLayers);
     _layerPhiOffset.resize(_numberOfLayers);
 
+    _layerPetalLength.resize(_numberOfLayers);
+    _layerPetalInnerWidth.resize(_numberOfLayers);
+    _layerPetalOuterWidth.resize(_numberOfLayers);
+
     int curr_layer = 0;
     if (isBarrel) {
       for(ZPlanarData::LayerLayout z_layout : barrelLayers)
@@ -329,7 +333,22 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  // for how the endcap (VXD) geometry is built
 	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
 	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
-	  
+
+      //_petalsInLayer[curr_layer] = z_layout.ladderNumber;
+	  //_layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
+	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
+	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
+
+	  //_sensorsPerPetal[curr_layer] = z_layout.sensorsPerPetal;
+      // CS: does the petal sensitive length include all petal sub-sensors?
+	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
+
+	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
+      _layerPetalOuterWidth[curr_layer] = z_layout.widthOuterSensitive * dd4hep::cm / dd4hep::mm ;	  
+
+	  //_layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
+	  //_layerPhiOffset[curr_layer] = z_layout.phi0;
+	
 	  curr_layer++;
 	}
     }
@@ -345,8 +364,6 @@ void MuonCVXDDigitiser::LoadGeometry()
     if (_ChargeDigitizeNumBits == 8) _DigitizedBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
 
 } 
-
-
 
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 { 
@@ -457,10 +474,11 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
                 streamlog_out(DEBUG) << "Skip hit" << std::endl;
                 continue;
             }       
-            // hit's layer/ladder position does not change
+            // hit's layer/ladder/petal position does not change
             const int cellid0 = simTrkHit->getCellID0();
             const int cellid1 = simTrkHit->getCellID1();
 
+            // TODO: check this for endcap
             recoHit->setCellID0( cellid0 );
             recoHit->setCellID1( cellid1 );
 
@@ -577,9 +595,14 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
 
          evt->addCollection( THcol , _outputCollectionName.c_str() ) ;
          evt->addCollection( relCol , _colVTXRelation.c_str() ) ;
-         if (_produceFullPattern != 0)
-            evt->addCollection(STHLocCol, "VTXPixels");
-
+         if (_produceFullPattern != 0){
+            if (_subDetName == "VertexBarrel") evt->addCollection(STHLocCol, "VBPixels");
+            if (_subDetName == "VertexEndcap") evt->addCollection(STHLocCol, "VEPixels");
+            if (_subDetName == "InnerTrackerBarrel") evt->addCollection(STHLocCol, "IBPixels");
+            if (_subDetName == "InnerTrackerEndcap") evt->addCollection(STHLocCol, "IEPixels");
+            if (_subDetName == "OuterTrackerBarrel") evt->addCollection(STHLocCol, "OBPixels");
+            if (_subDetName == "OuterTrackerEndcap") evt->addCollection(STHLocCol, "OEPixels");
+    }
     }
 
     streamlog_out(DEBUG9) << " Done processing event: " << evt->getEventNumber() 
@@ -660,8 +683,9 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
     localDirection[1] = Momentum * surf->v();
     localDirection[2] = Momentum * surf->normal();
 
+    if (isBarrel){
     _currentPhi = _currentLadder * 2.0 * _layerHalfPhi[_currentLayer] + _layerPhiOffset[_currentLayer];
-
+    }
 }
 
 void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
@@ -680,6 +704,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     entry[2] = -_layerHalfThickness[_currentLayer]; 
     exit[2] = _layerHalfThickness[_currentLayer];
 
+    // entry points: hit position is in middle of layer. ex: entry_x = x - (z distance to bottom of layer) * px/pz
     for (int i = 0; i < 2; ++i) {
         entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
         exit[i]= pos[i] + dir[i] * (exit[2] - pos[2]) / dir[2];
@@ -763,7 +788,7 @@ void MuonCVXDDigitiser::ProduceSignalPoints()
     streamlog_out (DEBUG6) << "Creating signal points" << std::endl;
     for (int i = 0; i < _numberOfSegments; ++i)
     {
-        IonisationPoint ipoint = _ionisationPoints[i];
+        IonisationPoint ipoint = _ionisationPoints[i]; // still local coords
         double z = ipoint.z;
         double x = ipoint.x;
         double y = ipoint.y;
@@ -869,7 +894,7 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerH
                         yCurrent,
                         _layerHalfThickness[_currentLayer]
                     };
-                    tmp_hit->setPosition(pos);
+                    tmp_hit->setPosition(pos); // still in local coordinates
                     tmp_hit->setCellID0(pixelID);                   // workaround: cellID used for pixel index
                     tmp_hit->setEDep(totCharge);
                     tmp_hit->setTime(simHit.getTime()); //usual true timing as starting point
@@ -888,7 +913,7 @@ void MuonCVXDDigitiser::ProduceHits(SimTrackerHitImplVec &simTrkVec, SimTrackerH
             }
         }
     }
-    streamlog_out (DEBUG4) << "List of pixel hits created:" << std::endl;
+    streamlog_out (DEBUG4) << "List of pixel hits created:" << std::endl; // still in local coords
     int idx=0;
     for(auto item : hit_Dict)
     {
@@ -1149,13 +1174,21 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     recoHit->setEDep((charge / _electronsPerKeV) * dd4hep::keV);
 
     pos[0] /= edge_size;
-    streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
-    pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
-    streamlog_out (DEBUG1) << " = " << pos[0];
     pos[1] /= edge_size;
-    streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
-    pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
-    streamlog_out (DEBUG1) << " = " << pos[1];
+
+    if (isBarrel){
+        streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
+        pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
+        streamlog_out (DEBUG1) << " = " << pos[0];
+        
+        streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
+        pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
+        streamlog_out (DEBUG1) << " = " << pos[1];
+    }
+    else{
+        streamlog_out (DEBUG1) << "Position: x = " << pos[0];
+        streamlog_out (DEBUG1) << "; y = " << pos[1];
+    }
 
     recoHit->setPosition(pos);
     recoHit->setdU( _pixelSizeX / sqrt(12) );
@@ -1192,11 +1225,21 @@ void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & 
     int layer = _currentLayer;
 
     // Shift all of L/2 so that all numbers are positive
-    double yInLadder = y + _layerLadderLength[layer] / 2;
-    iy = int(yInLadder / _pixelSizeY);
+    if (isBarrel){
+        double yInLadder = y + _layerLadderLength[layer] / 2;
+        iy = int(yInLadder / _pixelSizeY);
 
-    double xInLadder = x + _layerLadderHalfWidth[layer];
-    ix = int(xInLadder / _pixelSizeX);
+        double xInLadder = x + _layerLadderHalfWidth[layer];
+        ix = int(xInLadder / _pixelSizeX);
+    }
+    else{
+        double yInPetal = y + _layerPetalLength[layer] / 2;
+        iy = int(yInPetal / _pixelSizeY);
+
+        //double localwidth = (_layerPetalOuterWidth[layer] - _layerPetalInnerWidth[layer])/(_layerPetalLength[layer]) * yInPetal;
+        double xInPetal = x + _layerPetalOuterWidth[layer]/2;
+        ix = int(xInPetal / _pixelSizeX);
+    }
 }
 
 /**
@@ -1213,12 +1256,22 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
 
 int MuonCVXDDigitiser::GetPixelsInaColumn() //SP: why columns!?! I would have guess row..
 {
-    return ceil(_layerLadderWidth[_currentLayer] / _pixelSizeX);
+    if (isBarrel){
+        return ceil(_layerLadderWidth[_currentLayer] / _pixelSizeX);
+    }
+    else{
+        return ceil(_layerPetalOuterWidth[_currentLayer]/ _pixelSizeX);
+    }
 }
 
 int MuonCVXDDigitiser::GetPixelsInaRow()
 {
-    return ceil(_layerLadderLength[_currentLayer] / _pixelSizeY);
+    if (isBarrel){
+        return ceil(_layerLadderLength[_currentLayer] / _pixelSizeY);
+    }
+    else {
+        return ceil(_layerPetalLength[_currentLayer] / _pixelSizeY);
+    }
 }
 
 void MuonCVXDDigitiser::PrintGeometryInfo()
