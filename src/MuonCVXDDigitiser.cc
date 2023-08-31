@@ -230,6 +230,18 @@ void MuonCVXDDigitiser::init()
       throw Exception ( err.str() );
     }
 
+    // Determine if vertex, inner tracker, or outer tracker
+    if (_subDetName.find("Vertex") != std::string::npos) {
+      isVertex=true;
+    } else if (_subDetName.find("InnerTracker") != std::string::npos) {
+      isInnerTracker=true;
+    } else if (_subDetName.find("OuterTracker") != std::string::npos) {
+      isOuterTracker=true;
+    } else {
+      std::stringstream err  ; err << " Could not determine sub-detector type for: " << _subDetName;
+      throw Exception ( err.str() );
+    }
+
     _nRun = 0 ;
     _nEvt = 0 ;
     _totEntries = 0;
@@ -307,7 +319,7 @@ void MuonCVXDDigitiser::LoadGeometry()
     if (isBarrel) {
       for(ZPlanarData::LayerLayout z_layout : barrelLayers)
 	{
-	  // ALE: Geometry is in cm, convert all lenght in mm
+	  // ALE: Geometry is in cm, convert all length to mm
 	  _laddersInLayer[curr_layer] = z_layout.ladderNumber;
 	  _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
@@ -319,6 +331,7 @@ void MuonCVXDDigitiser::LoadGeometry()
 #else
 	  _layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
 #endif
+     if (!isVertex) { _layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
 	  _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;	  
 	  _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
 	  _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
@@ -335,13 +348,11 @@ void MuonCVXDDigitiser::LoadGeometry()
 	  // Note: petal-like structure but current geometry only defines a single sensitive element for the whole disk afaics.
 	  // The structure is defined in /opt/ilcsoft/muonc/DD4hep/v01-25-01/DDRec/include/DDRec/DetectorData.h
 
-      //_petalsInLayer[curr_layer] = z_layout.ladderNumber;
 	  //_layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
 	  _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 	  _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
 
 	  //_sensorsPerPetal[curr_layer] = z_layout.sensorsPerPetal;
-      // CS: does the petal sensitive length include all petal sub-sensors?
 	  _layerPetalLength[curr_layer] = z_layout.lengthSensitive * dd4hep::cm / dd4hep::mm ;
 
 	  _layerPetalInnerWidth[curr_layer] = z_layout.widthInnerSensitive * dd4hep::cm / dd4hep::mm ;
@@ -360,6 +371,16 @@ void MuonCVXDDigitiser::LoadGeometry()
 	}
     }
 
+    // temp fix for issue: z_layout.lengthSensor = 0 for the inner tracker barrel
+    // manually hard code values for ladderlength
+    /* if (_layerLadderLength[0] == 0 && isInnerTracker && isBarrel){
+        _layerLadderLength = {963.2,963.2,1384.6};
+
+    }
+    if (_layerLadderLength[0] == 0 && $$ isOuterTracker && isBarrel){
+        _layerLadderLength = {1264.2*2,1264.2*2,1264.2*2};
+    } */
+
     PrintGeometryInfo();
 
     // Bins for charge discretization
@@ -370,6 +391,16 @@ void MuonCVXDDigitiser::LoadGeometry()
     if (_ChargeDigitizeNumBits == 6) _DigitizedBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
     if (_ChargeDigitizeNumBits == 8) _DigitizedBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
 
+    // shift digitized bins for inner and outer tracker by factor of 2
+    // this adjusts for the fact that the resolution is 2x worse for inner and outer tracker
+    if (!isVertex) {
+        streamlog_out(DEBUG5) << "Subdetector is: " << _subDetName << std::endl;
+        float shift = 500.; // first bin
+        float scalefactor = 2.; 
+        for (int i = 0; i < _DigitizedBins.size(); i++){
+            _DigitizedBins[i] = (_DigitizedBins[i] - _DigitizedBins[0]) * scalefactor + shift;
+        }
+    }
 } 
 
 void MuonCVXDDigitiser::processEvent(LCEvent * evt)

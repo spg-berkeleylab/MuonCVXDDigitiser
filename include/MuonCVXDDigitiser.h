@@ -133,6 +133,10 @@ protected:
     std::string _subDetName;
     bool isBarrel;
 
+    bool isVertex;
+    bool isInnerTracker;
+    bool isOuterTracker;
+
     // input/output collections
     std::string _colName;
     std::string _outputCollectionName;
