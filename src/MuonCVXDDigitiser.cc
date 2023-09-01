@@ -482,7 +482,9 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             relCol->addElement(rel);
             streamlog_out (DEBUG7) << "Reconstructed pixel cluster:" << std::endl;
             streamlog_out (DEBUG7) << "- local position (x,y) = " << localPos[0] << "(Idx: " << localIdx[0] << "), " << localPos[1] << "(Idy: " << localIdx[1] << ")" << std::endl;
+            streamlog_out( DEBUG5 ) << "(reco local) - (true local) (x,y,z): " << localPos[0] - _currentLocalPosition[0] << ", " << localPos[1] - _currentLocalPosition[1] << ", " << localPos[2] - _currentLocalPosition[2] << std::endl;
             streamlog_out (DEBUG7) << "- global position (x,y,z, t) = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << ", " << recoHit->getTime() << std::endl;
+            streamlog_out (DEBUG7) << "- (reco global (x,y,z,t)) - (true global) = " << recoHit->getPosition()[0] - simTrkHit->getPosition()[0]<< ", " << recoHit->getPosition()[1] - simTrkHit->getPosition()[1] << ", " << recoHit->getPosition()[2] - simTrkHit->getPosition()[2]<< ", " << recoHit->getTime() - simTrkHit->getTime()<< std::endl;
             streamlog_out (DEBUG7) << "- charge = " << recoHit->getEDep() << "(True: " << simTrkHit->getEDep() << ")"  << std::endl;
             streamlog_out (DEBUG7) << "- incidence angles: theta = " << incidentTheta << ", phi = " << incidentPhi << std::endl;
             if (_produceFullPattern != 0)
@@ -578,6 +580,7 @@ void MuonCVXDDigitiser::FindLocalPosition(SimTrackerHit *hit,
 {
     // Use SurfaceManager to calculate local coordinates
     const int cellID0 = hit->getCellID0() ;
+    streamlog_out( DEBUG3 ) << "Cell ID of Sim Hit: " << cellID0 << std::endl;
     SurfaceMap::const_iterator sI = _map->find( cellID0 ) ;
     const dd4hep::rec::ISurface* surf = sI->second ;
     Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
@@ -1095,10 +1098,11 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
 void MuonCVXDDigitiser::TransformToLab(const int cellID, const double *xLoc, double *xLab)
 {
     // Use SurfaceManager to calculate global coordinates
+    streamlog_out( DEBUG3 ) << "Cell ID of Hit (used for transforming to lab coords)" << cellID << std::endl;
     SurfaceMap::const_iterator sI = _map->find( cellID ) ;
     const dd4hep::rec::ISurface* surf = sI->second ;
     Vector2D oldPos( xLoc[0] * dd4hep::mm, xLoc[1] * dd4hep::mm );
-    Vector3D lv = surf->localToGlobal( oldPos  ) ;
+    Vector3D lv = surf->localToGlobal( oldPos ) ;
     // Store local position in mm
     for ( int i = 0; i < 3; i++ )
       xLab[i] = lv[i] / dd4hep::mm;
