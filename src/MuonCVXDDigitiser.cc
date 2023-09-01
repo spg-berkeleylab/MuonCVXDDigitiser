@@ -459,7 +459,6 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             streamlog_out (MESSAGE) << "- TRUE GLOBAL position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
             // true local (compare two verions)
             streamlog_out (MESSAGE) << "- TRUE LOCAL position (localPos) (mm) x,y,z,t = " << localPos[0] << ", " << localPos[1] << ", " << localPos[2] << std::endl;
-            //streamlog_out (MESSAGE) << "- TRUE LOCAL position (_currentLocalPosition) (mm) x,y,z,t = " << _currentLocalPosition[0] << ", " << _currentLocalPosition[1] << ", " << _currentLocalPosition[2] << std::endl;
             // reco local 
             streamlog_out (MESSAGE) << "- RECO LOCAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
             double xLab[3];
@@ -467,6 +466,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             recoHit->setPosition( xLab );
             // reco global
             streamlog_out (MESSAGE) << "- RECO GLOBAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
+            streamlog_out (MESSAGE) << "\n"
             
             SurfaceMap::const_iterator sI = _map->find( cellid0 ) ;
             const dd4hep::rec::ISurface* surf = sI->second ;
