@@ -454,19 +454,20 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
             float incidentPhi = std::atan(localDir[0] / localDir[2]);
             float incidentTheta = std::atan(localDir[1] / localDir[2]);
 
-            // DEBUG MESSAGES FOR TRANSFORMATION
+            // Debug messages to check if reconstruction went correctly
             // true global
-            streamlog_out (MESSAGE) << "- TRUE GLOBAL position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
+            streamlog_out (DEBUG9) << "- TRUE GLOBAL position (mm) x,y,z,t = " << simTrkHit->getPosition()[0] << ", " << simTrkHit->getPosition()[1] << ", " << simTrkHit->getPosition()[2] << ", " << simTrkHit->getTime() << std::endl;
             // true local (compare two verions)
-            streamlog_out (MESSAGE) << "- TRUE LOCAL position (localPos) (mm) x,y,z,t = " << localPos[0] << ", " << localPos[1] << ", " << localPos[2] << std::endl;
+            streamlog_out (DEBUG9) << "- TRUE LOCAL position (localPos) (mm) x,y,z,t = " << localPos[0] << ", " << localPos[1] << ", " << localPos[2] << std::endl;
             // reco local 
-            streamlog_out (MESSAGE) << "- RECO LOCAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
+            streamlog_out (DEBUG9) << "- RECO LOCAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
+            
             double xLab[3];
             TransformToLab( cellid0, recoHit->getPosition(), xLab);
             recoHit->setPosition( xLab );
+
             // reco global
-            streamlog_out (MESSAGE) << "- RECO GLOBAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
-            streamlog_out (MESSAGE) << "\n"
+            streamlog_out (DEBUG9) << "- RECO GLOBAL position (mm) x,y,z,t = " << recoHit->getPosition()[0] << ", " << recoHit->getPosition()[1] << ", " << recoHit->getPosition()[2] << std::endl;
             
             SurfaceMap::const_iterator sI = _map->find( cellid0 ) ;
             const dd4hep::rec::ISurface* surf = sI->second ;
@@ -1100,7 +1101,7 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
     streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
     pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
     streamlog_out (DEBUG1) << " = " << pos[1];
-    
+
     recoHit->setPosition(pos);
     recoHit->setdU( _pixelSizeX / sqrt(12) );
     recoHit->setdV( _pixelSizeY / sqrt(12) );
