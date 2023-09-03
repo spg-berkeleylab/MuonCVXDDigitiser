@@ -1026,16 +1026,22 @@ void MuonCVXDDigitiser::TimeDigitizer(SimTrackerHitImplVec &simTrkVec)
 TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplVec &simTrkVec)
 {
     double pos[3] = {0, 0, 0};
+
     double minX = 99999999;
+    double minY = 99999999;
     double maxX = -99999999;
-    std::vector<int> minIdx;
-    std::vector<int> maxIdx;
+    double maxY = -99999999;
       
     double charge = 0; // total cluster charge
     unsigned int size = 0; // number of pixels in the cluster
-    unsigned int edge_size = 0; //number of pixels at the edge of cluster
+    unsigned int edge_size_minx = 0; //number of pixels at the lower edge of cluster in x direction
+    unsigned int edge_size_miny = 0; //number of pixels at the lower edge of cluster in y direction
+    unsigned int edge_size_maxx = 0; //number of pixels at the upper edge of cluster in x direction
+    unsigned int edge_size_maxy = 0; //number of pixels at the upper edge of cluster in y direction
+
     streamlog_out (DEBUG6) << "Creating reconstructed cluster" << std::endl;
     double time = 0; //average time
+
     /* Get extreme positions, currently only implemented for barrel */
     /* Calculate the mean */
     for (size_t iHit=0; iHit < simTrkVec.size(); ++iHit)
@@ -1047,54 +1053,54 @@ TrackerHitPlaneImpl *MuonCVXDDigitiser::ReconstructTrackerHit(SimTrackerHitImplV
         size += 1;
         time += hit->getTime();
         charge += hit->getEDep();
-        pos[0] += hit->getPosition()[0];
-        pos[1] += hit->getPosition()[1];
         streamlog_out (DEBUG0) << iHit << ": Averaging position, x=" << hit->getPosition()[0] << ", y=" << hit->getPosition()[1] << ", weight(EDep)=" << hit->getEDep() << std::endl;
+
+        // calculate min x, min y, max x, max y
         if (hit->getPosition()[0] < minX) {
 	        minX = hit->getPosition()[0];
-	        minIdx.push_back(iHit);
+	    }
+        if (hit->getPosition()[1] < minY) {
+	        minY = hit->getPosition()[1];
 	    }
 	    if (hit->getPosition()[0] > maxX) {
           maxX = hit->getPosition()[0];
-          maxIdx.push_back(iHit);
+	    }
+        if (hit->getPosition()[1] > maxY) {
+          maxY = hit->getPosition()[1];
 	    }
     }
-    
-    for (unsigned int i = 0; i < minIdx.size(); i++){
-      SimTrackerHit *hit = simTrkVec[minIdx[i]];
-      
-      if (minX < hit->getPosition()[0]) continue;
-      streamlog_out (DEBUG4) << "min val = " << minX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
-      edge_size += 1;
-      pos[0] += hit->getPosition()[0];
-      pos[1] += hit->getPosition()[1];
+
+    // Loop over all pixel hits again, find the pixels on the 4 extreme edges
+    for (size_t iHit=0; iHit < simTrkVec.size(); ++iHit){
+        SimTrackerHit *hit = simTrkVec[iHit];
+	    if (hit->getEDep() < 1.0) continue; // ignore pixels below threshold
+
+        if (hit->getPosition()[0] == minX) edge_size_minx += 1;
+        if (hit->getPosition()[1] == minY) edge_size_miny += 1;
+        if (hit->getPosition()[0] == maxX) edge_size_maxx += 1;
+        if (hit->getPosition()[1] == maxY) edge_size_maxy += 1;
     }
-    for (unsigned int i = 0; i < maxIdx.size(); i++){
-      SimTrackerHit *hit = simTrkVec[maxIdx[i]];
-      if (maxX > hit->getPosition()[0]) continue;
-      streamlog_out (DEBUG4) << "max val = " << maxX << ", hit position = " <<  hit->getPosition()[0]  << std::endl;
-      edge_size += 1;
-      pos[0] += hit->getPosition()[0];
-      pos[1] += hit->getPosition()[1];
-    }
+
+    /* Calculate mean x and y by weighted ave: 
+    x_reco = ( (x_max * max edge size) + (x_min * min edge size) ) / (min edge size + max edge size) */
+    pos[0] = ((minX * edge_size_minx) + (maxX * edge_size_maxx))/(edge_size_minx + edge_size_maxx);
+    pos[1] = ((minY * edge_size_miny) + (maxY * edge_size_maxy))/(edge_size_miny + edge_size_maxy);
+
     if ( not (charge > 0.) ) return nullptr;
+
     TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
     recoHit->setEDep((charge / _electronsPerKeV) * dd4hep::keV);
-    pos[0] /= edge_size;
-    pos[1] /= edge_size;
-    if (isBarrel){
-        streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
-        pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
-        streamlog_out (DEBUG1) << " = " << pos[0];
-        
-        streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
-        pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
-        streamlog_out (DEBUG1) << " = " << pos[1];
-    }
-    else{
-        streamlog_out (DEBUG1) << "Position: x = " << pos[0];
-        streamlog_out (DEBUG1) << "; y = " << pos[1];
-    }
+
+    streamlog_out(DEBUG1) << "Edge sizes, minx, maxx, miny, maxy: " << edge_size_minx << ", " << edge_size_maxx << ", " << edge_size_miny << ", " << edge_size_maxy << std::endl;
+
+    streamlog_out (DEBUG1) << "Position: x = " << pos[0] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleX << "(LA-correction)";
+    pos[0] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleX;
+    streamlog_out (DEBUG1) << " = " << pos[0];
+
+    streamlog_out (DEBUG1) << "; y = " << pos[1] << " + " << _layerHalfThickness[_currentLayer] * _tanLorentzAngleY << "(LA-correction)";
+    pos[1] -= _layerHalfThickness[_currentLayer] * _tanLorentzAngleY;
+    streamlog_out (DEBUG1) << " = " << pos[1];
+    
     recoHit->setPosition(pos);
     recoHit->setdU( _pixelSizeX / sqrt(12) );
     recoHit->setdV( _pixelSizeY / sqrt(12) );
