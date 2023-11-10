@@ -131,6 +131,10 @@ protected:
     int _debug;
     int _totEntries;
     std::string _subDetName;
+    bool isBarrel;
+    bool isVertex;
+    bool isInnerTracker;
+    bool isOuterTracker;
 
     // input/output collections
     std::string _colName;
@@ -185,6 +189,11 @@ protected:
     std::vector<float> _layerActiveSiOffset{};
     std::vector<float> _layerHalfPhi{};
     std::vector<float> _layerLadderWidth{};
+    // endcap specific
+    std::vector<float> _layerPetalLength{};
+    std::vector<float> _petalsInLayer{};
+    std::vector<float> _layerPetalInnerWidth{};
+    std::vector<float> _layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* _map ;
 
     // internal state
