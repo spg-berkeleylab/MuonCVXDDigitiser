@@ -65,8 +65,7 @@ ENDIF()
 ### LIBRARY #################################################################
 
 # definitions to pass to the compiler
-ADD_DEFINITIONS( "-Wall -ansi -pedantic" )
-ADD_DEFINITIONS( "-Wno-long-long -Wno-effc++ -Wno-unused-parameter" )
+ADD_DEFINITIONS( "-Wno-long-long -Wno-effc++ -Wno-unused-parameter -Wno-narrowing" )
 if( ZSEGMENTED )
     message ( STATUS "Enabled sensor segmentation" )
     add_compile_definitions( "ZSEGMENTED" )
