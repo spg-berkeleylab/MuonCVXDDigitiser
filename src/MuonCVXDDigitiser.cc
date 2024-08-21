@@ -37,7 +37,8 @@ MuonCVXDDigitiser::MuonCVXDDigitiser() :
     _nRun(0),
     _nEvt(0),
     _totEntries(0),
-    _currentLayer(0)
+    _currentLayer(0),
+    _map(nullptr)
 {
     _description = "MuonCVXDDigitiser should create VTX TrackerHits from SimTrackerHits";
     registerInputCollection(LCIO::SIMTRACKERHIT,
@@ -361,7 +362,7 @@ void MuonCVXDDigitiser::processEvent(LCEvent * evt)
     // - include threshold dispersion effects
     // - add digi parametrization for time measurement
     // - change position determination of cluster to analog cluster (w-avg of corner hits)
-    if ((_nEvt == 0) and (!_map)){
+    if (!_map){
         LoadGeometry() ;
     }
     LCCollection * STHcol = nullptr;
