@@ -8,11 +8,9 @@
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
-
-#include <UTIL/CellIDDecoder.h>
+#include "CellIDDecoder.h"
 
 using dd4hep::rec::SurfaceMap;
-using UTIL::CellIDDecoder;
 
 struct TimedSignalPoint
 {
@@ -76,10 +74,5 @@ private:
     CellIDDecoder<SimTrackerHit> cell_decoder;
     G4UniversalFluctuation* _fluctuate;
 };
-
-
-
-
-
 
 #endif //DetElemSlidingWindow_h

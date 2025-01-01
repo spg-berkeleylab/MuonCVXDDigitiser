@@ -6,36 +6,35 @@
 #include <queue>
 #include <limits>
 
-#include "EVENT/SimTrackerHit.h"
-#include "EVENT/LCCollection.h"
-#include <UTIL/CellIDDecoder.h>
+#include "edm4hep/SimTrackerHit.h"
+#include "edm4hep/SimTrackerHitCollection.h"
+#include "CellIDDecoder.h"
 
 using std::priority_queue;
 using std::unordered_map;
-using EVENT::SimTrackerHit;
-using EVENT::LCCollection;
-using UTIL::CellIDDecoder;
+using edm4hep::SimTrackerHit;
+using edm4hep::SimTrackerHitCollection;
 
 class CmpTrackTime
 {
 public:
     CmpTrackTime(){}
-    bool operator()(SimTrackerHit* &alfa, SimTrackerHit* &beta)
+    bool operator()(SimTrackerHit &alfa, SimTrackerHit &beta)
     {
-        return alfa->getTime() > beta->getTime();
+        return alfa.getTime() > beta.getTime();
 
     }
 };
 
-typedef priority_queue<SimTrackerHit*, std::vector<SimTrackerHit*>, CmpTrackTime> hit_queue;
+typedef priority_queue<SimTrackerHit, std::vector<SimTrackerHit>, CmpTrackTime> hit_queue;
 
 
 class HitTemporalIndexes
 {
 public:
-    HitTemporalIndexes(const LCCollection* STHcol);
+    HitTemporalIndexes(const SimTrackerHitCollection STHcol);
     virtual ~HitTemporalIndexes();
-    SimTrackerHit* CurrentHit(int layer, int ladder);
+    SimTrackerHit CurrentHit(int layer, int ladder);
     void DisposeHit(int layer, int ladder);
     int GetHitNumber(int layer, int ladder);
     float GetMinTime();

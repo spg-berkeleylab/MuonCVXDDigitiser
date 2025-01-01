@@ -5,15 +5,13 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <UTIL/BitField64.h>
+#include "BitField64.h"
 #include <UTIL/LCTrackerConf.h>
-#include <EVENT/SimTrackerHit.h>
+#include <edm4hep/SimTrackerHit.h>
 
 using std::string;
 using std::vector;
-using UTIL::BitField64;
-using lcio::LCTrackerCellID;
-using EVENT::SimTrackerHit;
+using edm4hep::SimTrackerHit;
 
 enum class PixelStatus : char {
     on,

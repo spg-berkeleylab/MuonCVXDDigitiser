@@ -4,20 +4,25 @@
 #include <string>
 #include <vector>
 
-#include "marlin/Processor.h"
-#include "lcio.h"
-#include "EVENT/SimTrackerHit.h"
-#include "EVENT/LCIO.h"
-#include "IMPL/TrackerHitImpl.h"
-#include <IMPL/TrackerHitPlaneImpl.h>
-#include "IMPL/SimTrackerHitImpl.h"
-#include <IMPL/LCCollectionVec.h>
+// k4FWCore
+#include <k4FWCore/Transformer.h>
+
+// edm4hep
+#include <edm4hep/SimTrackerHit.h>
+#include <edm4hep/MutableTrackerHit.h>
+#include <edm4hep/MutableSimTrackerHit.h>
+#include <edm4hep/MutableTrackerHitPlane.h>
+#include <edm4hep/SimTrackerHitCollection.h>
+#include <edm4hep/TrackerHitPlaneCollection.h>
+#include <edm4hep/TrackerHitSimTrackerHitLink.h>
+#include <edm4hep/TrackerHitSimTrackerHitLinkCollection.h>
+
+// DD4hep
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 
+// ROOT
 #include <TH1.h>
-
-using marlin::Processor;
 
 struct IonisationPoint
 {
@@ -36,7 +41,7 @@ struct SignalPoint
     double charge;
 };
 
-typedef std::vector<SimTrackerHitImpl*> SimTrackerHitImplVec;
+typedef std::vector<MutableSimTrackerHit> MutableSimTrackerHitVec;
 typedef std::vector<IonisationPoint> IonisationPointVec;
 typedef std::vector<SignalPoint> SignalPointVec;
 
@@ -90,87 +95,81 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * <br>
  */
-class MuonCVXDRealDigitiser : public Processor
+class MuonCVXDRealDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::TrackerHitPlaneCollection,
+                                                                           edm4hep::TrackerHitSimTrackerHitCollection>(
+                                                                     const edm4hep::SimTrackerHitCollection&)>
 {  
 public:
   
-    virtual Processor*  newProcessor() { return new MuonCVXDRealDigitiser ; }
-
-    MuonCVXDRealDigitiser();
+    MuonCVXDRealDigitiser(const std::string& name, ISvcLocator* svcLoc);
 
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
     */
-    virtual void init();
-
-    /** Called for every run.
-    */
-    virtual void processRunHeader( LCRunHeader* run );
+    virtual StatusCode initialize();
 
     /** Called for every event - the working horse.
     */
-    virtual void processEvent( LCEvent * evt ); 
-
-    virtual void check( LCEvent * evt );
+    virtual std::tuple<edm4hep::TrackerHitPlaneCollection,
+                       edm4hep::TrackerHitSimTrackerHitCollection> operator(
+                 const edm4hep::SimTrackerHitCollection& inputCollection) const;
 
     /** Called after data processing for clean up.
     */
-    virtual void end();
+    virtual StatusCode finalize();
+
+
 
 protected:
 
     void PrintGeometryInfo();
 
-    int _nRun;
-    int _nEvt;
-    int _debug;
-    int _totEntries;
-    int _barrelID;
-    std::string _subDetName;
 
-    // input/output collections
-    std::string _colName;
-    std::string _outputCollectionName;
-    std::string _colVTXRelation;
+    int m_debug;
+    int m_totEntries = 0;
+    int m_barrelID = 0;
 
     // processor parameters
-    double _tanLorentzAngleX;
-    double _tanLorentzAngleY;
-    double _cutOnDeltaRays;
-    double _diffusionCoefficient;
-    double _pixelSizeX;
-    double _pixelSizeY;
-    double _electronsPerKeV;
-    double _segmentLength;
-    double _threshold;
-    double _electronicNoise;
-    double _energyLoss;
-    double _deltaEne;
-  	double _maxTrkLen;
-    float _window_size;
-    float _fe_slope;
-    int _PoissonSmearing;
-    int _electronicEffects;
-    int _produceFullPattern;
-    int sensor_type;
+    Gaudi::Property<std::string> m_subDetName{this, "SubDetectorName", std::string("VertexBarrel"), "Name of Vertex detector"};
+    Gaudi::Property<double> m_tanLorentzAngleX{this, "TanLorentz", (double)0.8, "Tangent of Lorentz Angle"};
+    Gaudi::Property<double> m_tanLorentzAngleY{this, "TanLorentzY", (double)0, "Tangent of Lorentz Angle along Y"};
+    Gaudi::Property<double> m_cutOnDeltaRays{this, "CutOnDeltaRays", (double)0.030, "Cut on delta-ray energy (MeV)"};
+    Gaudi::Property<double> m_diffusionCoefficient{this, "DiffusionCoefficient", (double)0.07, "Diffusion coefficient, sqrt(D / mu / V)."};
+    Gaudi::Property<double> m_pixelSizeX{this, "PixelSizeX", (double)0.025, "Pixel Size X"};
+    Gaudi::Property<double> m_pixelSizeY{this, "PixelSizeY", (double)0.025, "Pixel Size Y"};
+    Gaudi::Property<double> m_electronsPerKeV{this, "ElectronsPerKeV", (double)270.3, "Electrons per keV"};
+    Gaudi::Property<double> m_segmentLength{this, "SegmentLength", (double)0.005, "Segment Length in mm"};
+    Gaudi::Property<double> m_threshold{this, "Threshold", (double)200., "Cell Threshold in electrons"};
+    Gaudi::Property<double> m_electronicNoise{this, "ElectronicNoise", (double)100., "electronic noise in electrons"};
+    Gaudi::Property<double> m_energyLoss{this, "EnergyLoss", (double)280., "Energy Loss keV/mm"};
+    Gaudi::Property<double> m_deltaEne{this, "MaxEnergyDelta", (double)100., "Max delta in energy between G4 prediction and random sampling for each hit in electrons"};
+    Gaudi::Property<double> m_maxTrkLen{this, "MaxTrackLength", (double)10., "Maximum values for track length (in mm)"};
+
+    Gaudi::Property<float> m_window_size{this, "WindowSize", (float)25, "Window size [ns]"};
+    Gaudi::Property<float> m_fe_slope{this, "RD53Aslope", (float)0.1, "ADC slope for chip RD53A"};
+    Gaudi::Property<int>    m_PoissonSmearing{this, "PoissonSmearing", 1, "Apply Poisson smearing of electrons collected on pixels"};
+    Gaudi::Property<int>    m_electronicEffects{this, "ElectronicEffects", 1, "Apply Electronic Effects"};
+    Gaudi::Property<int>    m_produceFullPattern{this, "StoreFiredPixels", 0, "Store fired pixels"};
+    Gaudi::Property<int>    m_sensor_type{this, "SensorType", 1, "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)"};
 
     // geometry
-    int _numberOfLayers;
-    std::vector<int>   _laddersInLayer{};
-    std::vector<int>   _sensorsPerLadder{};
-    std::vector<float> _layerRadius{};
-    std::vector<float> _layerThickness{};
-    std::vector<float> _layerHalfThickness{};
-    std::vector<float> _layerLadderLength{};
-    std::vector<float> _layerLadderHalfWidth{};
-    std::vector<float> _layerPhiOffset{};
-    std::vector<float> _layerActiveSiOffset{};
-    std::vector<float> _layerHalfPhi{};
-    std::vector<float> _layerLadderWidth{};
-    const dd4hep::rec::SurfaceMap* _map ;
+    int m_numberOfLayers;
+    std::vector<int>   m_laddersInLayer{};
+    std::vector<int>   m_sensorsPerLadder{};
+    std::vector<float> m_layerRadius{};
+    std::vector<float> m_layerThickness{};
+    std::vector<float> m_layerHalfThickness{};
+    std::vector<float> m_layerLadderLength{};
+    std::vector<float> m_layerLadderHalfWidth{};
+    std::vector<float> m_layerPhiOffset{};
+    std::vector<float> m_layerActiveSiOffset{};
+    std::vector<float> m_layerHalfPhi{};
+    std::vector<float> m_layerLadderWidth{};
+    const dd4hep::rec::SurfaceMap* m_map ;
 
-    std::string stat_filename;
-    bool create_stats;
+    // Graphs
+    Gaudi::Property<std::string> m_stat_filename{this, "StatisticsFilename", std::string("None"), "File name for statistics (None for disabling the feature)"};
+    Gaudi::Property<bool>        create_stats{this, "CreateStats", false, "Create stats graphs for analysis"};
     TH1F* signal_dHisto;
     TH1F* bib_dHisto;
     TH1F* signal_cSizeHisto;
@@ -187,6 +186,3 @@ protected:
 };
 
 #endif //MuonCVXDRealDigitiser_h
-
-
-
