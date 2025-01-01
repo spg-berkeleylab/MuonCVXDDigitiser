@@ -8,7 +8,7 @@
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
-#include "CellIDDecoder.h"
+#include "BitField64.h"
 
 using dd4hep::rec::SurfaceMap;
 
@@ -19,7 +19,7 @@ struct TimedSignalPoint
     double sigmaX;
     double sigmaY;
     double charge;
-    SimTrackerHit* sim_hit;
+    SimTrackerHit sim_hit;
 };
 
 typedef std::list<TimedSignalPoint> TimedSignalPointList;
@@ -71,7 +71,7 @@ private:
     double _deltaEne;
     TimedSignalPointList signals;
     const SurfaceMap* surf_map;
-    CellIDDecoder<SimTrackerHit> cell_decoder;
+    BitField64 cell_decoder;
     G4UniversalFluctuation* _fluctuate;
 };
 

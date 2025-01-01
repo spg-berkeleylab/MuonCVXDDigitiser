@@ -6,9 +6,9 @@
 #include <queue>
 #include <limits>
 
-#include "edm4hep/SimTrackerHit.h"
-#include "edm4hep/SimTrackerHitCollection.h"
-#include "CellIDDecoder.h"
+#include <edm4hep/SimTrackerHit.h>
+#include <edm4hep/SimTrackerHitCollection.h>
+#include "BitField64.h"
 
 using std::priority_queue;
 using std::unordered_map;
@@ -26,7 +26,7 @@ public:
     }
 };
 
-typedef priority_queue<SimTrackerHit, std::vector<SimTrackerHit>, CmpTrackTime> hit_queue;
+typedef priority_queue<SimTrackerHit*, std::vector<SimTrackerHit*>, CmpTrackTime> hit_queue;
 
 
 class HitTemporalIndexes
@@ -34,7 +34,7 @@ class HitTemporalIndexes
 public:
     HitTemporalIndexes(const SimTrackerHitCollection STHcol);
     virtual ~HitTemporalIndexes();
-    SimTrackerHit CurrentHit(int layer, int ladder);
+    SimTrackerHit* CurrentHit(int layer, int ladder);
     void DisposeHit(int layer, int ladder);
     int GetHitNumber(int layer, int ladder);
     float GetMinTime();
@@ -45,7 +45,7 @@ public:
 private:
     inline int GetKey(int layer, int ladder);
 
-    CellIDDecoder<SimTrackerHit> cellid_decoder;
+    BitField64 cellid_decoder;
     unordered_map<int, hit_queue*> htable;
 };
 

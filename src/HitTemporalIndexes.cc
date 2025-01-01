@@ -2,27 +2,28 @@
 
 using std::min;
 
-HitTemporalIndexes::HitTemporalIndexes(const LCCollection* STHcol):
-    cellid_decoder(STHcol),
+HitTemporalIndexes::HitTemporalIndexes(const edm4hep::SimTrackerHitCollection STHcol):
+    cellid_decoder("subdet:5,side:-2,layer:9,module:8,sensor:8"),
     htable()
 {
-    for (int i = 0; i < STHcol->getNumberOfElements(); ++i)
+    for (int i = 0; i < STHcol.size(); ++i)
     {
-        SimTrackerHit* simTrkHit = dynamic_cast<SimTrackerHit*>(STHcol->getElementAt(i));
-        int layer = cellid_decoder(simTrkHit)["layer"];
-        int ladder = cellid_decoder(simTrkHit)["module"];
+        SimTrackerHit simTrkHit = STHcol.at(i);
+        cellid_decoder.setValue(simTrkHit.getCellID0());
+        int layer = cellid_decoder["layer"];
+        int ladder = cellid_decoder["module"];
         int tkey = GetKey(layer, ladder);
 
         auto item = htable.find(tkey);
         if (item == htable.end())
         {
             hit_queue* n_queue = new hit_queue();
-            n_queue->push(simTrkHit);
+            n_queue->push(&simTrkHit);
             htable.emplace(tkey, n_queue);
         }
         else
         {
-            item->second->push(simTrkHit);
+            item->second->push(&simTrkHit);
         }
     }
 }
@@ -35,7 +36,7 @@ HitTemporalIndexes::~HitTemporalIndexes()
     }
 }
 
-SimTrackerHit* HitTemporalIndexes::CurrentHit(int layer, int ladder)
+SimTrackerHit HitTemporalIndexes::CurrentHit(int layer, int ladder)
 {
     int tkey = GetKey(layer, ladder);
     auto item = htable.find(tkey);

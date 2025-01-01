@@ -1,7 +1,5 @@
 #include "HKBaseSensor.h"
 
-#include "streamlog/streamlog.h"
-
 #include <math.h>
 #include <algorithm>
 #include <limits>
@@ -55,12 +53,12 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
         {
             ref_table.emplace(curr_pos, hash_cnt);
         }
-        else if (streamlog::out.write<streamlog::ERROR>())
+        else if (msgLevel(MSG::ERROR))
 #pragma omp critical
         {
             GridCoordinate gcoord = locate(curr_pos);
-            streamlog::out() << "Cluster heap " << debug_label << ": conflict for pixel "
-                << gcoord.row << ":" << gcoord.col << std::endl;
+            error() << "Cluster heap " << debug_label << ": conflict for pixel "
+                    << gcoord.row << ":" << gcoord.col << endmsg;
         }
     }
 
@@ -94,11 +92,11 @@ void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix)
 
         ref_table.erase(pos);
     }
-    else if (streamlog::out.write<streamlog::ERROR>())
+    else if (msgLevel(MSG::ERROR))
 #pragma omp critical
     {
-        streamlog::out() << "Cluster heap " << debug_label << ": undefined pixel "
-            << pos_x << ":" << pos_y << std::endl;
+        error() << "Cluster heap " << debug_label << ": undefined pixel "
+                << pos_x << ":" << pos_y << endmsg;
     }
 }
 
@@ -187,7 +185,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+            bf_encoder["sensor"] = sens_id;
 
             ClusterHeap& c_heap = heap_table[sens_id];
 

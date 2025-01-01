@@ -1,16 +1,22 @@
 #include "DetElemSlidingWindow.h"
-#include <EVENT/MCParticle.h>
+
+// edm4hep
+#include <edm4hep/MCParticle.h>
+
+// DD4hep
 #include "DDRec/DetectorData.h"
 #include "DD4hep/DD4hepUnits.h"
-#include "marlin/VerbosityLevels.h"
-#include "streamlog/streamlog.h"
 
+// Random
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
+
+// CLhep
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h"
 #include "CLHEP/Random/RandFlat.h"
 
+// Standard
 #include <iostream>
 
 using std::max;
@@ -80,11 +86,11 @@ int DetElemSlidingWindow::process()
 {
     float window_radius = time_click / 2;
 
-    for (SimTrackerHit* hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
-         hit != nullptr && hit->getTime() - curr_time < window_radius;
+    for (SimTrackerHit hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
+         hit != nullptr && hit.getTime() - curr_time < window_radius;
          hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder()))
     {
-        if (streamlog::out.write<streamlog::DEBUG6>())
+        if (msgLevel(MSG::DEBUG))
 #pragma omp critical
         {
             float mcp_r = sqrt(pow(hit->getPosition()[0], 2) + pow(hit->getPosition()[1], 2));
@@ -93,26 +99,26 @@ int DetElemSlidingWindow::process()
             double mom_norm = sqrt(pow(hit->getMomentum()[0], 2) + pow(hit->getMomentum()[1], 2)
                                    + pow(hit->getMomentum()[2], 2));
             int segment_id = cell_decoder(hit)["sensor"];
-            streamlog::out() << "Processing simHit from layer = " << _sensor.GetLayer()
-                             << ", ladder = " << _sensor.GetLadder() 
-                             << ", sensor = " << segment_id << std::endl
-                             << "Time window centered in " << curr_time
-                             << ", Hits available = "
-                             << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
-                             << std::endl
-                             << "- EDep = " << hit->getEDep() * dd4hep::GeV / dd4hep::keV
-                             << " keV, path length = " << hit->getPathLength() * 1000.
-                             << " um" << std::endl
-                             << "- Position (mm) x,y,z,t = " << hit->getPosition()[0] << ", "
-                             << hit->getPosition()[1] << ", " << hit->getPosition()[2]
-                             << ", " << hit->getTime() << std::endl
-                             << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi
-                             << ", " << mcp_theta << std::endl
-                             << "- MC particle pdg = " << hit->getMCParticle()->getPDG() << std::endl
-                             << "- MC particle p (GeV) = " << mom_norm << std::endl
-                             << "- isSecondary = " << hit->isProducedBySecondary()
-                             << ", isOverlay = " << hit->isOverlay() << std::endl
-                             << "- Quality = " << hit->getQuality() << std::endl;
+            debug() << "Processing simHit from layer = " << _sensor.GetLayer()
+                    << ", ladder = " << _sensor.GetLadder() 
+                    << ", sensor = " << segment_id << "\n"
+                    << "Time window centered in " << curr_time
+                    << ", Hits available = "
+                    << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
+                    << "\n"
+                    << "- EDep = " << hit->getEDep() * dd4hep::GeV / dd4hep::keV
+                    << " keV, path length = " << hit->getPathLength() * 1000.
+                    << " um\n"
+                    << "- Position (mm) x,y,z,t = " << hit.getPosition().x << ", "
+                    << hit.getPosition().y << ", " << hit.getPosition().z
+                    << ", " << hit.getTime() << "\n"
+                    << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi
+                    << ", " << mcp_theta << "\n"
+                    << "- MC particle pdg = " << hit.getParticle().getPDG() << "\n"
+                    << "- MC particle p (GeV) = " << mom_norm << "\n"
+                    << "- isSecondary = " << hit.isProducedBySecondary()
+                    << ", isOverlay = " << hit.isOverlay() << "\n"
+                    << "- Quality = " << hit.getQuality() << endmsg;
         }
 
         StoreSignalPoints(hit);
@@ -121,11 +127,11 @@ int DetElemSlidingWindow::process()
 
     if (!signals.empty())
     {
-        streamlog_out(DEBUG) << "Signal points for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
-                               << " = " << signals.size() << std::endl;
+        debug() << "Signal points for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
+                               << " = " << signals.size() << endmsg;
 
         for (TimedSignalPoint spoint = signals.front();
-             curr_time - spoint.sim_hit->getTime() > window_radius;
+             curr_time - spoint.sim_hit.getTime() > window_radius;
              spoint = signals.front())
         {
             signals.pop_front();
@@ -153,7 +159,7 @@ void DetElemSlidingWindow::UpdatePixels()
 
     for (auto spoint : signals)
     {
-        if (spoint.sim_hit->getTime() > curr_time + window_radius) break;
+        if (spoint.sim_hit.getTime() > curr_time + window_radius) break;
 
         double xHFrame = _widthOfCluster * spoint.sigmaX;
         double yHFrame = _widthOfCluster * spoint.sigmaY;
@@ -201,7 +207,7 @@ void DetElemSlidingWindow::UpdatePixels()
     _sensor.EndClockStep();
 }
 
-void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
+void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
 {
     // hit and pos are in mm
     double pos[3] = {0,0,0};
@@ -210,18 +216,18 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     double exit[3];
 
     // ************************* Find local position **************************
-    SurfaceMap::const_iterator sI = surf_map->find(hit->getCellID0()) ;
+    SurfaceMap::const_iterator sI = surf_map->find(hit.getCellID0()) ;
     const ISurface* surf = sI->second ;
 
-    Vector3D oldPos( hit->getPosition()[0], hit->getPosition()[1], hit->getPosition()[2] );
+    Vector3D oldPos( hit.getPosition().x, hit.getPosition().y, hit.getPosition().z );
 
     if (!surf->insideBounds(dd4hep::mm * oldPos))
     {
-        if (streamlog::out.write<streamlog::DEBUG6>())
+        if (msgLevel(MSG::DEBUG))
 #pragma omp critical
         {
-            streamlog::out() << "  hit at " << oldPos << " is not on surface " << *surf
-                             << " distance: " << surf->distance(dd4hep::mm * oldPos) << std::endl;
+            debug() << "  hit at " << oldPos << " is not on surface " << *surf
+                    << " distance: " << surf->distance(dd4hep::mm * oldPos) << endmsg;
         }
         return;
     }    
@@ -233,7 +239,8 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     pos[1] = lv[1] / dd4hep::mm;
 #ifdef ZSEGMENTED
     // See MuonCVXDDigitiser::processEvent
-    int segment_id = cell_decoder(hit)["sensor"];
+    cell_decoder.setValue(hit.getCellID0());
+    int segment_id = cell_decoder["sensor"];
 
     float s_offset = _sensor.GetSensorCols() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
     s_offset -= _sensor.GetHalfLength();
@@ -243,20 +250,19 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
     // Add also z ccordinate
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
     pos[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
-
-    double Momentum[3];
-    for (int j = 0; j < 3; ++j) 
-      if (hit->getMCParticle())
-        Momentum[j] = hit->getMCParticle()->getMomentum()[j] * dd4hep::GeV;
-      else
-        Momentum[j] = hit->getMomentum()[j];
+    
+    edm4hep::Vector3d Momentum;
+    if (hit.getParticle())
+      Momentum = hit.getParticle().getMomentum() * dd4hep::GeV;
+    else
+      Momentum = hit.getMomentum();
 
     // as default put electron's mass
     double particleMass = 0.510e-3 * dd4hep::GeV;
-    if (hit->getMCParticle())
-        particleMass = max(hit->getMCParticle()->getMass() * dd4hep::GeV, particleMass);
+    if (hit.getParticle())
+        particleMass = max(hit.getParticle().getMass() * dd4hep::GeV, particleMass);
 
-    double particleMomentum = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2) + pow(Momentum[2], 2));                   
+    double particleMomentum = sqrt(pow(Momentum.x, 2) + pow(Momentum.y, 2) + pow(Momentum.z, 2));                   
                          
     dir[0] = Momentum * surf->u();
     dir[1] = Momentum * surf->v();
@@ -340,7 +346,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
         eSum += eloss;
     }
 
-    double hEdep = hit->getEDep() / dd4hep::GeV;
+    double hEdep = hit.getEDep() / dd4hep::GeV;
     // deltaEne is a charge??
     const double thr = _deltaEne / _electronsPerKeV * dd4hep::keV;
     while (hEdep > eSum + thr)
@@ -352,26 +358,20 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit)
         eSum += q;
     }
 
-    if (streamlog::out.write<streamlog::DEBUG5>() || streamlog::out.write<streamlog::DEBUG6>())
+    if (msgLevel(MSG::DEBUG))
 #pragma omp critical
     {
-        streamlog::out() << "Ionization Points:" << std::endl;
-        if (streamlog::out.write<streamlog::DEBUG5>())
-        {
-            streamlog::out() << "Number of ionization points: " << _numberOfSegments
-                             << ", G4 EDep = "  << hEdep << std::endl
-                             << "Padding each segment charge (1/n^2 pdf) until total below "
-                             << _deltaEne << "e- threshold. New total energy: "
-                             << eSum << std::endl;
-        }
-        else
-        {
-            streamlog::out() <<  "Track path length: " << trackLength
-                             << ", calculated dEmean * N_segment = " << dEmean
-                             << " * " << _numberOfSegments << " = "
-                             << dEmean*_numberOfSegments << std::endl;
-        }
-    }
+        debug() << "Ionization Points:" << "\n";
+                << "Number of ionization points: " << _numberOfSegments
+                << ", G4 EDep = "  << hEdep << "\n"
+                << "Padding each segment charge (1/n^2 pdf) until total below "
+                << _deltaEne << "e- threshold. New total energy: "
+                << eSum << "\n\n"
+                <<  "Track path length: " << trackLength
+                << ", calculated dEmean * N_segment = " << dEmean
+                << " * " << _numberOfSegments << " = "
+                << dEmean*_numberOfSegments << endmsg;
+     }
 
     for(auto spoint : signal_buffer)
     {
@@ -389,5 +389,4 @@ double DetElemSlidingWindow::randomTail( const double qmin, const double qmax )
     const double u      = offset + RandFlat::shoot() * range;
     return 1. / u;
 }
-
 

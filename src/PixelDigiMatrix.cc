@@ -1,22 +1,21 @@
 #include "PixelDigiMatrix.h"
 #include <cmath>
-#include "streamlog/streamlog.h"
 
-PixelDigiMatrix::PixelDigiMatrix(int layer,
-                                 int ladder,
-                                 int xsegmentNumber,
-                                 int ysegmentNumber,
-                                 float ladderLength,
-                                 float ladderWidth,
-                                 float thickness,
+PixelDigiMatrix::PixelDigiMatrix(int    layer,
+                                 int    ladder,
+                                 int    xsegmentNumber,
+                                 int    ysegmentNumber,
+                                 float  ladderLength,
+                                 float  ladderWidth,
+                                 float  thickness,
                                  double pixelSizeX,
                                  double pixelSizeY,
                                  string enc_str,
-                                 int barrel_id,
+                                 int    barrel_id,
                                  double thr,
-                                 float fe_slope,
-                                 float starttime,
-                                 float t_step):
+                                 float  fe_slope,
+                                 float  starttime,
+                                 float  t_step):
     AbstractSensor( layer,
                     ladder,
                     xsegmentNumber,

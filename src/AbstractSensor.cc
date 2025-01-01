@@ -1,10 +1,6 @@
 #include "AbstractSensor.h"
 #include <cmath>
 
-#include <UTIL/ILDConf.h>
-
-using lcio::ILDDetID;
-
 AbstractSensor::AbstractSensor( int layer,
                                 int ladder,
                                 int xsegmentNumber,
@@ -104,10 +100,10 @@ BitField64 AbstractSensor::getBFEncoder()
 {
     BitField64 bf_encoder { cellFmtStr };
     bf_encoder.reset();
-    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
-    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
-    bf_encoder[LCTrackerCellID::layer()] = _layer;
-    bf_encoder[LCTrackerCellID::module()] = _ladder;
+    bf_encoder["subdet"] = _barrel_id;
+    bf_encoder["side"] = 0; // TODO: I replaced this. It was ILDDetID::barrel, which equals 0 according to LCIO docs.
+    bf_encoder["layer"] = _layer;
+    bf_encoder["module"] = _ladder;
     return bf_encoder;
 }
 
@@ -121,7 +117,7 @@ void AbstractSensor::InitHitRegister()
     if (reset_simtable_at_once) simhit_table.clear();
 }
 
-void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit* hit)
+void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit hit)
 {
     simhit_table.emplace(l_locate(x, y), hit);
 }
