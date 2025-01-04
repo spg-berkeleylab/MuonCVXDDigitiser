@@ -45,18 +45,16 @@ DECLARE_COMPONENT(MuonCVXDRealDigitiser)
 
 MuonCVXDRealDigitiser::MuonCVXDRealDigitiser(const std::string& name, ISvcLocator* svcLoc) : MultiTransformer(name, svcLoc,
           { KeyValues("CollectionName", {"VXDCollection"}) },
-          { KeyValues("SimHitLocCollectionName", {"VertexBarrel"}),
-            KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
-            KeyValues("RelationColName", {"VTXTrackerHitRelations"}),
-            KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"}) }) {}
+          { KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
+            KeyValues("RelationColName", {"VTXTrackerHitRelations"}) }) {}
 
 
 StatusCode MuonCVXDRealDigitiser::initialize() {
     debug() << "   init called  " << endmsg;
 
-    create_stats = stat_filename.compare(std::string { "None" }) != 0;
 
-    if (create_stats) {
+
+    if (m_create_stats) {
         ITHistSvc* histSvc{nullptr};
         StatusCode sc1 = service("THistSvc", histSvc);
         if ( sc1.isFailure() ) {
@@ -159,27 +157,20 @@ void MuonCVXDRealDigitiser::LoadGeometry() const{
 } 
 
 
-std::tuple<edm4hep::SimTrackerHitCollection,
-                       edm4hep::TrackerHitPlaneCollection,
-                       edm4hep::TrackerHitSimTrackerHitCollection,
-                       edm4hep::TrackerHitSimTrackerHitCollection> operator(
-                 const edm4hep::SimTrackerHitCollection& STHcol) const{
+std::tuple<edm4hep::TrackerHitPlaneCollection,
+           edm4hep::TrackerHitSimTrackerHitCollection> operator(
+     const edm4hep::SimTrackerHitCollection& STHcol) const{
     if ( !m_map ) {
         LoadGeometry();
     }
-    edm4hep::SimTrackerHitCollection               STHLocCol;
     edm4hep::TrackerHitPlaneCollection             THcol;
     edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
-    edm4hep::TrackerHitSimTrackerHitLinkCollection rawHitsCol;
 
     BitField64 cellID_coder("subdet:5,side:-2,layer:9,module:8,sensor:8");
 
     if (STHcol == nullptr or STHcol.size() == 0) {
         message() << "Number of produced hits: " << THcol.size()  << endmsg;
-        return std::make_tuple(std::move(STHLocCol),
-                               std::move(THcol),
-                               std::move(relCol),
-                               std::move(rawHitsCol) );
+        return std::make_tuple( std::move(THcol), std::move(relCol) );
     }
 
     std::size_t RELHISTOSIZE { 10 };
@@ -188,17 +179,14 @@ std::tuple<edm4hep::SimTrackerHitCollection,
 
     HitTemporalIndexes t_index { STHcol };
 
-    for (int layer = 0; layer < _numberOfLayers; layer++)
-    {
+    for (int layer = 0; layer < m_numberOfLayers; layer++) {
 #pragma omp parallel for
-        for (int ladder = 0; ladder < m_laddersInLayer[layer]; ladder++)
-        {
+        for (int ladder = 0; ladder < m_laddersInLayer[layer]; ladder++) {
             int num_segment_x = 1;
             int nun_segment_y = m_sensorsPerLadder[layer];
 
             float m_time = t_index.GetMinTime(layer, ladder);
-            if (m_time == HitTemporalIndexes::MAXTIME)
-            {
+            if (m_time == HitTemporalIndexes::MAXTIME) {
                 if ( msgLevel(MSG::DEBUG) )
 #pragma omp critical
                 {
@@ -212,11 +200,11 @@ std::tuple<edm4hep::SimTrackerHitCollection,
             float start_time = (m_time >= 0) ? nw * m_window_size : -1 * (nw + 1) * m_window_size;
 
             AbstractSensor* sensor = nullptr;
-            if (sensor_type == 1) {
+            if (m_sensor_type == 1) {
                 sensor = new TrivialSensor(layer, ladder, num_segment_x, nun_segment_y,
                                           m_layerLadderLength[layer], m_layerLadderWidth[layer],
                                           m_layerThickness[layer], m_pixelSizeX, m_pixelSizeY,
-                                          encoder_str, _barrelID, m_threshold,
+                                          encoder_str, m_barrelID, m_threshold,
                                           start_time, m_window_size);
             } else {
                 sensor = new HKBaseSensor(layer, ladder, num_segment_x, nun_segment_y, 
@@ -271,9 +259,6 @@ std::tuple<edm4hep::SimTrackerHitCollection,
 
                 std::vector<edm4hep::TrackerHitSimTrackerHitLink*> rel_buffer;
                 histo_buffer.assign(RELHISTOSIZE, 0);
-
-                std::vector<edm4hep::SimTrackerHit*> rawHits_buffer;
-                std::ccvector<edm4hep::TrackerHitSimTrackerHitLink*> rawHitsLink_buffer;
 
                 int idx = 0;
                 for (SegmentDigiHit& digiHit : hit_buffer) {
@@ -334,7 +319,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
 
                     //All the sim-hits are registered for a given reco-hit
                     for (edm4hep::SimTrackerHit *st_item : digiHit.sim_hits) {
-                      if (create_stats) {
+                      if (m_create_stats) {
                         if (!st_item->isOverlay()) sig = true;
                         if ( st_item->getPosition().x < minx ) minx = st_item->getPosition().x;
                         else if ( st_item->getPosition().x > maxx ) maxx = st_item->getPosition().x;
@@ -344,31 +329,23 @@ std::tuple<edm4hep::SimTrackerHitCollection,
                         else if ( st_item->getPosition().z > maxz ) maxz = st_item->getPosition().z;
                       }
                         //recoHit->rawHits().push_back( st_item );
-                        rawHits_buffer.push_back( st_item );
                         edm4hep::MutableTrackerHitSimTrackerHitLink* t_rel = new edm4hep::MutableTrackerHitSimTrackerHitLink();
                         t_rel->setFrom(recoHit);
                         t_rel->setTo(st_item);
                         t_rel->setWeight( 1.0 );
                         rel_buffer.push_back(t_rel);
-
-                        edm4hep::MutableTrackerHitSimTrackerHitLink* rawLink = new edm4hep::MutableTrackerHitSimTrackerHitLink();
-                        rawLink->setFrom(recoHit);
-                        rawLink->setTo(st_item)
                     }
 
-                    if (digiHit.sim_hits.size() < RELHISTOSIZE)
-                    {
+                    if (digiHit.sim_hits.size() < RELHISTOSIZE) {
                         histo_buffer[digiHit.sim_hits.size()]++;
                     }
 
                     reco_buffer[idx] = recoHit;
                     idx++;
 
-                    if (create_stats)
-                    {
+                    if (m_create_stats) {
                       // cluster size histograms
-                      if ( !sig )
-                      {
+                      if ( !sig ) {
                         //bib_cSizeHisto->Fill(recoHit->getRawHits().size());
                         bib_cSizeHisto->Fill(digiHit.size);
                         bib_xSizeHisto->Fill(maxx-minx);
@@ -389,30 +366,28 @@ std::tuple<edm4hep::SimTrackerHitCollection,
                 if (reco_buffer.size() > 0)
 #pragma omp critical               
                 {
-                    for(TrackerHitPlaneImpl* recoHit : reco_buffer)
-                    {
+                    for(edm4hep::MutableTrackerHitPlane* recoHit : reco_buffer) {
                         if (recoHit == nullptr) continue;
-                        THcol->addElement(recoHit);
+                        THcol.push_back(recoHit);
 
-                        if (streamlog::out.write<streamlog::DEBUG7>())
-                        {
-                            streamlog::out() << "Reconstructed pixel cluster for " 
-                                             << sensor->GetLayer() << ":" << sensor->GetLadder() 
-                                             << ":" << cellid_decoder(recoHit)["sensor"] << std::endl
-                                             << "- global position (x,y,z,t) = " << recoHit->getPosition()[0] 
-                                             << ", " << recoHit->getPosition()[1] 
-                                             << ", " << recoHit->getPosition()[2] 
-                                             << ", " << recoHit->getTime() << std::endl
-                                             << "- charge = " << recoHit->getEDep() << std::endl;
+                        if ( msgLevel(MSG::DEBUG) ) {
+                            cellID_coder.setValue(recoHit->getCellID())
+                            debug() << "Reconstructed pixel cluster for " 
+                                    << sensor->GetLayer() << ":" << sensor->GetLadder() 
+                                    << ":" << cellID_coder["sensor"] << std::endl
+                                    << "- global position (x,y,z,t) = " 
+                                            << recoHit->getPosition().x 
+                                    << ", " << recoHit->getPosition().y
+                                    << ", " << recoHit->getPosition().z
+                                    << ", " << recoHit->getTime() << std::endl
+                                    << "- charge = " << recoHit->getEDep() << endmsg;
                         }
                     }
 
-                    for (LCRelationImpl* rel_item : rel_buffer)
-                    {
-                        relCol->addElement(rel_item);
+                    for (edm4hep::MutableTrackerHitSimTrackerHitLink* rel_item : rel_buffer) {
+                        relCol.push_back(rel_item);
                     }
-                    for (std::size_t k = 0; k < RELHISTOSIZE; k++)
-                    {
+                    for (std::size_t k = 0; k < RELHISTOSIZE; k++) {
                         relHisto[k] += histo_buffer[k];
                     }
                 }
@@ -421,100 +396,56 @@ std::tuple<edm4hep::SimTrackerHitCollection,
             delete sensor;
         }
     }
-    streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
+    message() << "Number of produced hits: " << THcol.size()  << endmsg;
     int count = 0;
-      streamlog_out(DEBUG) << "Hit relation histogram:" << std::endl;
-      for (std::size_t k = 0; k < RELHISTOSIZE; k++)
-      {
-        streamlog_out(DEBUG) << k << " " << relHisto[k] << std::endl;
+    debug() << "Hit relation histogram:" << std::endl;
+    for (std::size_t k = 0; k < RELHISTOSIZE; k++) {
+        debug() << k << " " << relHisto[k] << std::endl;
         count += relHisto[k];
-      }
-      streamlog_out(DEBUG) << "> " << THcol->getNumberOfElements() - count << std::endl;
+    }
+    debug() << "> " << THcol.size() - count << endmsg;
 
-    if (create_stats)
-    {
-        for (int i = 0; i < relCol->getNumberOfElements(); ++i)
-        {
-            LCRelationImpl* hitRel = dynamic_cast<LCRelationImpl*>(relCol->getElementAt(i));
-            TrackerHitPlaneImpl* recoHit = dynamic_cast<TrackerHitPlaneImpl*>(hitRel->getFrom());
-            SimTrackerHit* simTrkHit = dynamic_cast<SimTrackerHit*>(hitRel->getTo());
+    if (m_create_stats) {
+        for (int i = 0; i < relCol->getNumberOfElements(); ++i) {
+            edm4hep::TrackerHitSimTrackerHitLink hitRel = relCol.at(i);
+            edm4hep::TrackerHitPlane recoHit = hitRel.getFrom();
+            edm4hep::SimTrackerHit simTrkHit = hitRel.getTo();
 
-            float tmpf = pow(recoHit->getPosition()[0] - simTrkHit->getPosition()[0], 2);
-            tmpf += pow(recoHit->getPosition()[1] - simTrkHit->getPosition()[1], 2);
-            tmpf += pow(recoHit->getPosition()[2] - simTrkHit->getPosition()[2], 2);
+            float tmpf = pow(recoHit.getPosition().x - simTrkHit.getPosition().x, 2);
+            tmpf += pow(recoHit.getPosition().y - simTrkHit.getPosition().y, 2);
+            tmpf += pow(recoHit.getPosition().z - simTrkHit.getPosition().z, 2);
             
-            if (simTrkHit->isOverlay())
-            {
+            if (simTrkHit.isOverlay()) {
                 bib_dHisto->Fill(sqrt(tmpf));
-            }
-            else
-            {
+            } else {
                 signal_dHisto->Fill(sqrt(tmpf));
             }
         }
     }
+
+    return std::make_tuple( std::move(THcol), std::move(relCol) );
 }
 
-void MuonCVXDRealDigitiser::check(LCEvent *evt)
-{}
+StatusCode MuonCVXDRealDigitiser::finalize() {}
 
-void MuonCVXDRealDigitiser::end()
-{
-    streamlog_out(DEBUG) << "   end called  " << std::endl;
-
-    if (create_stats)
-    {
-        TFile statFile = TFile(stat_filename.c_str(), "recreate");
-        statFile.WriteObject(signal_dHisto, "Signal offset");
-        statFile.WriteObject(bib_dHisto, "BIB offset");
-        statFile.WriteObject(signal_cSizeHisto, "Signal cluster size");
-        statFile.WriteObject(signal_xSizeHisto, "Signal cluster size in x");
-        statFile.WriteObject(signal_ySizeHisto, "Signal cluster size in y");
-        statFile.WriteObject(signal_zSizeHisto, "Signal cluster size in z");
-        statFile.WriteObject(signal_eDepHisto, "Signal energy");
-        statFile.WriteObject(bib_cSizeHisto, "BIB cluster size");
-        statFile.WriteObject(bib_xSizeHisto, "BIB cluster size in x");
-        statFile.WriteObject(bib_ySizeHisto, "BIB cluster size in y");
-        statFile.WriteObject(bib_zSizeHisto, "BIB cluster size in z");
-        statFile.WriteObject(bib_eDepHisto, "BIB energy");
-        statFile.Flush();
-        statFile.Close();
+void MuonCVXDRealDigitiser::PrintGeometryInfo() {
+    message() << "Number of layers: " << m_numberOfLayers << std::endl;
+              << "Pixel size X: " << m_pixelSizeX << std::endl;
+              << "Pixel size Y: " << m_pixelSizeY << std::endl;
+              << "Electrons per KeV: " << m_electronsPerKeV << std::endl;
+    for (int i = 0; i < m_numberOfLayers; ++i) {
+        message() << "Layer " << i << std::endl;
+                  << "  Number of ladders: " << m_laddersInLayer[i] << std::endl;
+                  << "  Radius: " << m_layerRadius[i] << std::endl;
+                  << "  Ladder length: " << m_layerLadderLength[i] << std::endl;
+                  << "  Ladder width: "<< m_layerLadderWidth[i] << std::endl;
+                  << "  Ladder half width: " << m_layerLadderHalfWidth[i] << std::endl;
+                  << "  Phi offset: " << m_layerPhiOffset[i] << std::endl;
+                  << "  Active Si offset: " << m_layerActiveSiOffset[i] << std::endl;
+                  << "  Half phi: " << m_layerHalfPhi[i] << std::endl;
+                  << "  Thickness: " << m_layerThickness[i] << std::endl;
+                  << "  Half thickness: " << m_layerHalfThickness[i] << std::endl;
     }
-
-    if (signal_dHisto != nullptr) delete(signal_dHisto);
-    if (bib_dHisto != nullptr) delete(bib_dHisto);
-    if (signal_cSizeHisto != nullptr) delete(signal_cSizeHisto);
-    if (signal_xSizeHisto != nullptr) delete(signal_xSizeHisto);
-    if (signal_ySizeHisto != nullptr) delete(signal_ySizeHisto);
-    if (signal_zSizeHisto != nullptr) delete(signal_zSizeHisto);
-    if (signal_eDepHisto != nullptr) delete(signal_eDepHisto);
-    if (bib_cSizeHisto != nullptr) delete(bib_cSizeHisto);
-    if (bib_xSizeHisto != nullptr) delete(bib_xSizeHisto);
-    if (bib_ySizeHisto != nullptr) delete(bib_ySizeHisto);
-    if (bib_zSizeHisto != nullptr) delete(bib_zSizeHisto);
-    if (bib_eDepHisto != nullptr) delete(bib_eDepHisto);
-
-}
-
-void MuonCVXDRealDigitiser::PrintGeometryInfo()
-{
-    streamlog_out(MESSAGE) << "Number of layers: " << _numberOfLayers << std::endl;
-    streamlog_out(MESSAGE) << "Pixel size X: " << _pixelSizeX << std::endl;
-    streamlog_out(MESSAGE) << "Pixel size Y: " << _pixelSizeY << std::endl;
-    streamlog_out(MESSAGE) << "Electrons per KeV: " << _electronsPerKeV << std::endl;
-    for (int i = 0; i < _numberOfLayers; ++i) 
-    {
-        streamlog_out(MESSAGE) << "Layer " << i << std::endl;
-        streamlog_out(MESSAGE) << "  Number of ladders: " << _laddersInLayer[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Radius: " << _layerRadius[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder length: " << _layerLadderLength[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder width: "<< _layerLadderWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Ladder half width: " << _layerLadderHalfWidth[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Phi offset: " << _layerPhiOffset[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Active Si offset: " << _layerActiveSiOffset[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Half phi: " << _layerHalfPhi[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Thickness: " << _layerThickness[i] << std::endl;
-        streamlog_out(MESSAGE) << "  Half thickness: " << _layerHalfThickness[i] << std::endl;
-    }
+    message() << endmsg;
 }
 
