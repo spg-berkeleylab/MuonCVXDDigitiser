@@ -5,8 +5,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include "BitField64.h"
-#include <UTIL/LCTrackerConf.h>
+#include "BitField64.hxx"
 #include <edm4hep/SimTrackerHit.h>
 
 using std::string;
@@ -43,7 +42,7 @@ struct SegmentDigiHit
     float y;
     float charge;
     float time;
-    int cellID0;
+    int cellID;
     int size;
     SimHitSet sim_hits;
 };

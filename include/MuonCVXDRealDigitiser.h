@@ -95,7 +95,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * <br>
  */
-class MuonCVXDRealDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::TrackerHitPlaneCollection,
+class MuonCVXDRealDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::SimTrackerHitCollection,
+                                                                           edm4hep::TrackerHitPlaneCollection,
+                                                                           edm4hep::TrackerHitSimTrackerHitCollection,
                                                                            edm4hep::TrackerHitSimTrackerHitCollection>(
                                                                      const edm4hep::SimTrackerHitCollection&)>
 {  
@@ -110,23 +112,20 @@ public:
 
     /** Called for every event - the working horse.
     */
-    virtual std::tuple<edm4hep::TrackerHitPlaneCollection,
+    virtual std::tuple<edm4hep::SimTrackerHitCollection,
+                       edm4hep::TrackerHitPlaneCollection,
+                       edm4hep::TrackerHitSimTrackerHitCollection,
                        edm4hep::TrackerHitSimTrackerHitCollection> operator(
-                 const edm4hep::SimTrackerHitCollection& inputCollection) const;
+                 const edm4hep::SimTrackerHitCollection& STHcol) const;
 
     /** Called after data processing for clean up.
     */
     virtual StatusCode finalize();
 
-
-
 protected:
+    void LoadGeometry() const;
+    void PrintGeometryInfo() const;
 
-    void PrintGeometryInfo();
-
-
-    int m_debug;
-    int m_totEntries = 0;
     int m_barrelID = 0;
 
     // processor parameters
@@ -169,7 +168,7 @@ protected:
 
     // Graphs
     Gaudi::Property<std::string> m_stat_filename{this, "StatisticsFilename", std::string("None"), "File name for statistics (None for disabling the feature)"};
-    Gaudi::Property<bool>        create_stats{this, "CreateStats", false, "Create stats graphs for analysis"};
+    bool  create_stats;
     TH1F* signal_dHisto;
     TH1F* bib_dHisto;
     TH1F* signal_cSizeHisto;

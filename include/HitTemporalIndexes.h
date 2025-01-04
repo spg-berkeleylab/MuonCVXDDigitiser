@@ -8,7 +8,7 @@
 
 #include <edm4hep/SimTrackerHit.h>
 #include <edm4hep/SimTrackerHitCollection.h>
-#include "BitField64.h"
+#include "BitField64.hxx"
 
 using std::priority_queue;
 using std::unordered_map;

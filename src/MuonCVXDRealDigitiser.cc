@@ -3,34 +3,29 @@
 #include <algorithm>
 #include <math.h>
 
-#include <EVENT/LCIO.h>
-#include <EVENT/LCCollection.h>
-#include <EVENT/MCParticle.h>
+// edm4hep
+#include <edm4hep/MCParticle.h>
+#include "BitField64.hxx"
+#include <GaudiKernel/ITHistSvc.h>
 
-#include <UTIL/CellIDEncoder.h>
-#include <UTIL/CellIDDecoder.h>
-#include "UTIL/LCTrackerConf.h"
-
-#include <IMPL/LCCollectionVec.h>
-#include <IMPL/LCRelationImpl.h>
-
+// DD4hep
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
 #include "DD4hep/DD4hepUnits.h"
 
+// Random
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
 #include "CLHEP/Random/RandGauss.h"
 #include "CLHEP/Random/RandPoisson.h" 
 #include "CLHEP/Random/RandFlat.h"
 
+// Helpers
 #include "DetElemSlidingWindow.h"
 #include "TrivialSensor.h"
 #include "HKBaseSensor.h"
-    
-// ----- include for verbosity dependend logging ---------
-#include "marlin/VerbosityLevels.h"
 
+// ROOT
 #include <TFile.h>
 
 using CLHEP::RandGauss;
@@ -46,28 +41,30 @@ using dd4hep::rec::ISurface;
 using dd4hep::rec::Vector2D;
 using dd4hep::rec::Vector3D;
 
-MuonCVXDRealDigitiser aMuonCVXDRealDigitiser ;
+DECLARE_COMPONENT(MuonCVXDRealDigitiser)
 
-MuonCVXDRealDigitiser::MuonCVXDRealDigitiser() :
-    Processor("MuonCVXDRealDigitiser")
-{}
+MuonCVXDRealDigitiser::MuonCVXDRealDigitiser(const std::string& name, ISvcLocator* svcLoc) : MultiTransformer(name, svcLoc,
+          { KeyValues("CollectionName", {"VXDCollection"}) },
+          { KeyValues("SimHitLocCollectionName", {"VertexBarrel"}),
+            KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
+            KeyValues("RelationColName", {"VTXTrackerHitRelations"}),
+            KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"}) }) {}
 
 
-void MuonCVXDRealDigitiser::init()
-{ 
-    streamlog_out(DEBUG) << "   init called  " << std::endl ;
-
-    printParameters() ;
-
-    _nRun = 0 ;
-    _nEvt = 0 ;
-    _totEntries = 0;
+StatusCode MuonCVXDRealDigitiser::initialize() {
+    debug() << "   init called  " << endmsg;
 
     create_stats = stat_filename.compare(std::string { "None" }) != 0;
 
-    if (create_stats)
-    {
-        double max_histox = std::max(_pixelSizeX, _pixelSizeY) * 10;
+    if (create_stats) {
+        ITHistSvc* histSvc{nullptr};
+        StatusCode sc1 = service("THistSvc", histSvc);
+        if ( sc1.isFailure() ) {
+            error() << "Could not locate HistSvc" << endmsg;
+            return StatusCode::FAILURE;
+        }
+
+        double max_histox = std::max(m_pixelSizeX, m_pixelSizeY) * 10;
         signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
         bib_dHisto = new TH1F("BIBHitDistance", "BIB Hit offset", 1000, 0., max_histox);
         signal_cSizeHisto = new TH1F("SignalClusterSize", "Signal Cluster Size", 1000, 0., 50);
@@ -80,67 +77,80 @@ void MuonCVXDRealDigitiser::init()
         bib_ySizeHisto = new TH1F("BIBClusterSizeinY", "BIB Cluster Size in y", 1000, 0., 20);
         bib_zSizeHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Size in z", 1000, 0., 20);
         bib_eDepHisto = new TH1F("BIBClusterSizeinZ", "BIB Cluster Energy (MeV)", 1000, 0., 10e-1);
+ 
+        (void)histSvc->regHist("/histos/signal/hit_distance", signal_dHisto);
+        (void)histSvc->regHist("/histos/signal/cluster_size", signal_cSizeHisto);
+        (void)histSvc->regHist("/histos/signal/cluster_size_x", signal_xSizeHisto);
+        (void)histSvc->regHist("/histos/signal/cluster_size_y", signal_ySizeHisto);
+        (void)histSvc->regHist("/histos/signal/cluster_size_z", signal_zSizeHisto);
+        (void)histSvc->regHist("/histos/signal/cluster_E_dep", signal_eDepHisto);
+
+        (void)histSvc->regHist("/histos/bib/hit_distance", bib_dHisto);
+        (void)histSvc->regHist("/histos/bib/cluster_size", bib_cSizeHisto);
+        (void)histSvc->regHist("/histos/bib/cluster_size_x", bib_xSizeHisto);
+        (void)histSvc->regHist("/histos/bib/cluster_size_y", bib_ySizeHisto);
+        (void)histSvc->regHist("/histos/bib/cluster_size_z", bib_zSizeHisto);
+        (void)histSvc->regHist("/histos/bib/cluster_E_dep", bib_eDepHisto);
     }
+
+    return StatusCode::SUCCESS;
 }
 
 
-void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
-{ 
-    _nRun++ ;
-
+void MuonCVXDRealDigitiser::LoadGeometry() const{ 
     Detector& theDetector = Detector::getInstance();
-    DetElement vxBarrel = theDetector.detector(_subDetName);              // TODO check missing barrel
+    DetElement vxBarrel = theDetector.detector(m_subDetName);              // TODO check missing barrel
     ZPlanarData&  zPlanarData = *vxBarrel.extension<ZPlanarData>();       // TODO check missing extension
     std::vector<ZPlanarData::LayerLayout> vx_layers = zPlanarData.layers;
-    _numberOfLayers  = vx_layers.size();
+    m_numberOfLayers  = vx_layers.size();
 
     SurfaceManager& surfMan = *theDetector.extension<SurfaceManager>();
-    _map = surfMan.map( vxBarrel.name() ) ;
-    if( ! _map ) 
+    m_map = surfMan.map( vxBarrel.name() );
+    if( ! m_map ) 
     {
-      std::stringstream err  ; err << " Could not find surface map for detector: "
-                                 << _subDetName << " in SurfaceManager " ;
+      std::stringstream err;
+      err << " Could not find surface map for detector: "
+          << m_subDetName << " in SurfaceManager ";
       throw Exception( err.str() ) ;
     }
 
-    _barrelID = vxBarrel.id();
-    _laddersInLayer.resize(_numberOfLayers);
-    _sensorsPerLadder.resize(_numberOfLayers);
-    _layerHalfPhi.resize(_numberOfLayers);
-    _layerHalfThickness.resize(_numberOfLayers);
-    _layerThickness.resize(_numberOfLayers);
-    _layerRadius.resize(_numberOfLayers);
-    _layerLadderLength.resize(_numberOfLayers);
-    _layerLadderWidth.resize(_numberOfLayers);
-    _layerLadderHalfWidth.resize(_numberOfLayers);
-    _layerActiveSiOffset.resize(_numberOfLayers);
-    _layerPhiOffset.resize(_numberOfLayers);
+    m_barrelID = vxBarrel.id();
+    m_laddersInLayer.resize(m_numberOfLayers);
+    m_sensorsPerLadder.resize(m_numberOfLayers);
+    m_layerHalfPhi.resize(m_numberOfLayers);
+    m_layerHalfThickness.resize(m_numberOfLayers);
+    m_layerThickness.resize(m_numberOfLayers);
+    m_layerRadius.resize(m_numberOfLayers);
+    m_layerLadderLength.resize(m_numberOfLayers);
+    m_layerLadderWidth.resize(m_numberOfLayers);
+    m_layerLadderHalfWidth.resize(m_numberOfLayers);
+    m_layerActiveSiOffset.resize(m_numberOfLayers);
+    m_layerPhiOffset.resize(m_numberOfLayers);
 
     int curr_layer = 0;
-    for(ZPlanarData::LayerLayout z_layout : vx_layers)
-    {
+    for(ZPlanarData::LayerLayout z_layout : vx_layers) {
         // ALE: Geometry is in cm, convert all lenght in mm
-        _laddersInLayer[curr_layer] = z_layout.ladderNumber;
+        m_laddersInLayer[curr_layer] = z_layout.ladderNumber;
 
-        _layerHalfPhi[curr_layer] = M_PI / ((double)_laddersInLayer[curr_layer]) ;
+        m_layerHalfPhi[curr_layer] = M_PI / ((double)m_laddersInLayer[curr_layer]) ;
 
-        _layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
+        m_layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
 
-        _layerHalfThickness[curr_layer] = 0.5 * _layerThickness[curr_layer];
+        m_layerHalfThickness[curr_layer] = 0.5 * m_layerThickness[curr_layer];
 
-        _layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + _layerHalfThickness[curr_layer];
+        m_layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + m_layerHalfThickness[curr_layer];
 
-        _sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
+        m_sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
 
-        _layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+        m_layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
 
-        _layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
+        m_layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;
 
-        _layerLadderHalfWidth[curr_layer] = _layerLadderWidth[curr_layer] / 2.;
+        m_layerLadderHalfWidth[curr_layer] = m_layerLadderWidth[curr_layer] / 2.;
 
-        _layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
+        m_layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
 
-        _layerPhiOffset[curr_layer] = z_layout.phi0;
+        m_layerPhiOffset[curr_layer] = z_layout.phi0;
 
         curr_layer++;
     }
@@ -149,41 +159,28 @@ void MuonCVXDRealDigitiser::processRunHeader(LCRunHeader* run)
 } 
 
 
-void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
-{ 
-    LCCollectionVec *THcol = new LCCollectionVec(LCIO::TRACKERHITPLANE);
-    CellIDEncoder<TrackerHitPlaneImpl> cellid_encoder(lcio::LCTrackerCellID::encoding_string(), THcol);
-
-    LCCollectionVec* relCol = new LCCollectionVec(LCIO::LCRELATION);
-    // to store the weights
-    LCFlagImpl lcFlag { 0 };
-    lcFlag.setBit(LCIO::LCREL_WEIGHTED);
-    relCol->setFlag(lcFlag.getFlag());
-
-    evt->addCollection(THcol, _outputCollectionName.c_str());
-    evt->addCollection(relCol, _colVTXRelation.c_str());
-
-    LCCollection* STHcol = nullptr;
-    try
-    {
-        STHcol = evt->getCollection(_colName);
-        streamlog_out( DEBUG9 ) << "Processing collection " << _colName  << " with "
-                                <<  STHcol->getNumberOfElements()  << " hits ... " << std::endl ;
+std::tuple<edm4hep::SimTrackerHitCollection,
+                       edm4hep::TrackerHitPlaneCollection,
+                       edm4hep::TrackerHitSimTrackerHitCollection,
+                       edm4hep::TrackerHitSimTrackerHitCollection> operator(
+                 const edm4hep::SimTrackerHitCollection& STHcol) const{
+    if ( !m_map ) {
+        LoadGeometry();
     }
-    catch( lcio::DataNotAvailableException ex )
-    {
-        streamlog_out(ERROR) << _colName << " collection not available" << std::endl;
-        STHcol = nullptr;
-    }
+    edm4hep::SimTrackerHitCollection               STHLocCol;
+    edm4hep::TrackerHitPlaneCollection             THcol;
+    edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
+    edm4hep::TrackerHitSimTrackerHitLinkCollection rawHitsCol;
 
-    if (STHcol == nullptr or STHcol->getNumberOfElements() == 0)
-    {
-        streamlog_out(MESSAGE) << "Number of produced hits: " << THcol->getNumberOfElements()  << std::endl;
-        return;
-    }
+    BitField64 cellID_coder("subdet:5,side:-2,layer:9,module:8,sensor:8");
 
-    std::string encoder_str { STHcol->getParameters().getStringVal(lcio::LCIO::CellIDEncoding) };
-    CellIDDecoder<TrackerHitPlaneImpl> cellid_decoder { encoder_str };
+    if (STHcol == nullptr or STHcol.size() == 0) {
+        message() << "Number of produced hits: " << THcol.size()  << endmsg;
+        return std::make_tuple(std::move(STHLocCol),
+                               std::move(THcol),
+                               std::move(relCol),
+                               std::move(rawHitsCol) );
+    }
 
     std::size_t RELHISTOSIZE { 10 };
     vector<std::size_t> relHisto {};
@@ -194,98 +191,94 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
     for (int layer = 0; layer < _numberOfLayers; layer++)
     {
 #pragma omp parallel for
-        for (int ladder = 0; ladder < _laddersInLayer[layer]; ladder++)
+        for (int ladder = 0; ladder < m_laddersInLayer[layer]; ladder++)
         {
             int num_segment_x = 1;
-            int nun_segment_y = _sensorsPerLadder[layer];
+            int nun_segment_y = m_sensorsPerLadder[layer];
 
             float m_time = t_index.GetMinTime(layer, ladder);
             if (m_time == HitTemporalIndexes::MAXTIME)
             {
-                if (streamlog::out.write<streamlog::DEBUG6>())
+                if ( msgLevel(MSG::DEBUG) )
 #pragma omp critical
                 {
-                    streamlog::out() << "Undefined min time for layer " << layer
-                        << " ladder " << ladder << std::endl;
+                    debug() << "Undefined min time for layer " << layer
+                            << " ladder " << ladder << endmsg;
                 }
                 continue;
             }
             //clock time centered at 0
-            float nw = floor(fabs(m_time) / _window_size);
-            float start_time = (m_time >= 0) ? nw * _window_size : -1 * (nw + 1) * _window_size;
+            float nw = floor(fabs(m_time) / m_window_size);
+            float start_time = (m_time >= 0) ? nw * m_window_size : -1 * (nw + 1) * m_window_size;
 
             AbstractSensor* sensor = nullptr;
-            if (sensor_type == 1)
-            {
+            if (sensor_type == 1) {
                 sensor = new TrivialSensor(layer, ladder, num_segment_x, nun_segment_y,
-                                            _layerLadderLength[layer], _layerLadderWidth[layer],
-                                            _layerThickness[layer], _pixelSizeX, _pixelSizeY,
-                                            encoder_str, _barrelID, _threshold,
-                                            start_time, _window_size);
-            }
-            else
-            {
+                                          m_layerLadderLength[layer], m_layerLadderWidth[layer],
+                                          m_layerThickness[layer], m_pixelSizeX, m_pixelSizeY,
+                                          encoder_str, _barrelID, m_threshold,
+                                          start_time, m_window_size);
+            } else {
                 sensor = new HKBaseSensor(layer, ladder, num_segment_x, nun_segment_y, 
-                                            _layerLadderLength[layer], _layerLadderWidth[layer],
-                                            _layerThickness[layer], _pixelSizeX, _pixelSizeY,
-                                            encoder_str, _barrelID, _threshold, _fe_slope,
-                                            start_time, _window_size);
+                                          m_layerLadderLength[layer], m_layerLadderWidth[layer],
+                                          m_layerThickness[layer], m_pixelSizeX, m_pixelSizeY,
+                                          encoder_str, m_barrelID, m_threshold, m_fe_slope,
+                                          start_time, m_window_size);
             }
 
-            if (sensor->GetStatus() != MatrixStatus::ok and streamlog::out.write<streamlog::ERROR>())
-            {
+            if (sensor->GetStatus() != MatrixStatus::ok and msgLevel(MSG::ERROR)) {
                 if (sensor->GetStatus() == MatrixStatus::pixel_number_error)
 #pragma omp critical
                 {
-                    streamlog::out() << "Pixel number error for layer " << layer
-                                        << " ladder " << ladder << std::endl;
-                }
-                else
+                    error() << "Pixel number error for layer " << layer
+                            << " ladder " << ladder << endmsg;
+                } else
 #pragma omp critical
                 {
-                    streamlog::out() << "Segment number error for layer " << layer
-                                        << " ladder " << ladder << std::endl;
+                    error() << "Segment number error for layer " << layer
+                            << " ladder " << ladder << endmsg;
                 }
                 continue;
             }
 
             DetElemSlidingWindow t_window {
                 t_index, *sensor,
-                _window_size, start_time,
-                _tanLorentzAngleX, _tanLorentzAngleY,
-                _cutOnDeltaRays,
-                _diffusionCoefficient,
-                _electronsPerKeV,
-                _segmentLength,
-                _energyLoss,
+                m_window_size, start_time,
+                m_tanLorentzAngleX, m_tanLorentzAngleY,
+                m_cutOnDeltaRays,
+                m_diffusionCoefficient,
+                m_electronsPerKeV,
+                m_segmentLength,
+                m_energyLoss,
                 3.0,
-                _electronicNoise,
-                _maxTrkLen,
-                _deltaEne,
-                _map
+                m_electronicNoise,
+                m_maxTrkLen,
+                m_deltaEne,
+                m_map
             };
 
             vector<std::size_t> histo_buffer {};
 
-            while(t_window.active())
-            {
+            while(t_window.active()) {
                 t_window.process();
 
                 SegmentDigiHitList hit_buffer {};
                 sensor->buildHits(hit_buffer);
                 if (hit_buffer.size() == 0) continue;
 
-                vector<TrackerHitPlaneImpl*> reco_buffer;
+                std::vector<edm4hep::MutableTrackerHitPlane*> reco_buffer;
                 reco_buffer.assign(hit_buffer.size(), nullptr);
 
-                vector<LCRelationImpl*> rel_buffer;
+                std::vector<edm4hep::TrackerHitSimTrackerHitLink*> rel_buffer;
                 histo_buffer.assign(RELHISTOSIZE, 0);
 
+                std::vector<edm4hep::SimTrackerHit*> rawHits_buffer;
+                std::ccvector<edm4hep::TrackerHitSimTrackerHitLink*> rawHitsLink_buffer;
+
                 int idx = 0;
-                for (SegmentDigiHit& digiHit : hit_buffer)
-                {
-                    TrackerHitPlaneImpl *recoHit = new TrackerHitPlaneImpl();
-                    recoHit->setEDep((digiHit.charge / _electronsPerKeV) * dd4hep::keV);
+                for (SegmentDigiHit& digiHit : hit_buffer) {
+                    edm4hep::MutableTrackerHitPlane *recoHit = new edm4hep::MutableTrackerHitPlane();
+                    recoHit->setEDep((digiHit.charge / m_electronsPerKeV) * dd4hep::keV);
 
                     bool sig = false;
                     double minx = 999;
@@ -295,28 +288,28 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     double minz = 999;
                     double maxz = -999;
 
-                    double loc_pos[3] = { 
-                        digiHit.x - _layerHalfThickness[layer] * _tanLorentzAngleX,
-                        digiHit.y - _layerHalfThickness[layer] * _tanLorentzAngleY,
+                    edm4hep::Vector3d loc_pos(
+                        digiHit.x - m_layerHalfThickness[layer] * m_tanLorentzAngleX,
+                        digiHit.y - m_layerHalfThickness[layer] * m_tanLorentzAngleY,
                         0
-                    };
+                    );
 
-                    recoHit->setCellID0(digiHit.cellID0);
-                    recoHit->setCellID1(0);
+                    recoHit->setCellID(digiHit.cellID);
 
-                    SurfaceMap::const_iterator sI = _map->find(digiHit.cellID0);
+                    SurfaceMap::const_iterator sI = m_map->find(digiHit.cellID);
                     const ISurface* surf = sI->second;
 
                     // See DetElemSlidingWindow::StoreSignalPoints
-                    int segment_id = cellid_decoder(recoHit)["sensor"];
+                    cellID_coder.setValue(recoHit.getcellID())
+                    int segment_id = cellID_coder["sensor"];
                     float s_offset = sensor->GetSensorCols() * sensor->GetPixelSizeY();
                     s_offset *= (float(segment_id) + 0.5);
                     s_offset -= sensor->GetHalfLength();
 
-                    Vector2D oldPos(loc_pos[0] * dd4hep::mm, (loc_pos[1] - s_offset)* dd4hep::mm);
+                    Vector2D oldPos(loc_pos.x * dd4hep::mm, (loc_pos.y - s_offset)* dd4hep::mm);
                     Vector3D lv = surf->localToGlobal(oldPos);
 
-                    double xLab[3];
+                    edm4hep::Vector3d xLab;
                     for ( int i = 0; i < 3; i++ )
                     {
                         xLab[i] = lv[i] / dd4hep::mm;
@@ -329,35 +322,38 @@ void MuonCVXDRealDigitiser::processEvent(LCEvent * evt)
                     Vector3D u = surf->u() ;
                     Vector3D v = surf->v() ;
 
-                    float u_direction[2] = { u.theta(), u.phi() };
-                    float v_direction[2] = { v.theta(), v.phi() };
+                    edm4hep::Vector2f u_direction( u.theta(), u.phi() );
+                    edm4hep::Vector2f v_direction( v.theta(), v.phi() );
 
                     recoHit->setU( u_direction ) ;
                     recoHit->setV( v_direction ) ;
 
                     // ALE Does this make sense??? TO CHECK
-                    recoHit->setdU( _pixelSizeX / sqrt(12) );
-                    recoHit->setdV( _pixelSizeY / sqrt(12) );  
+                    recoHit->setdU( m_pixelSizeX / sqrt(12) );
+                    recoHit->setdV( m_pixelSizeY / sqrt(12) );  
 
                     //All the sim-hits are registered for a given reco-hit
-                    for (SimTrackerHit* st_item : digiHit.sim_hits)
-                    {
-                      if (create_stats)
-                      {
+                    for (edm4hep::SimTrackerHit *st_item : digiHit.sim_hits) {
+                      if (create_stats) {
                         if (!st_item->isOverlay()) sig = true;
-                        if ( st_item->getPosition()[0] < minx ) minx = st_item->getPosition()[0];
-                        else if ( st_item->getPosition()[0] > maxx ) maxx = st_item->getPosition()[0];
-                        if ( st_item->getPosition()[1] < miny ) miny = st_item->getPosition()[1];
-                        else if ( st_item->getPosition()[1] > maxy ) maxy = st_item->getPosition()[1];
-                        if ( st_item->getPosition()[2] < minz ) minz = st_item->getPosition()[2];
-                        else if ( st_item->getPosition()[2] > maxz ) maxz = st_item->getPosition()[2];
+                        if ( st_item->getPosition().x < minx ) minx = st_item->getPosition().x;
+                        else if ( st_item->getPosition().x > maxx ) maxx = st_item->getPosition().x;
+                        if ( st_item->getPosition().y < miny ) miny = st_item->getPosition().y;
+                        else if ( st_item->getPosition().y > maxy ) maxy = st_item->getPosition().y;
+                        if ( st_item->getPosition().z < minz ) minz = st_item->getPosition().z;
+                        else if ( st_item->getPosition().z > maxz ) maxz = st_item->getPosition().z;
                       }
-                        recoHit->rawHits().push_back( st_item );
-                        LCRelationImpl* t_rel = new LCRelationImpl {};
+                        //recoHit->rawHits().push_back( st_item );
+                        rawHits_buffer.push_back( st_item );
+                        edm4hep::MutableTrackerHitSimTrackerHitLink* t_rel = new edm4hep::MutableTrackerHitSimTrackerHitLink();
                         t_rel->setFrom(recoHit);
                         t_rel->setTo(st_item);
                         t_rel->setWeight( 1.0 );
                         rel_buffer.push_back(t_rel);
+
+                        edm4hep::MutableTrackerHitSimTrackerHitLink* rawLink = new edm4hep::MutableTrackerHitSimTrackerHitLink();
+                        rawLink->setFrom(recoHit);
+                        rawLink->setTo(st_item)
                     }
 
                     if (digiHit.sim_hits.size() < RELHISTOSIZE)

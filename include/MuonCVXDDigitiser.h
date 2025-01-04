@@ -40,7 +40,24 @@ struct SignalPoint
     double charge;
 };
 
-typedef std::vector<MutableSimTrackerHit> MutableSimTrackerHitVec;
+struct InternalState
+{
+    int    currentLayer;
+    int    currentLadder;
+    int    numberOfSegments;
+    double currentParticleMass;
+    double currentParticleMomentum;
+    double currentPhi;
+    double eSum;
+    double segmentDepth;
+    edm4hep::Vector3d  currentLocalPosition;
+    edm4hep::Vector3d  currentEntryPoint;
+    edm4hep::Vector3d  currentExitPoint;
+    IonisationPointVec ionisationPoints;
+    SignalPointVec     signalPoints;
+};
+
+typedef std::vector<edm4hep::MutableSimTrackerHit*> MutableSimTrackerHitVec;
 typedef std::vector<IonisationPoint> IonisationPointVec;
 typedef std::vector<SignalPoint> SignalPointVec;
 
@@ -78,21 +95,21 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * @param WidthOfCluster defines width in Gaussian sigmas to perform charge integration for 
  * a given pixel <br>
  * (default parameter value : 3.0) <br>
- * @param PoissonSmearing flag to switch on gaussian smearing of electrons collected on pixels <br>
+ * @param PoissonSmearing bool to switch on gaussian smearing of electrons collected on pixels <br>
  * (default parameter value : 1) <br>
  * @param ThresholdSmearSigma: sigma of Gaussian used in threshold smearing <br>
  * (default parameter value: 25) <br>
- * @param ChargeDigitize flag to switch on charge discretization <br>
+ * @param ChargeDigitize bool to switch on charge discretization <br>
  * (default parameter value: 1) <br>
  * @param ChargeDigitizeNumBits number of bits used to determine bins for charge discretization <br>
  * (default parameter value: 4) <br>
  * @param ChargeDigitizeBinning binning scheme for charge discretization
  * (default parameter value; 1) <br>
- * @param ElectronicEffects flag to switch on gaussian smearing of signal (electronic noise) <br>
+ * @param ElectronicEffects bool to switch on gaussian smearing of signal (electronic noise) <br>
  * (default parameter value : 1) <br>
  * @param ElectronicNoise electronic noise in electrons <br>
  * (default parameter value : 100) <br>
- * @param StoreFiredPixels flag to store also the fired pixels (collection names: "VTXPixels") <br>
+ * @param StoreFiredPixels bool to store also the fired pixels (collection names: "VTXPixels") <br>
  * (default parameter value : 0) <br>
  * @param EnergyLoss Energy loss in keV/mm <br>
  * (default parameter value : 280.0) <br>
@@ -102,7 +119,9 @@ typedef std::vector<SignalPoint> SignalPointVec;
  * (default parameter value : 10) <br> 
  * <br>
  */
-class MuonCVXDDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::TrackerHitPlaneCollection, 
+class MuonCVXDDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::SimTrackerHitCollection,
+                                                                       edm4hep::TrackerHitPlaneCollection,
+                                                                       edm4hep::TrackerHitSimTrackerHitCollection,
                                                                        edm4hep::TrackerHitSimTrackerHitCollection>(
                                                                  const edm4hep::SimTrackerHitCollection&)>
 {  
@@ -117,9 +136,11 @@ public:
 
     /** Called for every event - the working horse.
     */
-    virtual std::tuple<edm4hep::TrackerHitPlaneCollection,
+    virtual std::tuple<edm4hep::SimTrackerHitCollection,
+                       edm4hep::TrackerHitPlaneCollection,
+                       edm4hep::TrackerHitSimTrackerHitCollection,
                        edm4hep::TrackerHitSimTrackerHitCollection> operator(
-                 const edm4hep::SimTrackerHitCollection& inputCollection) const; 
+                 const edm4hep::SimTrackerHitCollection& STHcol) const; 
 
     /** Called after data processing for clean up.
     */
@@ -127,8 +148,6 @@ public:
 
 protected:
 
-    int  m_debug = 0;
-    int  m_totEntries = 0;
     bool isBarrel;
     bool isVertex;
     bool isInnerTracker;
@@ -149,19 +168,19 @@ protected:
     Gaudi::Property<double> m_energyLoss{this, "EnergyLoss", (double)280., "Energy Loss keV/mm"};
     Gaudi::Property<double> m_deltaEne{this, "MaxEnergyDelta", (double)100., "Max delta in energy between G4 prediction and random sampling for each hit in electrons"};
     Gaudi::Property<double> m_maxTrkLen{this, "MaxTrackLength", (double)10., "Maximum values for track length (in mm)"};	
-    Gaudi::Property<int>    m_PoissonSmearing{this, "PoissonSmearing", 1, "Apply Poisson smearing of electrons collected on pixels"};
+    Gaudi::Property<bool>   m_PoissonSmearing{this, "PoissonSmearing", true, "Apply Poisson smearing of electrons collected on pixels"};
     Gaudi::Property<int>    m_thresholdSmearSigma{this, "ThresholdSmearSigma", 25, "sigma of Gaussian used in threshold smearing, in electrons"};
-    Gaudi::Property<int>    m_DigitizeCharge{this, "DigitizeCharge", 1, "Flag to enable Digitization of the charge collected on pixels"};
+    Gaudi::Property<bool>   m_DigitizeCharge{this, "DigitizeCharge", true, "Flag to enable Digitization of the charge collected on pixels"};
     Gaudi::Property<int>    m_ChargeDigitizeNumBits{this, "ChargeDigitizeNumBits", 4, "Number of bits used to determine bins for charge discretization"};
     Gaudi::Property<int>    m_ChargeDigitizeBinning{this, "ChargeDigitizeBinning", 1, "Binning scheme used for charge discretization"};
     Gaudi::Property<double> m_chargeMax{this, "ChargeMaximum", (double)15000., "Cell dynamic range in electrons"};
-    Gaudi::Property<int>    m_DigitizeTime{this, "DigitizeTime", 1, "Flag to enable digitization of timing information."};
+    Gaudi::Property<bool>   m_DigitizeTime{this, "DigitizeTime", true, "Flag to enable digitization of timing information."};
     Gaudi::Property<int>    m_TimeDigitizeNumBits{this, "TimeDigitizeNumBits", 10, "Number of bits used to determine bins for time discretization"};
     Gaudi::Property<double> m_timeMax{this, "TimeMaximum", (double)10., "Cell dynamic range for timing measurement [ns]"};
     Gaudi::Property<int>    m_TimeDigitizeBinning{this, "TimeDigitizeBinning", 0, "Binning scheme used for time discretization"};
     Gaudi::Property<double> m_timeSmearingSigma{this, "TimeSmearingSigma", 0.05, "Effective intrinsic time measurement resolution effects [ns]."};
-    Gaudi::Property<int>    m_electronicEffects{this, "ElectronicEffects", 1, "Apply Electronic Effects"};
-    Gaudi::Property<int>    m_produceFullPattern{this, "StoreFiredPixels", 0, "Store fired pixels"};
+    Gaudi::Property<bool>   m_electronicEffects{this, "ElectronicEffects", true, "Apply Electronic Effects"};
+    Gaudi::Property<bool>   m_produceFullPattern{this, "StoreFiredPixels", false, "Store fired pixels"};
 
     MyG4UniversalFluctuationForSi *m_fluctuate;
 
@@ -190,46 +209,31 @@ protected:
     std::vector<float> m_layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* m_map;
 
-    // internal state
-    int    m_currentLayer;
-    int    m_currentLadder;
-    int    m_numberOfSegments;
-    double m_currentParticleMass;
-    double m_currentParticleMomentum;
-    double m_currentPhi;
-    double m_eSum;
-    double m_segmentDepth;
-    double m_currentLocalPosition[3];
-    double m_currentEntryPoint[3];
-    double m_currentExitPoint[3];
-    IonisationPointVec m_ionisationPoints;
-    SignalPointVec m_signalPoints;
-
     /* Charge digitization helpers */
-    void ProduceIonisationPoints(SimTrackerHit hit);
-    void ProduceSignalPoints();
-    void ProduceHits(MutableSimTrackerHitVec &simTrkVec, SimTrackerHit &simHit);
-    void PoissonSmearer(MutableSimTrackerHitVec &simTrkVec);
-    void GainSmearer(MutableSimTrackerHitVec &simTrkVec);
-    void ApplyThreshold(MutableSimTrackerHitVec &simTrkVec);
-    void ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec);
+    void ProduceIonisationPoints(edm4hep::SimTrackerHit &hit, InternalState *intState) const;
+    void ProduceSignalPoints(InternalState *intState) const;
+    void ProduceHits(MutableSimTrackerHitVec &simTrkVec, edm4hep::SimTrackerHit &simHit, InternalState *intState) const;
+    void PoissonSmearer(MutableSimTrackerHitVec &simTrkVec) const;
+    void GainSmearer(MutableSimTrackerHitVec &simTrkVec) const;
+    void ApplyThreshold(MutableSimTrackerHitVec &simTrkVec) const;
+    void ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec) const;
 
     /* Time digitization helpers */
-    void TimeSmearer(MutableSimTrackerHitVec &simTrkVec);
-    void TimeDigitizer(MutableSimTrackerHitVec &simTrkVec);
+    void TimeSmearer(MutableSimTrackerHitVec &simTrkVec) const;
+    void TimeDigitizer(MutableSimTrackerHitVec &simTrkVec) const;
 
     /* Reconstruction of measurement and helpers */
-    MutableTrackerHitPlane ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec);
-    void TransformToLab(const int cellID, const double *xLoc, double *xLab);
-    void FindLocalPosition(SimTrackerHit *hit, double *localPosition, double *localDirection);
-    void TransformXYToCellID(double x, double y, int & ix, int & iy);
-    void TransformCellIDToXY(int ix, int iy, double & x, double & y);
-    int GetPixelsInaRow();
-    int GetPixelsInaColumn();
+    edm4hep::MutableTrackerHitPlane *ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec, edm4hep::TrackerHitPlaneCollection *THcol, InternalState *intState) const;
+    void TransformToLab(const int cellID, edm4hep::Vector3d xLoc, edm4hep::Vector3d xLab) const;
+    void FindLocalPosition(edm4hep::SimTrackerHit &hit, edm4hep::Vector3d &localPosition, edm4hep::Vector3d &localDirection, InternalState *intState) const;
+    void TransformXYToCellID(double x, double y, int & ix, int & iy, InternalState *intState) const;
+    void TransformCellIDToXY(int ix, int iy, double & x, double & y, InternalState* instate) const;
+    int GetPixelsInaRow(InternalState *intState) const;
+    int GetPixelsInaColumn(InternalState *intState) const;
 
-    void LoadGeometry();
-    void PrintGeometryInfo();
-    double randomTail( const double qmin, const double qmax );
+    void LoadGeometry() const;
+    void PrintGeometryInfo() const;
+    double randomTail( const double qmin, const double qmax ) const;
 };
 
 #endif

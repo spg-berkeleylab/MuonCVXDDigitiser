@@ -8,7 +8,7 @@
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
 #include "G4UniversalFluctuation.h"
-#include "BitField64.h"
+#include "BitField64.hxx"
 
 using dd4hep::rec::SurfaceMap;
 
