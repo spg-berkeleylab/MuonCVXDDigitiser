@@ -19,9 +19,9 @@ class CmpTrackTime
 {
 public:
     CmpTrackTime(){}
-    bool operator()(SimTrackerHit &alfa, SimTrackerHit &beta)
+    bool operator()(SimTrackerHit *alfa, SimTrackerHit *beta)
     {
-        return alfa.getTime() > beta.getTime();
+        return alfa->getTime() > beta->getTime();
 
     }
 };
@@ -32,7 +32,7 @@ typedef priority_queue<SimTrackerHit*, std::vector<SimTrackerHit*>, CmpTrackTime
 class HitTemporalIndexes
 {
 public:
-    HitTemporalIndexes(const SimTrackerHitCollection STHcol);
+    HitTemporalIndexes(const SimTrackerHitCollection& STHcol);
     virtual ~HitTemporalIndexes();
     SimTrackerHit* CurrentHit(int layer, int ladder);
     void DisposeHit(int layer, int ladder);

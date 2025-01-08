@@ -117,7 +117,7 @@ void AbstractSensor::InitHitRegister()
     if (reset_simtable_at_once) simhit_table.clear();
 }
 
-void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit hit)
+void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit *hit)
 {
     simhit_table.emplace(l_locate(x, y), hit);
 }

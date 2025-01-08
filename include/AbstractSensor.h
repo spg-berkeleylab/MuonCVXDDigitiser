@@ -5,6 +5,8 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include "GaudiKernel/IMessageSvc.h"
+#include "GaudiKernel/MsgStream.h"
 #include "BitField64.hxx"
 #include <edm4hep/SimTrackerHit.h>
 
@@ -135,7 +137,7 @@ public:
 
     virtual void InitHitRegister();
 
-    virtual void RegisterHit(int x, int y, SimTrackerHit* hit);
+    virtual void RegisterHit(int x, int y, SimTrackerHit *hit);
 
     virtual void Reset() = 0;
 
@@ -151,7 +153,7 @@ public:
 
     virtual bool CheckStatus(int x, int y, PixelStatus pstat) = 0;
 
-    virtual void buildHits(SegmentDigiHitList& output) = 0;
+    virtual void buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc) = 0;
 
 protected:
 

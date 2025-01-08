@@ -7,6 +7,8 @@
 #include "AbstractSensor.h"
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
+#include "GaudiKernel/IMessageSvc.h"
+#include "GaudiKernel/MsgStream.h"
 #include "G4UniversalFluctuation.h"
 #include "BitField64.hxx"
 
@@ -19,7 +21,7 @@ struct TimedSignalPoint
     double sigmaX;
     double sigmaY;
     double charge;
-    SimTrackerHit sim_hit;
+    SimTrackerHit *sim_hit;
 };
 
 typedef std::list<TimedSignalPoint> TimedSignalPointList;
@@ -45,11 +47,11 @@ public:
                          const SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     bool active();
-    int process();
+    int process(IMessageSvc* msgSvc);
     float get_time();
 
 private:
-    void StoreSignalPoints(SimTrackerHit* hit);
+    void StoreSignalPoints(SimTrackerHit *hit, IMessageSvc* msgSvc);
     void UpdatePixels();
     double randomTail( const double qmin, const double qmax );
 

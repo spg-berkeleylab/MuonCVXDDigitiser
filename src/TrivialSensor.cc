@@ -106,7 +106,7 @@ bool TrivialSensor::CheckStatus(int x, int y, PixelStatus pstat)
     return cond1 or cond2;
 }
 
-void TrivialSensor::buildHits(SegmentDigiHitList& output)
+void TrivialSensor::buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
     BitField64 bf_encoder = getBFEncoder();
@@ -121,7 +121,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+            bf_encoder["sensor"] = sens_id;
 
             fu_algo.init();
 

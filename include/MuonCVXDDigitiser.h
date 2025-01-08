@@ -4,13 +4,13 @@
 // Standard
 #include <string>
 #include <vector>
+#include <tuple>
 
 // k4FWCore
 #include <k4FWCore/Transformer.h>
 
 // edm4hep
 #include <edm4hep/SimTrackerHit.h>
-#include <edm4hep/MutableTrackerHit.h>
 #include <edm4hep/MutableSimTrackerHit.h>
 #include <edm4hep/MutableTrackerHitPlane.h>
 #include <edm4hep/SimTrackerHitCollection.h>
@@ -40,6 +40,10 @@ struct SignalPoint
     double charge;
 };
 
+typedef std::vector<edm4hep::MutableSimTrackerHit*> MutableSimTrackerHitVec;
+typedef std::vector<IonisationPoint> IonisationPointVec;
+typedef std::vector<SignalPoint> SignalPointVec;
+
 struct InternalState
 {
     int    currentLayer;
@@ -57,9 +61,6 @@ struct InternalState
     SignalPointVec     signalPoints;
 };
 
-typedef std::vector<edm4hep::MutableSimTrackerHit*> MutableSimTrackerHitVec;
-typedef std::vector<IonisationPoint> IonisationPointVec;
-typedef std::vector<SignalPoint> SignalPointVec;
 
 /**  Digitizer for Simulated Hits in the Vertex Detector. <br>
  * Digitization follows the procedure adopted in the CMS software package. 
@@ -121,8 +122,8 @@ typedef std::vector<SignalPoint> SignalPointVec;
  */
 class MuonCVXDDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::SimTrackerHitCollection,
                                                                        edm4hep::TrackerHitPlaneCollection,
-                                                                       edm4hep::TrackerHitSimTrackerHitCollection,
-                                                                       edm4hep::TrackerHitSimTrackerHitCollection>(
+                                                                       edm4hep::TrackerHitSimTrackerHitLinkCollection,
+                                                                       edm4hep::TrackerHitSimTrackerHitLinkCollection>(
                                                                  const edm4hep::SimTrackerHitCollection&)>
 {  
 public:  
@@ -132,19 +133,19 @@ public:
     /** Called at the begin of the job before anything is read.
     * Use to initialize the processor, e.g. book histograms.
     */
-    virtual StatusCode initialize();
+    StatusCode initialize();
 
     /** Called for every event - the working horse.
     */
-    virtual std::tuple<edm4hep::SimTrackerHitCollection,
-                       edm4hep::TrackerHitPlaneCollection,
-                       edm4hep::TrackerHitSimTrackerHitCollection,
-                       edm4hep::TrackerHitSimTrackerHitCollection> operator(
-                 const edm4hep::SimTrackerHitCollection& STHcol) const; 
+    std::tuple<edm4hep::SimTrackerHitCollection,
+               edm4hep::TrackerHitPlaneCollection,
+               edm4hep::TrackerHitSimTrackerHitLinkCollection,
+               edm4hep::TrackerHitSimTrackerHitLinkCollection> operator()(
+         const edm4hep::SimTrackerHitCollection& STHcol) const; 
 
     /** Called after data processing for clean up.
     */
-    virtual StatusCode finalize();
+    StatusCode finalize();
 
 protected:
 
@@ -231,9 +232,12 @@ protected:
     int GetPixelsInaRow(InternalState *intState) const;
     int GetPixelsInaColumn(InternalState *intState) const;
 
-    void LoadGeometry() const;
-    void PrintGeometryInfo() const;
+    StatusCode LoadGeometry();
+    void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax ) const;
-};
 
+    /* Message Helpers */
+    bool msgLevel(MSG::Level level) const{ return msgSvc()->outputLevel(name()) <= level; };
+
+};
 #endif

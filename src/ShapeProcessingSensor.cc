@@ -69,7 +69,7 @@ GridCoordinate ShapeProcessingSensor::GetNextPoint(GridCoordinate c, GridCoordin
     return { 0, 0 };
 }
 
-vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& spot)
+vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& spot, IMessageSvc* msgSvc)
 {
     vector<GridCoordinate> result;
     std::stringstream logstr;
@@ -130,10 +130,11 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& s
     result.pop_back();
     logstr << std::endl << "Contour size: " << result.size() << std::endl;
 
-    if(msgLevel(MSG::DEBUG))
+    if( msgSvc->outputLevel() <= MSG::DEBUG )
 #pragma omp critical
     {
-        debug() << logstr.str() << endmsg;
+	MsgStream log(msgSvc, "ShapeProcessingSensor");
+        log << MSG::DEBUG << logstr.str() << endmsg;
     }
 
     return result;

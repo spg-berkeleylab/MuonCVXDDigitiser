@@ -69,8 +69,7 @@ DetElemSlidingWindow::DetElemSlidingWindow(HitTemporalIndexes& htable,
     _fluctuate = new G4UniversalFluctuation();
 }
 
-DetElemSlidingWindow::~DetElemSlidingWindow()
-{
+DetElemSlidingWindow::~DetElemSlidingWindow() {
     delete(_fluctuate);
 }
 
@@ -82,56 +81,59 @@ bool DetElemSlidingWindow::active()
     return hasMoreHits || sensorOn;
 }
 
-int DetElemSlidingWindow::process()
+int DetElemSlidingWindow::process(IMessageSvc* msgSvc)
 {
     float window_radius = time_click / 2;
 
-    for (SimTrackerHit hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
-         hit != nullptr && hit.getTime() - curr_time < window_radius;
+    for (SimTrackerHit* hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder());
+         hit != nullptr && hit->getTime() - curr_time < window_radius;
          hit = _htable.CurrentHit(_sensor.GetLayer(), _sensor.GetLadder()))
     {
-        if (msgLevel(MSG::DEBUG))
+        if ( msgSvc->outputLevel() <= MSG::DEBUG )
 #pragma omp critical
-        {
-            float mcp_r = sqrt(pow(hit->getPosition()[0], 2) + pow(hit->getPosition()[1], 2));
-            float mcp_phi = atan(hit->getPosition()[1] / hit->getPosition()[0]);
-            float mcp_theta = hit->getPosition()[2] == 0 ? 3.1416/2 : atan(mcp_r / hit->getPosition()[2]);
-            double mom_norm = sqrt(pow(hit->getMomentum()[0], 2) + pow(hit->getMomentum()[1], 2)
-                                   + pow(hit->getMomentum()[2], 2));
-            int segment_id = cell_decoder(hit)["sensor"];
-            debug() << "Processing simHit from layer = " << _sensor.GetLayer()
-                    << ", ladder = " << _sensor.GetLadder() 
-                    << ", sensor = " << segment_id << "\n"
-                    << "Time window centered in " << curr_time
-                    << ", Hits available = "
-                    << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
-                    << "\n"
-                    << "- EDep = " << hit->getEDep() * dd4hep::GeV / dd4hep::keV
-                    << " keV, path length = " << hit->getPathLength() * 1000.
-                    << " um\n"
-                    << "- Position (mm) x,y,z,t = " << hit.getPosition().x << ", "
-                    << hit.getPosition().y << ", " << hit.getPosition().z
-                    << ", " << hit.getTime() << "\n"
-                    << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi
-                    << ", " << mcp_theta << "\n"
-                    << "- MC particle pdg = " << hit.getParticle().getPDG() << "\n"
-                    << "- MC particle p (GeV) = " << mom_norm << "\n"
-                    << "- isSecondary = " << hit.isProducedBySecondary()
-                    << ", isOverlay = " << hit.isOverlay() << "\n"
-                    << "- Quality = " << hit.getQuality() << endmsg;
+            {
+            MsgStream log(msgSvc, "DetElementSlidingWindow");
+
+            float mcp_r = sqrt(pow(hit->getPosition().x, 2) + pow(hit->getPosition().y, 2));
+            float mcp_phi = atan(hit->getPosition().y / hit->getPosition().x);
+            float mcp_theta = hit->getPosition().z == 0 ? 3.1416/2 : atan(mcp_r / hit->getPosition().z);
+            double mom_norm = sqrt(pow(hit->getMomentum().x, 2) + pow(hit->getMomentum().y, 2)
+                                 + pow(hit->getMomentum().z, 2));
+	    cell_decoder.setValue(hit->getCellID());
+            int segment_id = cell_decoder["sensor"];
+            log << MSG::DEBUG << "Processing simHit from layer = " << _sensor.GetLayer()
+                << ", ladder = " << _sensor.GetLadder() 
+                << ", sensor = " << segment_id << "\n"
+                << "Time window centered in " << curr_time
+                << ", Hits available = "
+                << _htable.GetHitNumber(_sensor.GetLayer(), _sensor.GetLadder())
+                << "\n"
+                << "- EDep = " << hit->getEDep() * dd4hep::GeV / dd4hep::keV
+                << " keV, path length = " << hit->getPathLength() * 1000.
+                << " um\n"
+                << "- Position (mm) x,y,z,t = " << hit->getPosition().x << ", "
+                << hit->getPosition().y << ", " << hit->getPosition().z
+                << ", " << hit->getTime() << "\n"
+                << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi
+                << ", " << mcp_theta << "\n"
+                << "- MC particle pdg = " << hit->getParticle().getPDG() << "\n"
+                << "- MC particle p (GeV) = " << mom_norm << "\n"
+                << "- isSecondary = " << hit->isProducedBySecondary()
+                << ", isOverlay = " << hit->isOverlay() << "\n"
+                << "- Quality = " << hit->getQuality() << endmsg;
         }
 
-        StoreSignalPoints(hit);
+        StoreSignalPoints(hit, msgSvc);
         _htable.DisposeHit(_sensor.GetLayer(), _sensor.GetLadder());
     }
 
-    if (!signals.empty())
-    {
-        debug() << "Signal points for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
-                               << " = " << signals.size() << endmsg;
+    if (!signals.empty()) {
+        MsgStream log(msgSvc, "DetElementSlidingWindow");
+        log << MSG::DEBUG << "Signal points for " << _sensor.GetLayer() << ":" << _sensor.GetLadder()
+            << " = " << signals.size() << endmsg;
 
         for (TimedSignalPoint spoint = signals.front();
-             curr_time - spoint.sim_hit.getTime() > window_radius;
+             curr_time - spoint.sim_hit->getTime() > window_radius;
              spoint = signals.front())
         {
             signals.pop_front();
@@ -145,21 +147,18 @@ int DetElemSlidingWindow::process()
     return signals.size();
 }
 
-float DetElemSlidingWindow::get_time()
-{
+float DetElemSlidingWindow::get_time() {
     return curr_time;
 }
 
-void DetElemSlidingWindow::UpdatePixels()
-{
+void DetElemSlidingWindow::UpdatePixels() {
     _sensor.InitHitRegister();
     _sensor.BeginClockStep();
 
     float window_radius = time_click / 2;
 
-    for (auto spoint : signals)
-    {
-        if (spoint.sim_hit.getTime() > curr_time + window_radius) break;
+    for (auto spoint : signals) {
+        if (spoint.sim_hit->getTime() > curr_time + window_radius) break;
 
         double xHFrame = _widthOfCluster * spoint.sigmaX;
         double yHFrame = _widthOfCluster * spoint.sigmaY;
@@ -207,8 +206,7 @@ void DetElemSlidingWindow::UpdatePixels()
     _sensor.EndClockStep();
 }
 
-void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
-{
+void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit, IMessageSvc* msgSvc) {
     // hit and pos are in mm
     double pos[3] = {0,0,0};
     double dir[3] = {0,0,0};
@@ -216,18 +214,18 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
     double exit[3];
 
     // ************************* Find local position **************************
-    SurfaceMap::const_iterator sI = surf_map->find(hit.getCellID0()) ;
+    SurfaceMap::const_iterator sI = surf_map->find(hit->getCellID()) ;
     const ISurface* surf = sI->second ;
 
-    Vector3D oldPos( hit.getPosition().x, hit.getPosition().y, hit.getPosition().z );
+    Vector3D oldPos( hit->getPosition().x, hit->getPosition().y, hit->getPosition().z );
 
-    if (!surf->insideBounds(dd4hep::mm * oldPos))
-    {
-        if (msgLevel(MSG::DEBUG))
+    if (!surf->insideBounds(dd4hep::mm * oldPos)) {
+        if ( msgSvc->outputLevel() <= MSG::DEBUG )
 #pragma omp critical
         {
-            debug() << "  hit at " << oldPos << " is not on surface " << *surf
-                    << " distance: " << surf->distance(dd4hep::mm * oldPos) << endmsg;
+	    MsgStream log(msgSvc, "DetElementSlidingWindow");
+            log << MSG::DEBUG << "  hit at " << oldPos << " is not on surface " << *surf
+                << " distance: " << surf->distance(dd4hep::mm * oldPos) << endmsg;
         }
         return;
     }    
@@ -239,7 +237,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
     pos[1] = lv[1] / dd4hep::mm;
 #ifdef ZSEGMENTED
     // See MuonCVXDDigitiser::processEvent
-    cell_decoder.setValue(hit.getCellID0());
+    cell_decoder.setValue(hit->getCellID());
     int segment_id = cell_decoder["sensor"];
 
     float s_offset = _sensor.GetSensorCols() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
@@ -251,18 +249,26 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
     pos[2] = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
     
-    edm4hep::Vector3d Momentum;
-    if (hit.getParticle())
-      Momentum = hit.getParticle().getMomentum() * dd4hep::GeV;
-    else
-      Momentum = hit.getMomentum();
-
+    double Momentum[3];
+    if (hit->getParticle().isAvailable())
+    {
+      edm4hep::Vector3d temp = hit->getParticle().getMomentum();
+      Momentum[0] = temp.x *dd4hep::GeV;
+      Momentum[1] = temp.y *dd4hep::GeV;
+      Momentum[2] = temp.z *dd4hep::GeV;
+    } else
+    {
+      edm4hep::Vector3f temp = hit->getMomentum();
+      Momentum[0] = temp.x; 
+      Momentum[1] = temp.y;
+      Momentum[2] = temp.z;
+    }
     // as default put electron's mass
     double particleMass = 0.510e-3 * dd4hep::GeV;
-    if (hit.getParticle())
-        particleMass = max(hit.getParticle().getMass() * dd4hep::GeV, particleMass);
+    if (hit->getParticle().isAvailable())
+        particleMass = max(hit->getParticle().getMass() * dd4hep::GeV, particleMass);
 
-    double particleMomentum = sqrt(pow(Momentum.x, 2) + pow(Momentum.y, 2) + pow(Momentum.z, 2));                   
+    double particleMomentum = sqrt(pow(Momentum[0], 2) + pow(Momentum[1], 2) + pow(Momentum[2], 2));                   
                          
     dir[0] = Momentum * surf->u();
     dir[1] = Momentum * surf->v();
@@ -296,8 +302,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
     double eSum = 0.0;
     vector<TimedSignalPoint> signal_buffer;
 
-    for (int i = 0; i < _numberOfSegments; ++i)
-    {
+    for (int i = 0; i < _numberOfSegments; ++i) {
         // ionization point
         z += _segmentDepth;
         double x = pos[0] + tanx * (z - pos[2]);
@@ -346,11 +351,10 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
         eSum += eloss;
     }
 
-    double hEdep = hit.getEDep() / dd4hep::GeV;
+    double hEdep = hit->getEDep() / dd4hep::GeV;
     // deltaEne is a charge??
     const double thr = _deltaEne / _electronsPerKeV * dd4hep::keV;
-    while (hEdep > eSum + thr)
-    {
+    while (hEdep > eSum + thr) {
         // Add additional charge sampled from an 1 / n^2 distribution.
         const double       q = randomTail( thr, hEdep - eSum );
         const unsigned int h = floor(RandFlat::shoot(0.0, (double)_numberOfSegments));
@@ -358,23 +362,23 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit hit)
         eSum += q;
     }
 
-    if (msgLevel(MSG::DEBUG))
+    if ( msgSvc->outputLevel() <= MSG::DEBUG )
 #pragma omp critical
     {
-        debug() << "Ionization Points:" << "\n";
-                << "Number of ionization points: " << _numberOfSegments
-                << ", G4 EDep = "  << hEdep << "\n"
-                << "Padding each segment charge (1/n^2 pdf) until total below "
-                << _deltaEne << "e- threshold. New total energy: "
-                << eSum << "\n\n"
-                <<  "Track path length: " << trackLength
-                << ", calculated dEmean * N_segment = " << dEmean
-                << " * " << _numberOfSegments << " = "
-                << dEmean*_numberOfSegments << endmsg;
+        MsgStream log(msgSvc, "DetElementSlidingWindow");
+        log << MSG::DEBUG << "Ionization Points:" << "\n"
+            << "Number of ionization points: " << _numberOfSegments
+            << ", G4 EDep = "  << hEdep << "\n"
+            << "Padding each segment charge (1/n^2 pdf) until total below "
+            << _deltaEne << "e- threshold. New total energy: "
+            << eSum << "\n\n"
+            <<  "Track path length: " << trackLength
+            << ", calculated dEmean * N_segment = " << dEmean
+            << " * " << _numberOfSegments << " = "
+            << dEmean*_numberOfSegments << endmsg;
      }
 
-    for(auto spoint : signal_buffer)
-    {
+    for(auto spoint : signal_buffer) {
         signals.push_back(spoint);
     }
 }
