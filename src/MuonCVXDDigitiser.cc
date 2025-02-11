@@ -46,15 +46,16 @@ MuonCVXDDigitiser::MuonCVXDDigitiser(const std::string& name, ISvcLocator* svcLo
 StatusCode MuonCVXDDigitiser::initialize() {
     MsgStream log(msgSvc(), name());
     log << MSG::DEBUG << "   init called  " << endmsg;
+    
     // Determine if we're handling barrel or endcap geometry
-    if (m_subDetName.value().find("Barrel") != std::string::npos) {
-      isBarrel=true;
+    /*if (m_subDetName.value().find("Barrel") != std::string::npos) {
+      m_isBarrel=true;
     } else if (m_subDetName.value().find("Endcap") != std::string::npos) {
-      isBarrel=false;
+      m_isBarrel=false;
     } else {
-      log << MSG::ERROR << " Could not determine sub-detector type for: " << m_subDetName << endmsg;
+      log << MSG::ERROR << " Could not determine sub-detector type for: " << m_subDetName;
       return StatusCode::FAILURE;
-    }
+    }*/
 
     // Determine if vertex, inner tracker, or outer tracker
     if (m_subDetName.value().find("Vertex") != std::string::npos) {
@@ -69,6 +70,7 @@ StatusCode MuonCVXDDigitiser::initialize() {
     }
 
     m_fluctuate = new MyG4UniversalFluctuationForSi();
+
     return LoadGeometry();
 }
 
@@ -78,12 +80,13 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
     DetElement subDetector = theDetector.detector(m_subDetName);
     std::vector<ZPlanarData::LayerLayout> barrelLayers;
     std::vector<ZDiskPetalsData::LayerLayout> endcapLayers;
-    if (isBarrel) {
+    log << MSG::DEBUG << "pre2.2" << endmsg;
+    if (m_isBarrel) {
       ZPlanarData*  zPlanarData=nullptr;
       // Barrel-like geometry
+      log << MSG::DEBUG << subDetector.type() << endmsg;
       zPlanarData = subDetector.extension<ZPlanarData>();
       if (! zPlanarData) {
-            MsgStream log(msgSvc(), name());
 	    log << MSG::ERROR << " Could not find surface of type ZPlanarData for subdetector: " << m_subDetName << endmsg;
             return StatusCode::FAILURE;
       }
@@ -94,18 +97,17 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
       //Endcap-like geometry
       zDiskPetalData = subDetector.extension<ZDiskPetalsData>();
       if (! zDiskPetalData) {
-        MsgStream log(msgSvc(), name());
         log << MSG::ERROR << " Could not find surface of type ZDiskPetalsData for subdetector: " << m_subDetName << endmsg;
         return StatusCode::FAILURE;
       }
       endcapLayers = zDiskPetalData->layers;
       m_numberOfLayers = endcapLayers.size();
     } 
+    log << MSG::DEBUG << "pre3" << endmsg;
     SurfaceManager& surfMan = *theDetector.extension<SurfaceManager>();
+    log << MSG::DEBUG << "pre4" << endmsg;
     m_map = surfMan.map( subDetector.name() ) ;
-    if( ! m_map ) 
-    {
-      MsgStream log(msgSvc(), name());
+    if( ! m_map ) {
       log << MSG::ERROR << " Could not find surface map for detector: "
           << m_subDetName << " in SurfaceManager " << endmsg;
       return StatusCode::FAILURE;
@@ -128,7 +130,7 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
     m_layerPetalInnerWidth.resize(m_numberOfLayers);
     m_layerPetalOuterWidth.resize(m_numberOfLayers);
     int curr_layer = 0;
-    if (isBarrel) {
+    if (m_isBarrel) {
       for(ZPlanarData::LayerLayout z_layout : barrelLayers)
       {
         // ALE: Geometry is in cm, convert all lenght in mm
@@ -417,7 +419,6 @@ std::tuple<edm4hep::SimTrackerHitCollection,
           edm4hep::MutableSimTrackerHit *hit = simTrkHitVec[k];
           delete hit;
         }
-        delete &intState;
     }
     log << MSG::DEBUG << "Number of produced hits: " << THcol.size()  << endmsg;
     
@@ -492,7 +493,7 @@ void MuonCVXDDigitiser::FindLocalPosition(edm4hep::SimTrackerHit &hit,
     localDirection.x = Momentum * surf->u();
     localDirection.y = Momentum * surf->v();
     localDirection.z = Momentum * surf->normal();
-    if (isBarrel){
+    if (m_isBarrel){
       intState->currentPhi = intState->currentLadder * 2.0 * m_layerHalfPhi[intState->currentLayer] + m_layerPhiOffset[intState->currentLayer];
     }
 }
@@ -1027,7 +1028,7 @@ void MuonCVXDDigitiser::TransformToLab(const int cellID, edm4hep::Vector3d xLoc,
 void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & iy, InternalState *intState) const{
     int layer = intState->currentLayer;
     // Shift all of L/2 so that all numbers are positive
-    if (isBarrel){
+    if (m_isBarrel){
         double yInLadder = y + m_layerLadderLength[layer] / 2;
         iy = int(yInLadder / m_pixelSizeY);
         double xInLadder = x + m_layerLadderHalfWidth[layer];
@@ -1048,7 +1049,7 @@ void MuonCVXDDigitiser::TransformXYToCellID(double x, double y, int & ix, int & 
 void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double & y, InternalState *intState) const{
     int layer = intState->currentLayer;
     // Put the point in the cell center
-    if (isBarrel){
+    if (m_isBarrel){
         y = ((0.5 + double(iy)) * m_pixelSizeY) - m_layerLadderLength[layer] / 2;
         x = ((0.5 + double(ix)) * m_pixelSizeX) - m_layerLadderHalfWidth[layer];
     } else {
@@ -1058,7 +1059,7 @@ void MuonCVXDDigitiser::TransformCellIDToXY(int ix, int iy, double & x, double &
 }
 
 int MuonCVXDDigitiser::GetPixelsInaColumn(InternalState *intState) const{//SP: why columns!?! I would have guess row..
-    if (isBarrel){
+    if (m_isBarrel){
         return ceil(m_layerLadderWidth[intState->currentLayer] / m_pixelSizeX);
     } else {
         return ceil(m_layerPetalOuterWidth[intState->currentLayer]/ m_pixelSizeX);
@@ -1066,7 +1067,7 @@ int MuonCVXDDigitiser::GetPixelsInaColumn(InternalState *intState) const{//SP: w
 }
 
 int MuonCVXDDigitiser::GetPixelsInaRow(InternalState *intState) const{
-    if (isBarrel){
+    if (m_isBarrel){
         return ceil(m_layerLadderLength[intState->currentLayer] / m_pixelSizeY);
     } else {
         return ceil(m_layerPetalLength[intState->currentLayer] / m_pixelSizeY);

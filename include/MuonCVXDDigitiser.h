@@ -149,7 +149,7 @@ public:
 
 protected:
 
-    bool isBarrel;
+    Gaudi::Property<bool> m_isBarrel{this, "isBarrel", true, "Tag to switch between barrel and endcap"};
     bool isVertex;
     bool isInnerTracker;
     bool isOuterTracker;
