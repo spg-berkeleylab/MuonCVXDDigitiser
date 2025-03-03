@@ -61,6 +61,19 @@ struct InternalState
     SignalPointVec     signalPoints;
 };
 
+struct TempRecoHit {
+    float EDep;                    // Energy deposition (float)
+    edm4hep::Vector3d Position;    // Position (3D vector of type edm4hep::Vector3d)
+    float Du;                      // Du parameter (float)
+    float Dv;                      // Dv parameter (float)
+    float Time;			   // Time Parameter (float)
+
+    // Constructor to initialize the structure with default or specific values
+    TempRecoHit(float eDep = 0.0f, edm4hep::Vector3d pos = edm4hep::Vector3d(0.0, 0.0, 0.0), 
+                  float du = 0.0f, float dv = 0.0f, float time =0.0f)
+        : EDep(eDep), Position(pos), Du(du), Dv(dv), Time(time) {}
+};
+
 
 /**  Digitizer for Simulated Hits in the Vertex Detector. <br>
  * Digitization follows the procedure adopted in the CMS software package. 
@@ -149,7 +162,7 @@ public:
 
 protected:
 
-    Gaudi::Property<bool> m_isBarrel{this, "isBarrel", true, "Tag to switch between barrel and endcap"};
+    bool isBarrel;
     bool isVertex;
     bool isInnerTracker;
     bool isOuterTracker;
@@ -224,7 +237,7 @@ protected:
     void TimeDigitizer(MutableSimTrackerHitVec &simTrkVec) const;
 
     /* Reconstruction of measurement and helpers */
-    edm4hep::MutableTrackerHitPlane *ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec, edm4hep::TrackerHitPlaneCollection *THcol, InternalState *intState) const;
+    void ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec, TempRecoHit *info, InternalState *intState) const;
     void TransformToLab(const int cellID, edm4hep::Vector3d xLoc, edm4hep::Vector3d xLab) const;
     void FindLocalPosition(edm4hep::SimTrackerHit &hit, edm4hep::Vector3d &localPosition, edm4hep::Vector3d &localDirection, InternalState *intState) const;
     void TransformXYToCellID(double x, double y, int & ix, int & iy, InternalState *intState) const;
