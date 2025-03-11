@@ -8,6 +8,7 @@
 
 // k4FWCore
 #include <k4FWCore/Transformer.h>
+#include "k4Interface/IGeoSvc.h"
 
 // edm4hep
 #include <edm4hep/SimTrackerHit.h>
@@ -141,6 +142,8 @@ protected:
     Gaudi::Property<float>  m_fe_slope{this, "RD53Aslope", (float)0.1, "ADC slope for chip RD53A"};
     Gaudi::Property<int>    m_sensor_type{this, "SensorType", 1, "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)"};
 
+    Gaudi::Property<std::string> m_encodingStringVariable{this, "EncodingStringParameterName", "GlobalTrackerReadoutID", "The name of the DD4hep constant that contains the Encoding string for the detector"};
+
     // geometry
     int m_numberOfLayers;
     std::vector<int>    m_laddersInLayer{};
@@ -155,6 +158,7 @@ protected:
     std::vector<float>  m_layerHalfPhi{};
     std::vector<float>  m_layerLadderWidth{};
     const dd4hep::rec::SurfaceMap* m_map ;
+    SmartIF<IGeoSvc>         m_geoSvc;
 
     // Graphs
     Gaudi::Property<bool> m_create_stats{this, "CreateStats", false, "Make Statistic Histograms"};
@@ -170,9 +174,6 @@ protected:
     TH1F* bib_ySizeHisto;
     TH1F* bib_zSizeHisto;
     TH1F* bib_eDepHisto;
-
-    /* Message Helpers */
-    bool msgLevel(MSG::Level level) const{ return msgSvc()->outputLevel(name()) <= level; };
 };
 
 #endif //MuonCVXDRealDigitiser_h

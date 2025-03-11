@@ -16,13 +16,7 @@
 // Random
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
-#include "CLHEP/Random/RandGauss.h"
-#include "CLHEP/Random/RandPoisson.h" 
-#include "CLHEP/Random/RandFlat.h" 
 
-using CLHEP::RandGauss;
-using CLHEP::RandPoisson;
-using CLHEP::RandFlat;
 using dd4hep::Detector;
 using dd4hep::DetElement;
 using dd4hep::rec::ZPlanarData;
@@ -36,13 +30,17 @@ using dd4hep::rec::Vector3D;
 DECLARE_COMPONENT(MuonCVXDDigitiser)
 
 MuonCVXDDigitiser::MuonCVXDDigitiser(const std::string& name, ISvcLocator* svcLoc) : MultiTransformer(name, svcLoc,
-          { KeyValues("CollectionName", {"VertexBarrelCollection"}) },
+          { KeyValues("CollectionName", {"VertexBarrelCollection"}),
+            KeyValues("EventHeader", {"EventHeader"})},
           { KeyValues("SimHitLocCollectionName", {"VertexBarrel"}),
             KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
             KeyValues("RelationColName", {"VTXTrackerHitRelations"}),
             KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"}) })
 {
     m_geoSvc = serviceLocator()->service("GeoSvc");  // important to initialize m_geoSvc
+    m_uIDSvc = serviceLocator()->service("IUniqueIDGenSvc");  // important to initialize m_uIDSvc
+    m_rndSvc = serviceLocator()->service("RndmGenSvc");  // important to initialize m_rndSvc
+
 }
 
 
@@ -74,6 +72,11 @@ StatusCode MuonCVXDDigitiser::initialize() {
 
     m_fluctuate = new MyG4UniversalFluctuationForSi();
 
+    // Initialize Random Distributions
+    m_rndSvc->generator(Rndm::Gauss(0.0, 1.0), m_gauss).ignore();
+    m_rndSvc->generator(Rndm::Poisson(1.0), m_poisson).ignore();
+    m_rndSvc->generator(Rndm::Flat(0.0, 1.0), m_flat).ignore();
+
     //return StatusCode::SUCCESS;
     return LoadGeometry();
 }
@@ -81,15 +84,13 @@ StatusCode MuonCVXDDigitiser::initialize() {
 StatusCode MuonCVXDDigitiser::LoadGeometry() {
     MsgStream log(msgSvc(), name());
     Detector& theDetector = Detector::getInstance();
-    log<<MSG::DEBUG<<"pre1"<<endmsg;
+
     DetElement subDetector = theDetector.detector(m_subDetName);
     std::vector<ZPlanarData::LayerLayout> barrelLayers;
     std::vector<ZDiskPetalsData::LayerLayout> endcapLayers;
-    log << MSG::DEBUG << "pre2.2" << endmsg;
     if (isBarrel) {
       ZPlanarData*  zPlanarData=nullptr;
       // Barrel-like geometry
-      log << MSG::DEBUG << subDetector.type() << endmsg;
       zPlanarData = subDetector.extension<ZPlanarData>();
       if (! zPlanarData) {
 	    log << MSG::ERROR << " Could not find surface of type ZPlanarData for subdetector: " << m_subDetName << endmsg;
@@ -108,9 +109,7 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
       endcapLayers = zDiskPetalData->layers;
       m_numberOfLayers = endcapLayers.size();
     } 
-    log << MSG::DEBUG << "pre3" << endmsg;
     SurfaceManager& surfMan = *theDetector.extension<SurfaceManager>();
-    log << MSG::DEBUG << "pre4" << endmsg;
     m_map = surfMan.map( subDetector.name() ) ;
     if( ! m_map ) {
       log << MSG::ERROR << " Could not find surface map for detector: "
@@ -231,7 +230,8 @@ std::tuple<edm4hep::SimTrackerHitCollection,
            edm4hep::TrackerHitPlaneCollection,
            edm4hep::TrackerHitSimTrackerHitLinkCollection,
            edm4hep::TrackerHitSimTrackerHitLinkCollection> MuonCVXDDigitiser::operator()(
-     const edm4hep::SimTrackerHitCollection& STHcol) const{ 
+     const edm4hep::SimTrackerHitCollection& STHcol,
+     const edm4hep::EventHeaderCollection& headers) const{ 
     //SP. few TODO items:
     // - include noisy pixels (calculate rate from gaussian with unit sigma integral x > m_electronicNoise / m_threshold )
     // - change logic in creating pixels from all SimTrkHits, then cluster them (incl. timing info)
@@ -245,6 +245,16 @@ std::tuple<edm4hep::SimTrackerHitCollection,
     edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
     edm4hep::TrackerHitSimTrackerHitLinkCollection rawHitsCol;
 
+    /*
+    // Set Up Random Seeds
+    auto uid = m_uIDSvc->getUniqueID(headers[0].getEventNumber(), headers[0].getRunNumber(), name());
+    log << MSG::DEBUG << "Random Seed: " << uid << endmsg;
+    std::vector<long> seeds;
+    seeds.push_back(uid);
+    m_rndSvc->setSeeds(seeds);
+    */
+
+    // Set Up CellID Decoder
     std::string initString;  
     initString = m_geoSvc->constantAsString(m_encodingStringVariable.value());
     dd4hep::DDSegmentation::BitFieldCoder cellID_coder(initString); 
@@ -597,7 +607,9 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(edm4hep::SimTrackerHit &hit, Int
       // Add additional charge sampled from an 1 / n^2 distribution.
       // Adjust charge to match expectations
       const double       q = randomTail( thr, hcharge - intState->eSum );
-      const unsigned int h = floor(RandFlat::shoot(0.0, (double)(intState->numberOfSegments) ));
+      
+      m_flat->initialize(Rndm::Flat(0.0, (double)(intState->numberOfSegments))).ignore();
+      const unsigned int h = floor( m_flat->shoot() );
       intState->ionisationPoints[h].eloss += q;
       intState->eSum += q;
     }
@@ -761,11 +773,13 @@ void MuonCVXDDigitiser::PoissonSmearer(MutableSimTrackerHitVec &simTrkVec) const
         float rng;
         if (charge > 1e+03) // assume Gaussian
         {
-            rng = float(RandGauss::shoot(charge, sqrt(charge)));
+            m_gauss->initialize(Rndm::Gauss(charge, sqrt(charge))).ignore();
+            rng = float(m_gauss->shoot());
         }
         else // assume Poisson
         {
-            rng = float(RandPoisson::shoot(charge));
+            m_poisson->initialize(Rndm::Poisson(charge)).ignore();
+            rng = float(m_poisson->shoot());
         }
         hit->setEDep(rng);
         log << MSG::DEBUG << ihit << ": x=" << hit->getPosition().x
@@ -782,7 +796,8 @@ void MuonCVXDDigitiser::GainSmearer(MutableSimTrackerHitVec &simTrkVec) const{
     MsgStream log(msgSvc(), name());
     log << MSG::DEBUG << "Adding FE noise smear to charge" << endmsg;
     for (int i = 0; i < (int)simTrkVec.size(); ++i) {
-        double Noise = RandGauss::shoot(0., m_electronicNoise);
+        m_gauss->initialize(Rndm::Gauss(0., m_electronicNoise)).ignore();
+        double Noise = m_gauss->shoot();
         edm4hep::MutableSimTrackerHit *hit = simTrkVec[i];
         hit->setEDep(hit->getEDep() + float(Noise));
         log << MSG::DEBUG << i << ": x=" << hit->getPosition().x 
@@ -807,7 +822,10 @@ void MuonCVXDDigitiser::ApplyThreshold(MutableSimTrackerHitVec &simTrkVec) const
      
      double smear = 0;
      float origCharge = hit->getEDep();
-     if (m_thresholdSmearSigma > 0) smear = RandGauss::shoot(0., m_thresholdSmearSigma);
+     if (m_thresholdSmearSigma > 0) {
+       m_gauss->initialize(Rndm::Gauss(0., m_thresholdSmearSigma)).ignore();
+       smear = m_gauss->shoot();
+     }
      actualThreshold = actualThreshold + smear;
      if (hit->getEDep() <= actualThreshold) hit->setEDep(0.0);
      
@@ -881,7 +899,8 @@ void MuonCVXDDigitiser::TimeSmearer(MutableSimTrackerHitVec &simTrkVec) const{
     MsgStream log(msgSvc(), name());
     log << MSG::DEBUG << "Adding resolution effect to timing measurements" << endmsg;
     for (int i = 0; i < (int)simTrkVec.size(); ++i) {
-        float delta = RandGauss::shoot(0., m_timeSmearingSigma);
+        m_gauss->initialize(Rndm::Gauss(0., m_timeSmearingSigma)).ignore();
+        float delta = m_gauss->shoot();
         edm4hep::MutableSimTrackerHit *hit = simTrkVec[i];
         hit->setTime(hit->getTime() + delta);
         log << MSG::DEBUG << i << ": x=" << hit->getPosition().x
@@ -1128,6 +1147,7 @@ void MuonCVXDDigitiser::PrintGeometryInfo() {
 double MuonCVXDDigitiser::randomTail( const double qmin, const double qmax ) const{
     const double offset = 1. / qmax;
     const double range  = ( 1. / qmin ) - offset;
-    const double u      = offset + RandFlat::shoot() * range;
+    m_flat->initialize(Rndm::Flat(0., 1.)).ignore();
+    const double u      = offset + m_flat->shoot() * range;
     return 1. / u;
 }

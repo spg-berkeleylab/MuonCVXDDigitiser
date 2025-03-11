@@ -9,10 +9,13 @@
 // k4FWCore
 #include <k4FWCore/Transformer.h>
 #include "k4Interface/IGeoSvc.h"
+#include "k4Interface/IUniqueIDGenSvc.h"
+#include "GaudiKernel/RndmGenerators.h"
 
 // edm4hep
 #include <edm4hep/SimTrackerHit.h>
 #include <edm4hep/MutableSimTrackerHit.h>
+#include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MutableTrackerHitPlane.h>
 #include <edm4hep/SimTrackerHitCollection.h>
 #include <edm4hep/TrackerHitPlaneCollection.h>
@@ -138,7 +141,8 @@ class MuonCVXDDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::
                                                                        edm4hep::TrackerHitPlaneCollection,
                                                                        edm4hep::TrackerHitSimTrackerHitLinkCollection,
                                                                        edm4hep::TrackerHitSimTrackerHitLinkCollection>(
-                                                                 const edm4hep::SimTrackerHitCollection&)>
+                                                                 const edm4hep::SimTrackerHitCollection&,
+                                                                 const edm4hep::EventHeaderCollection&)>
 {  
 public:  
 
@@ -155,7 +159,8 @@ public:
                edm4hep::TrackerHitPlaneCollection,
                edm4hep::TrackerHitSimTrackerHitLinkCollection,
                edm4hep::TrackerHitSimTrackerHitLinkCollection> operator()(
-         const edm4hep::SimTrackerHitCollection& STHcol) const; 
+         const edm4hep::SimTrackerHitCollection& STHcol,
+         const edm4hep::EventHeaderCollection& headers) const; 
 
     /** Called after data processing for clean up.
     */
@@ -224,7 +229,13 @@ protected:
     std::vector<float> m_layerPetalInnerWidth{};
     std::vector<float> m_layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* m_map;
-    SmartIF<IGeoSvc>               m_geoSvc;
+
+    SmartIF<IGeoSvc>         m_geoSvc;
+    SmartIF<IUniqueIDGenSvc> m_uIDSvc;
+    SmartIF<IRndmGenSvc>     m_rndSvc;
+    IRndmGen*                m_gauss;
+    IRndmGen*                m_poisson;
+    IRndmGen*                m_flat;
 
 
     /* Charge digitization helpers */

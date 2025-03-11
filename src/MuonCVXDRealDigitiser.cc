@@ -5,20 +5,17 @@
 
 // edm4hep
 #include <edm4hep/MCParticle.h>
-#include "BitField64.hxx"
 #include <GaudiKernel/ITHistSvc.h>
 
 // DD4hep
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
+#include "DDSegmentation/BitFieldCoder.h"
 #include "DD4hep/DD4hepUnits.h"
 
 // Random
 #include "gsl/gsl_sf_erf.h"
 #include "gsl/gsl_math.h"
-#include "CLHEP/Random/RandGauss.h"
-#include "CLHEP/Random/RandPoisson.h" 
-#include "CLHEP/Random/RandFlat.h"
 
 // Helpers
 #include "DetElemSlidingWindow.h"
@@ -27,10 +24,6 @@
 
 // ROOT
 #include <TFile.h>
-
-using CLHEP::RandGauss;
-using CLHEP::RandPoisson;
-using CLHEP::RandFlat;
 
 using dd4hep::Detector;
 using dd4hep::DetElement;
@@ -46,7 +39,10 @@ DECLARE_COMPONENT(MuonCVXDRealDigitiser)
 MuonCVXDRealDigitiser::MuonCVXDRealDigitiser(const std::string& name, ISvcLocator* svcLoc) : MultiTransformer(name, svcLoc,
           { KeyValues("CollectionName", {"VXDCollection"}) },
           { KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
-            KeyValues("RelationColName", {"VTXTrackerHitRelations"}) }) {}
+            KeyValues("RelationColName", {"VTXTrackerHitRelations"}) })
+{
+    m_geoSvc = serviceLocator()->service("GeoSvc");  // important to initialize m_geoSvc
+}
 
 
 StatusCode MuonCVXDRealDigitiser::initialize() {
@@ -163,8 +159,10 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
     edm4hep::TrackerHitPlaneCollection             THcol;
     edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
 
-    std::string encoder_str = "subdet:5,side:-2,layer:9,module:8,sensor:8";
-    BitField64 cellID_coder(encoder_str);
+    // Set Up CellID Decoder
+    std::string encoder_str;  
+    encoder_str = m_geoSvc->constantAsString(m_encodingStringVariable.value());
+    dd4hep::DDSegmentation::BitFieldCoder cellID_coder(encoder_str); 
 
     if (STHcol.size() == 0) {
         log << MSG::INFO << "Number of produced hits: " << THcol.size()  << endmsg;
@@ -283,8 +281,7 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
                     const ISurface* surf = sI->second;
 
                     // See DetElemSlidingWindow::StoreSignalPoints
-                    cellID_coder.setValue(recoHit->getCellID());
-                    int segment_id = cellID_coder["sensor"];
+                    int segment_id = cellID_coder.get(recoHit->getCellID(),"sensor");
                     float s_offset = sensor->GetSensorCols() * sensor->GetPixelSizeY();
                     s_offset *= (float(segment_id) + 0.5);
                     s_offset -= sensor->GetHalfLength();
@@ -368,10 +365,9 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
                         THcol.push_back( *recoHit );
 
                         if ( msgLevel(MSG::DEBUG) ) {
-                            cellID_coder.setValue(recoHit->getCellID());
                             log << MSG::DEBUG << "Reconstructed pixel cluster for " 
                                 << sensor->GetLayer() << ":" << sensor->GetLadder() 
-                                << ":" << cellID_coder["sensor"] << std::endl
+                                << ":" << cellID_coder.get(recoHit->getCellID(), "sensor") << std::endl
                                 << "- global position (x,y,z,t) = " 
                                 << recoHit->getPosition().x 
                                 << ", " << recoHit->getPosition().y
