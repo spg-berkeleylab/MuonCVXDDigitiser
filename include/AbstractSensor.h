@@ -7,7 +7,6 @@
 #include <unordered_set>
 #include "GaudiKernel/IMessageSvc.h"
 #include "GaudiKernel/MsgStream.h"
-#include "BitField64.hxx"
 #include <edm4hep/SimTrackerHit.h>
 
 using std::string;
@@ -164,7 +163,7 @@ protected:
 
     virtual PixelData getPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     virtual bool checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
-    virtual BitField64 getBFEncoder();
+    virtual uint64_t getBitF();
     virtual void fillInHitRelation(SimHitSet& sset, LinearPosition pos);
 
     virtual bool check(int x, int y);

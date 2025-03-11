@@ -9,9 +9,8 @@ HitTemporalIndexes::HitTemporalIndexes(const edm4hep::SimTrackerHitCollection& S
     for (int i = 0; i < STHcol.size(); ++i)
     {
         SimTrackerHit simTrkHit = STHcol.at(i);
-        cellid_decoder.setValue(simTrkHit.getCellID());
-        int layer = cellid_decoder["layer"];
-        int ladder = cellid_decoder["module"];
+        int layer = cellid_decoder.get(simTrkHit.getCellID(), "layer");
+        int ladder = cellid_decoder.get(simTrkHit.getCellID(), "module");
         int tkey = GetKey(layer, ladder);
 
         auto item = htable.find(tkey);

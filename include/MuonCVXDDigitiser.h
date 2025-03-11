@@ -8,6 +8,7 @@
 
 // k4FWCore
 #include <k4FWCore/Transformer.h>
+#include "k4Interface/IGeoSvc.h"
 
 // edm4hep
 #include <edm4hep/SimTrackerHit.h>
@@ -195,6 +196,7 @@ protected:
     Gaudi::Property<double> m_timeSmearingSigma{this, "TimeSmearingSigma", 0.05, "Effective intrinsic time measurement resolution effects [ns]."};
     Gaudi::Property<bool>   m_electronicEffects{this, "ElectronicEffects", true, "Apply Electronic Effects"};
     Gaudi::Property<bool>   m_produceFullPattern{this, "StoreFiredPixels", false, "Store fired pixels"};
+    Gaudi::Property<std::string> m_encodingStringVariable{this, "EncodingStringParameterName", "GlobalTrackerReadoutID", "The name of the DD4hep constant that contains the Encoding string for the detector"};
 
     MyG4UniversalFluctuationForSi *m_fluctuate;
 
@@ -222,6 +224,8 @@ protected:
     std::vector<float> m_layerPetalInnerWidth{};
     std::vector<float> m_layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* m_map;
+    SmartIF<IGeoSvc>               m_geoSvc;
+
 
     /* Charge digitization helpers */
     void ProduceIonisationPoints(edm4hep::SimTrackerHit &hit, InternalState *intState) const;
@@ -248,9 +252,6 @@ protected:
     StatusCode LoadGeometry();
     void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax ) const;
-
-    /* Message Helpers */
-    bool msgLevel(MSG::Level level) const{ return msgSvc()->outputLevel(name()) <= level; };
 
 };
 #endif

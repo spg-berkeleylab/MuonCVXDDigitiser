@@ -56,12 +56,8 @@ StatusCode MuonCVXDRealDigitiser::initialize() {
 
 
     if (m_create_stats) {
-        ITHistSvc* histSvc{nullptr};
-        StatusCode sc1 = service("THistSvc", histSvc);
-        if ( sc1.isFailure() ) {
-            log << MSG::ERROR << "Could not locate HistSvc" << endmsg;
-            return StatusCode::FAILURE;
-        }
+        SmartIF<ITHistSvc> histSvc;
+        histSvc = serviceLocator()->service("HistSvc");
 
         double max_histox = std::max(m_pixelSizeX, m_pixelSizeY) * 10;
         signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);

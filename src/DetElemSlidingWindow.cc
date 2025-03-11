@@ -99,8 +99,7 @@ int DetElemSlidingWindow::process(IMessageSvc* msgSvc)
             float mcp_theta = hit->getPosition().z == 0 ? 3.1416/2 : atan(mcp_r / hit->getPosition().z);
             double mom_norm = sqrt(pow(hit->getMomentum().x, 2) + pow(hit->getMomentum().y, 2)
                                  + pow(hit->getMomentum().z, 2));
-	    cell_decoder.setValue(hit->getCellID());
-            int segment_id = cell_decoder["sensor"];
+            int segment_id = cell_decoder.get(hit->getCellID(), "sensor");
             log << MSG::DEBUG << "Processing simHit from layer = " << _sensor.GetLayer()
                 << ", ladder = " << _sensor.GetLadder() 
                 << ", sensor = " << segment_id << "\n"
@@ -237,8 +236,7 @@ void DetElemSlidingWindow::StoreSignalPoints(SimTrackerHit* hit, IMessageSvc* ms
     pos[1] = lv[1] / dd4hep::mm;
 #ifdef ZSEGMENTED
     // See MuonCVXDDigitiser::processEvent
-    cell_decoder.setValue(hit->getCellID());
-    int segment_id = cell_decoder["sensor"];
+    int segment_id = cell_decoder.get(hit->getCellID(), "sensor");
 
     float s_offset = _sensor.GetSensorCols() * _sensor.GetPixelSizeY() * (float(segment_id) + 0.5);
     s_offset -= _sensor.GetHalfLength();

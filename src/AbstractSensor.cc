@@ -1,4 +1,6 @@
 #include "AbstractSensor.h"
+#include "DDSegmentation/BitFieldCoder.h"
+
 #include <cmath>
 
 AbstractSensor::AbstractSensor( int layer,
@@ -96,15 +98,15 @@ bool AbstractSensor::checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, Pix
                         pstat);
 }
 
-BitField64 AbstractSensor::getBFEncoder()
+uint64_t AbstractSensor::getBitF()
 {
-    BitField64 bf_encoder { cellFmtStr };
-    bf_encoder.reset();
-    bf_encoder["subdet"] = _barrel_id;
-    bf_encoder["side"] = 0; // TODO: I replaced this. It was ILDDetID::barrel, which equals 0 according to LCIO docs.
-    bf_encoder["layer"] = _layer;
-    bf_encoder["module"] = _ladder;
-    return bf_encoder;
+    dd4hep::DDSegmentation::BitFieldCoder bf_encoder { cellFmtStr };
+    uint64_t bitfield = 0;
+    bf_encoder.set(bitfield, "subdet", _barrel_id);
+    bf_encoder.set(bitfield, "side", 0); // TODO: I replaced this. It was ILDDetID::barrel, which equals 0 according to LCIO docs.
+    bf_encoder.set(bitfield, "layer", _layer);
+    bf_encoder.set(bitfield, "module", _ladder);
+    return bitfield;
 }
 
 bool AbstractSensor::check(int x, int y)

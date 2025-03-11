@@ -1,4 +1,5 @@
 #include "HKBaseSensor.h"
+#include "DDSegmentation/BitFieldCoder.h"
 
 #include <math.h>
 #include <algorithm>
@@ -176,7 +177,8 @@ HKBaseSensor::HKBaseSensor(int layer,
 void HKBaseSensor::buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
-    BitField64 bf_encoder = getBFEncoder();
+    uint64_t bitfield = getBitF();
+    dd4hep::DDSegmentation::BitFieldCoder bf_encoder { cellFmtStr };
 
     if (!IsActive()) return;
 
@@ -187,7 +189,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder["sensor"] = sens_id;
+            bf_encoder.set(bitfield, "sensor", sens_id);
 
             ClusterHeap& c_heap = heap_table[sens_id];
 
@@ -272,7 +274,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc)
                 SegmentDigiHit digiHit = {
                     0., 0., 0.,
                     c_item.time,
-                    bf_encoder.lowWord(),
+                    bf_encoder.lowWord(bitfield),
                     {}
                 };
 

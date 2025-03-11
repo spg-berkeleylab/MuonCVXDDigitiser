@@ -6,11 +6,11 @@
 
 // edm4hep
 #include <edm4hep/MCParticle.h>
-#include "BitField64.hxx"
 
 // DD4hep
 #include "DD4hep/Detector.h"
 #include "DDRec/DetectorData.h"
+#include "DDSegmentation/BitFieldCoder.h"
 #include "DD4hep/DD4hepUnits.h"
 
 // Random
@@ -40,7 +40,10 @@ MuonCVXDDigitiser::MuonCVXDDigitiser(const std::string& name, ISvcLocator* svcLo
           { KeyValues("SimHitLocCollectionName", {"VertexBarrel"}),
             KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
             KeyValues("RelationColName", {"VTXTrackerHitRelations"}),
-            KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"}) }) {}
+            KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"}) })
+{
+    m_geoSvc = serviceLocator()->service("GeoSvc");  // important to initialize m_geoSvc
+}
 
 
 StatusCode MuonCVXDDigitiser::initialize() {
@@ -242,17 +245,18 @@ std::tuple<edm4hep::SimTrackerHitCollection,
     edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
     edm4hep::TrackerHitSimTrackerHitLinkCollection rawHitsCol;
 
-    BitField64 cellID_coder("system:5,side:-2,layer:6,module:11,sensor:8");
-
+    std::string initString;  
+    initString = m_geoSvc->constantAsString(m_encodingStringVariable.value());
+    dd4hep::DDSegmentation::BitFieldCoder cellID_coder(initString); 
+    
     int nSimHits = STHcol.size();
     log << MSG::DEBUG << "Processing collection " << STHcol.getID()  << " with " <<  nSimHits  << " hits ... " << endmsg;
     for (int i=0; i < nSimHits; ++i) {
         edm4hep::SimTrackerHit simTrkHit = STHcol.at(i);
         InternalState intState;
         // use CellID to set layer and ladder numbers
-        cellID_coder.setValue(simTrkHit.getCellID());
-        intState.currentLayer = cellID_coder["layer"];
-        intState.currentLadder = cellID_coder["module"];
+        intState.currentLayer = cellID_coder.get(simTrkHit.getCellID(), "layer");
+        intState.currentLadder = cellID_coder.get(simTrkHit.getCellID(), "module");
         log << MSG::DEBUG << "Processing simHit #" << i
             << ", from layer=" << intState.currentLayer
             << ", module=" << intState.currentLadder << "\n"

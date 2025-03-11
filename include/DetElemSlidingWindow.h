@@ -10,7 +10,7 @@
 #include "GaudiKernel/IMessageSvc.h"
 #include "GaudiKernel/MsgStream.h"
 #include "G4UniversalFluctuation.h"
-#include "BitField64.hxx"
+#include "DDSegmentation/BitFieldCoder.h"
 
 using dd4hep::rec::SurfaceMap;
 
@@ -73,7 +73,7 @@ private:
     double _deltaEne;
     TimedSignalPointList signals;
     const SurfaceMap* surf_map;
-    BitField64 cell_decoder;
+    dd4hep::DDSegmentation::BitFieldCoder cell_decoder;
     G4UniversalFluctuation* _fluctuate;
 };
 

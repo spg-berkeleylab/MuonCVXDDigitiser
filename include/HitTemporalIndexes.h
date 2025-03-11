@@ -8,7 +8,7 @@
 
 #include <edm4hep/SimTrackerHit.h>
 #include <edm4hep/SimTrackerHitCollection.h>
-#include "BitField64.hxx"
+#include "DDSegmentation/BitFieldCoder.h"
 
 using std::priority_queue;
 using std::unordered_map;
@@ -45,7 +45,7 @@ public:
 private:
     inline int GetKey(int layer, int ladder);
 
-    BitField64 cellid_decoder;
+    dd4hep::DDSegmentation::BitFieldCoder cellid_decoder;
     unordered_map<int, hit_queue*> htable;
 };
 

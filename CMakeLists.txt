@@ -59,7 +59,8 @@ TARGET_INCLUDE_DIRECTORIES(MuonCVXDigitiserPlugins
                            ${CMAKE_CURRENT_BINARY_DIR}
                            ${Gaudi_INCLUDE_DIRS}
                            ${ROOT_INCLUDE_DIRS}
-			   ${GSL_INCLUDE_DIRS})
+                           ${DD4hep_INCLUDE_DIRS}
+			               ${GSL_INCLUDE_DIRS})
 
 SET( GAUDI_GENCONF_DIR "genConfDir" )
 if (${Gaudi_VERSION} VERSION_LESS 35.1)
