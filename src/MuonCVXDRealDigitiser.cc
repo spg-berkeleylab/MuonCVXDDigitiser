@@ -39,21 +39,21 @@ DECLARE_COMPONENT(MuonCVXDRealDigitiser)
 MuonCVXDRealDigitiser::MuonCVXDRealDigitiser(const std::string& name, ISvcLocator* svcLoc) : MultiTransformer(name, svcLoc,
           { KeyValues("CollectionName", {"VXDCollection"}) },
           { KeyValues("OutputCollectionName", {"VTXTrackerHits"}),
-            KeyValues("RelationColName", {"VTXTrackerHitRelations"}) })
-{
-    m_geoSvc = serviceLocator()->service("GeoSvc");  // important to initialize m_geoSvc
-}
+            KeyValues("RelationColName", {"VTXTrackerHitRelations"}) }) {}
 
 
 StatusCode MuonCVXDRealDigitiser::initialize() {
-    MsgStream log(msgSvc(), name());
-    log << MSG::DEBUG << "   init called  " << endmsg;
-
-
+    m_geoSvc = serviceLocator()->service("GeoSvc");  // important to initialize m_geoSvc
+    if (!m_geoSvc) {
+        error() << "Unable to retrieve the GeoSvc" << endmsg;
+        return StatusCode::FAILURE;
+    }
+    
+    debug() << "   init called  " << endmsg;
 
     if (m_create_stats) {
         SmartIF<ITHistSvc> histSvc;
-        histSvc = serviceLocator()->service("HistSvc");
+        histSvc = serviceLocator()->service("THistSvc");
 
         double max_histox = std::max(m_pixelSizeX, m_pixelSizeY) * 10;
         signal_dHisto = new TH1F("SignalHitDistance", "Signal Hit offset", 1000, 0., max_histox);
@@ -99,8 +99,7 @@ StatusCode MuonCVXDRealDigitiser::LoadGeometry() {
     m_map = surfMan.map( vxBarrel.name() );
     if( ! m_map ) 
     {
-      MsgStream log(msgSvc(), name());
-      log << MSG::ERROR << " Could not find surface map for detector: "
+      error() << " Could not find surface map for detector: "
           << m_subDetName << " in SurfaceManager " << endmsg;
       return StatusCode::FAILURE;
     }
@@ -154,8 +153,6 @@ StatusCode MuonCVXDRealDigitiser::LoadGeometry() {
 std::tuple<edm4hep::TrackerHitPlaneCollection,
            edm4hep::TrackerHitSimTrackerHitLinkCollection> MuonCVXDRealDigitiser::operator()(
      const edm4hep::SimTrackerHitCollection& STHcol) const{
-    MsgStream log(msgSvc(), name());
-
     edm4hep::TrackerHitPlaneCollection             THcol;
     edm4hep::TrackerHitSimTrackerHitLinkCollection relCol;
 
@@ -165,7 +162,7 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
     dd4hep::DDSegmentation::BitFieldCoder cellID_coder(encoder_str); 
 
     if (STHcol.size() == 0) {
-        log << MSG::INFO << "Number of produced hits: " << THcol.size()  << endmsg;
+        info() << "Number of produced hits: " << THcol.size()  << endmsg;
         return std::make_tuple( std::move(THcol), std::move(relCol) );
     }
 
@@ -186,7 +183,7 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
                 if ( msgLevel(MSG::DEBUG) )
 #pragma omp critical
                 {
-                    log << MSG::DEBUG << "Undefined min time for layer " << layer
+                    debug() << "Undefined min time for layer " << layer
                         << " ladder " << ladder << endmsg;
                 }
                 continue;
@@ -214,12 +211,12 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
                 if (sensor->GetStatus() == MatrixStatus::pixel_number_error)
 #pragma omp critical
                 {
-                    log << MSG::ERROR << "Pixel number error for layer " << layer
+                    error() << "Pixel number error for layer " << layer
                         << " ladder " << ladder << endmsg;
                 } else
 #pragma omp critical
                 {
-                    log << MSG::ERROR << "Segment number error for layer " << layer
+                    error() << "Segment number error for layer " << layer
                         << " ladder " << ladder << endmsg;
                 }
                 continue;
@@ -365,7 +362,7 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
                         THcol.push_back( *recoHit );
 
                         if ( msgLevel(MSG::DEBUG) ) {
-                            log << MSG::DEBUG << "Reconstructed pixel cluster for " 
+                            debug() << "Reconstructed pixel cluster for " 
                                 << sensor->GetLayer() << ":" << sensor->GetLadder() 
                                 << ":" << cellID_coder.get(recoHit->getCellID(), "sensor") << std::endl
                                 << "- global position (x,y,z,t) = " 
@@ -389,14 +386,14 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
             delete sensor;
         }
     }
-    log << MSG::INFO << "Number of produced hits: " << THcol.size()  << endmsg;
+    info() << "Number of produced hits: " << THcol.size()  << endmsg;
     int count = 0;
-    log << MSG::DEBUG << "Hit relation histogram:" << std::endl;
+    debug() << "Hit relation histogram:" << std::endl;
     for (std::size_t k = 0; k < RELHISTOSIZE; k++) {
-        log << MSG::DEBUG << k << " " << relHisto[k] << std::endl;
+        debug() << k << " " << relHisto[k] << std::endl;
         count += relHisto[k];
     }
-    log << MSG::DEBUG << "> " << THcol.size() - count << endmsg;
+    debug() << "> " << THcol.size() - count << endmsg;
 
     if (m_create_stats) {
         for (int i = 0; i < relCol.size(); ++i) {
@@ -423,13 +420,12 @@ StatusCode MuonCVXDRealDigitiser::finalize() {
 }
 
 void MuonCVXDRealDigitiser::PrintGeometryInfo() {
-    MsgStream log(msgSvc(), name());
-    log << MSG::INFO << "Number of layers: " << m_numberOfLayers << std::endl
+    info() << "Number of layers: " << m_numberOfLayers << std::endl
         << "Pixel size X: " << m_pixelSizeX << std::endl
         << "Pixel size Y: " << m_pixelSizeY << std::endl
         << "Electrons per KeV: " << m_electronsPerKeV << std::endl;
     for (int i = 0; i < m_numberOfLayers; ++i) {
-        log << MSG::INFO << "Layer " << i << std::endl
+        info() << "Layer " << i << std::endl
             << "  Number of ladders: " << m_laddersInLayer[i] << std::endl
             << "  Radius: " << m_layerRadius[i] << std::endl
             << "  Ladder length: " << m_layerLadderLength[i] << std::endl
@@ -441,6 +437,6 @@ void MuonCVXDRealDigitiser::PrintGeometryInfo() {
             << "  Thickness: " << m_layerThickness[i] << std::endl
             << "  Half thickness: " << m_layerHalfThickness[i] << std::endl;
     }
-    log << MSG::INFO << endmsg;
+    info() << endmsg;
 }
 

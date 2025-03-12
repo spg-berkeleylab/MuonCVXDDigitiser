@@ -6,11 +6,13 @@
 #include <vector>
 #include <tuple>
 
+// ROOT
+#include "TRandom2.h"
+
 // k4FWCore
 #include <k4FWCore/Transformer.h>
 #include "k4Interface/IGeoSvc.h"
 #include "k4Interface/IUniqueIDGenSvc.h"
-#include "GaudiKernel/RndmGenerators.h"
 
 // edm4hep
 #include <edm4hep/SimTrackerHit.h>
@@ -230,12 +232,10 @@ protected:
     std::vector<float> m_layerPetalOuterWidth{};
     const dd4hep::rec::SurfaceMap* m_map;
 
-    SmartIF<IGeoSvc>         m_geoSvc;
-    SmartIF<IUniqueIDGenSvc> m_uIDSvc;
-    SmartIF<IRndmGenSvc>     m_rndSvc;
-    IRndmGen*                m_gauss;
-    IRndmGen*                m_poisson;
-    IRndmGen*                m_flat;
+    SmartIF<IGeoSvc>                    m_geoSvc;
+    SmartIF<IUniqueIDGenSvc>            m_uIDSvc;  
+    inline static thread_local TRandom2 m_engine;
+
 
 
     /* Charge digitization helpers */
