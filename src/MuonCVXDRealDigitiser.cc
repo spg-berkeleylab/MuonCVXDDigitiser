@@ -396,9 +396,7 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
     debug() << "> " << THcol.size() - count << endmsg;
 
     if (m_create_stats) {
-        for (int i = 0; i < relCol.size(); ++i) {
-            edm4hep::TrackerHitSimTrackerHitLink hitRel = relCol.at(i);
-
+        for (const auto& hitRel : relCol) {
             float tmpf = 0.0;
             tmpf += pow(hitRel.getFrom().getPosition().x - hitRel.getTo().getPosition().x, 2);
             tmpf += pow(hitRel.getFrom().getPosition().y - hitRel.getTo().getPosition().y, 2);

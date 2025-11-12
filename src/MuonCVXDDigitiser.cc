@@ -37,7 +37,10 @@ MuonCVXDDigitiser::MuonCVXDDigitiser(const std::string& name, ISvcLocator* svcLo
             KeyValues("RelationColName", {"VTXTrackerHitRelations"}),
             KeyValues("RawHitsLinkColName", {"VTXRawHitRelations"}) })
 {
-    m_uIDSvc = serviceLocator()->service("IUniqueIDGenSvc");  // important to initialize m_uIDSvc
+  m_uIDSvc = service<IUniqueIDGenSvc>("UniqueIDGenSvc", true);
+  if (!m_uIDSvc) {
+    error() << "Unable to get UniqueIDGenSvc" << endmsg;
+  }
 }
 
 
@@ -254,7 +257,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
         edm4hep::SimTrackerHit simTrkHit = STHcol.at(i);
         InternalState intState;
         // use CellID to set layer and ladder numbers
-        intState.currentLayer = cellID_coder.get(simTrkHit.getCellID(), "layer");
+        intState.currentLayer = MuonCVXDDigitiser::layerMapping(cellID_coder.get(simTrkHit.getCellID(), "layer"));
         intState.currentLadder = cellID_coder.get(simTrkHit.getCellID(), "module");
         debug() << "Processing simHit #" << i
             << ", from layer=" << intState.currentLayer
@@ -296,17 +299,17 @@ std::tuple<edm4hep::SimTrackerHitCollection,
         // Create reconstructed cluster object (TrackerHitImpl)
         //**************************************************************************
         TempRecoHit *info = new TempRecoHit();
-	ReconstructTrackerHit(simTrkHitVec, info, &intState);
+	    ReconstructTrackerHit(simTrkHitVec, info, &intState);
         if ( info ) {
           debug() << "Skip hit" << endmsg;
           continue;
         } else {
-	  edm4hep::MutableTrackerHitPlane recoHit = THcol.create();
-	  recoHit.setEDep(info->EDep);
-	  recoHit.setPosition(info->Position);
-	  recoHit.setDu(info->Du);
-	  recoHit.setDv(info->Dv);
-	  recoHit.setTime(info->Time);
+            edm4hep::MutableTrackerHitPlane recoHit = THcol.create();
+            recoHit.setEDep(info->EDep);
+            recoHit.setPosition(info->Position);
+            recoHit.setDu(info->Du);
+            recoHit.setDv(info->Dv);
+            recoHit.setTime(info->Time);
 	
           // hit's layer/ladder/petal position does not change
           const int cellid = simTrkHit.getCellID();
@@ -397,7 +400,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
                 // hit's layer/ladder position is the same for all fired points 
                 newsth.setCellID( cellid );
                 //Store local position in units of pixels instead
-  	      edm4hep::Vector3d sLab;
+  	            edm4hep::Vector3d sLab;
                 //TransformToLab(cellid0, sth->getPosition(), sLab);
                 sLab = sth->getPosition();
                 edm4hep::Vector3d pixelPos;
@@ -1086,13 +1089,13 @@ int MuonCVXDDigitiser::GetPixelsInaRow(InternalState *intState) const{
 }
 
 void MuonCVXDDigitiser::PrintGeometryInfo() {
-    info() << "Number of layers: " << m_numberOfLayers
+    debug() << "Number of layers: " << m_numberOfLayers
                      << "\nPixel size X: " << m_pixelSizeX
                      << "\nPixel size Y: " << m_pixelSizeY
                      << "\nElectrons per KeV: " << m_electronsPerKeV;
                    //<< "\nSegment depth: " << m_segmentDepth;
     for (int i = 0; i < m_numberOfLayers; ++i) {
-        info()<< "\nLayer " << i
+        debug()<< "\nLayer " << i
             << "  Number of ladders: " << m_laddersInLayer[i]
             << "  Radius: " << m_layerRadius[i]
             << "  Ladder length: " << m_layerLadderLength[i]
@@ -1119,4 +1122,18 @@ double MuonCVXDDigitiser::randomTail( const double qmin, const double qmax ) con
     const double range  = ( 1. / qmin ) - offset;
     const double u      = offset + m_engine.Uniform(0., 1.) * range;
     return 1. / u;
+}
+
+int MuonCVXDDigitiser::layerMapping( int id) const {
+  int mappedLayerID = -1;
+  
+  auto it = std::find(m_layerIDs.begin(), m_layerIDs.end(), id);
+  if (it != m_layerIDs.end()) {
+    mappedLayerID = std::distance(m_layerIDs.begin(), it);
+    debug() << "Mapped ID of layer " << id << " is: " << mappedLayerID << endmsg;
+  } else {
+    error() << id << " not found in the m_layerIDs vector." << endmsg;
+  }
+  
+  return mappedLayerID;
 }

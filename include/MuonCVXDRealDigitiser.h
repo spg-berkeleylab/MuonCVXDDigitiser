@@ -16,7 +16,6 @@
 #include <edm4hep/MutableTrackerHitPlane.h>
 #include <edm4hep/SimTrackerHitCollection.h>
 #include <edm4hep/TrackerHitPlaneCollection.h>
-#include <edm4hep/TrackerHitSimTrackerHitLink.h>
 #include <edm4hep/TrackerHitSimTrackerHitLinkCollection.h>
 
 // DD4hep

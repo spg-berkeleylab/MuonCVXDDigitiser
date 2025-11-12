@@ -21,7 +21,6 @@
 #include <edm4hep/MutableTrackerHitPlane.h>
 #include <edm4hep/SimTrackerHitCollection.h>
 #include <edm4hep/TrackerHitPlaneCollection.h>
-#include <edm4hep/TrackerHitSimTrackerHitLink.h>
 #include <edm4hep/TrackerHitSimTrackerHitLinkCollection.h>
 
 // DD4hep
@@ -177,6 +176,7 @@ protected:
 
     // processor 
     Gaudi::Property<std::string> m_subDetName{this, "SubDetectorName", std::string("VertexBarrel"), "Name of Vertex detector"};
+    Gaudi::Property<std::vector<int>> m_layerIDs{this, "LayerIDs", {}, "ID of layers of subdetector"};
     Gaudi::Property<double> m_tanLorentzAngleX{this, "TanLorentz", (double)0.8, "Tangent of Lorentz Angle"};
     Gaudi::Property<double> m_tanLorentzAngleY{this, "TanLorentzY", (double)0, "Tangent of Lorentz Angle along Y"};
     Gaudi::Property<double> m_cutOnDeltaRays{this, "CutOnDeltaRays", (double)0.030, "Cut on delta-ray energy (MeV)"};
@@ -263,6 +263,7 @@ protected:
     StatusCode LoadGeometry();
     void PrintGeometryInfo();
     double randomTail( const double qmin, const double qmax ) const;
+    int layerMapping( int id) const;
 
 };
 #endif

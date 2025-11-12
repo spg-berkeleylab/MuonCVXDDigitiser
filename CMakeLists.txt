@@ -6,6 +6,12 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.11 FATAL_ERROR)
 # project name
 PROJECT( MuonCVXDDigitiser )
 
+# Dependencies
+find_package(EDM4HEP REQUIRED)
+find_package(DD4hep REQUIRED)
+find_package(Gaudi REQUIRED)
+find_package(k4FWCore REQUIRED)
+find_package(GSL REQUIRED)
 
 # project version
 SET( ${PROJECT_NAME}_VERSION_MAJOR 0 )
