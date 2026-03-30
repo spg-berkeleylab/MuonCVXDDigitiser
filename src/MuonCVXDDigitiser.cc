@@ -300,7 +300,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
         //**************************************************************************
         TempRecoHit *info = new TempRecoHit();
 	    ReconstructTrackerHit(simTrkHitVec, info, &intState);
-        if ( info ) {
+        if ( !info ) {
           debug() << "Skip hit" << endmsg;
           continue;
         } else {
