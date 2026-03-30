@@ -274,7 +274,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
             << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta 
             << "\n- MC particle pdg = ";
         edm4hep::MCParticle mcp = simTrkHit.getParticle();
-        if (&mcp) {
+        if (mcp.isAvailable()) {
           debug() << mcp.getPDG();
         } else {
           debug() << " N.A.";
@@ -492,7 +492,7 @@ void MuonCVXDDigitiser::FindLocalPosition(edm4hep::SimTrackerHit &hit,
     double Momentum[3];
     edm4hep::MCParticle mcp = hit.getParticle();
     for (int j = 0; j < 3; ++j) {
-      if (&mcp) {
+      if (mcp.isAvailable()) {
         Momentum[j] = mcp.getMomentum()[j] * dd4hep::GeV;
       } else {
         Momentum[j] = hit.getMomentum()[j];
@@ -928,8 +928,8 @@ void MuonCVXDDigitiser::TimeDigitizer(MutableSimTrackerHitVec &simTrkVec) const{
  * Time is the arithmetic average of constituents.
  */
 void MuonCVXDDigitiser::ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec, 
-                                                                          TempRecoHit *info, 
-                                                                          InternalState *intState) const{
+                                              TempRecoHit *info, 
+                                              InternalState *intState) const{
     edm4hep::Vector3d pos(0, 0, 0);
 
     double minX = 99999999;
@@ -997,13 +997,15 @@ void MuonCVXDDigitiser::ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec
     info->EDep = (charge / m_electronsPerKeV) * dd4hep::keV;
 
     debug() << "Edge sizes, minx, maxx, miny, maxy: " << edge_size_minx << ", "
-                                                                << edge_size_maxx << ", "
-                                                                << edge_size_miny << ", "
-                                                                << edge_size_maxy
-        << "\nPosition: x = " << pos.x << " + " << (m_layerHalfThickness[intState->currentLayer] * m_tanLorentzAngleX) << "(LA-correction)";
+                                                      << edge_size_maxx << ", "
+                                                      << edge_size_miny << ", "
+                                                      << edge_size_maxy
+            << "\nPosition: x = " << pos.x << " + " << (m_layerHalfThickness[intState->currentLayer] * m_tanLorentzAngleX) 
+            << "(LA-correction)";
     pos.x -= m_layerHalfThickness[intState->currentLayer] * m_tanLorentzAngleX;
     debug() << " = " << pos.x
-                 << "\n; y = " << pos.y << " + " << (m_layerHalfThickness[intState->currentLayer] * m_tanLorentzAngleY) << "(LA-correction)";
+            << "\n; y = " << pos.y << " + " << (m_layerHalfThickness[intState->currentLayer] * m_tanLorentzAngleY) 
+            << "(LA-correction)";
     pos.y -= m_layerHalfThickness[intState->currentLayer] * m_tanLorentzAngleY;
     debug() << " = " << pos.y;
 
