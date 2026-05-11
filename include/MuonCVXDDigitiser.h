@@ -253,7 +253,7 @@ protected:
 
     /* Reconstruction of measurement and helpers */
     void ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec, TempRecoHit *info, InternalState *intState) const;
-    void TransformToLab(const int cellID, edm4hep::Vector3d xLoc, edm4hep::Vector3d xLab) const;
+    void TransformToLab(const int cellID, const edm4hep::Vector3d &xLoc, edm4hep::Vector3d &xLab) const;
     void FindLocalPosition(edm4hep::SimTrackerHit &hit, edm4hep::Vector3d &localPosition, edm4hep::Vector3d &localDirection, InternalState *intState) const;
     void TransformXYToCellID(double x, double y, int & ix, int & iy, InternalState *intState) const;
     void TransformCellIDToXY(int ix, int iy, double & x, double & y, InternalState* instate) const;

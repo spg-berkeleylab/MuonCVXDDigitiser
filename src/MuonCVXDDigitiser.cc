@@ -1024,7 +1024,7 @@ void MuonCVXDDigitiser::ReconstructTrackerHit(MutableSimTrackerHitVec &simTrkVec
 /** Function transforms local coordinates in the ladder
  * into global coordinates
  */
-void MuonCVXDDigitiser::TransformToLab(const int cellID, edm4hep::Vector3d xLoc, edm4hep::Vector3d xLab) const{
+void MuonCVXDDigitiser::TransformToLab(const int cellID, const edm4hep::Vector3d &xLoc, edm4hep::Vector3d &xLab) const{
     // Use SurfaceManager to calculate global coordinates
     debug() << "Cell ID of Hit (used for transforming to lab coords)" << cellID << endmsg;
     SurfaceMap::const_iterator sI = m_map->find( cellID ) ;
