@@ -7,12 +7,12 @@
 #include "AbstractSensor.h"
 #include "DDRec/Surface.h"
 #include "DDRec/SurfaceManager.h"
+#include "GaudiKernel/IMessageSvc.h"
+#include "GaudiKernel/MsgStream.h"
 #include "G4UniversalFluctuation.h"
-
-#include <UTIL/CellIDDecoder.h>
+#include "DDSegmentation/BitFieldCoder.h"
 
 using dd4hep::rec::SurfaceMap;
-using UTIL::CellIDDecoder;
 
 struct TimedSignalPoint
 {
@@ -21,7 +21,7 @@ struct TimedSignalPoint
     double sigmaX;
     double sigmaY;
     double charge;
-    SimTrackerHit* sim_hit;
+    SimTrackerHit *sim_hit;
 };
 
 typedef std::list<TimedSignalPoint> TimedSignalPointList;
@@ -47,11 +47,11 @@ public:
                          const SurfaceMap* s_map);
     virtual ~DetElemSlidingWindow();
     bool active();
-    int process();
+    int process(IMessageSvc* msgSvc);
     float get_time();
 
 private:
-    void StoreSignalPoints(SimTrackerHit* hit);
+    void StoreSignalPoints(SimTrackerHit *hit, IMessageSvc* msgSvc);
     void UpdatePixels();
     double randomTail( const double qmin, const double qmax );
 
@@ -73,13 +73,8 @@ private:
     double _deltaEne;
     TimedSignalPointList signals;
     const SurfaceMap* surf_map;
-    CellIDDecoder<SimTrackerHit> cell_decoder;
+    dd4hep::DDSegmentation::BitFieldCoder cell_decoder;
     G4UniversalFluctuation* _fluctuate;
 };
-
-
-
-
-
 
 #endif //DetElemSlidingWindow_h

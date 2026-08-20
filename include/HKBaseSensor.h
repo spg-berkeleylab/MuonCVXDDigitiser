@@ -3,6 +3,8 @@
 
 #include "PixelDigiMatrix.h"
 #include "FindUnionAlgorithm.h"
+#include "GaudiKernel/IMessageSvc.h"
+#include "GaudiKernel/MsgStream.h"
 #include <tuple>
 #include <unordered_map>
 
@@ -46,8 +48,8 @@ class ClusterHeap
 public:
     ClusterHeap(int rows, int cols);
     virtual ~ClusterHeap();
-    void AddCluster(ClusterOfPixel& cluster);
-    void SetupPixel(int pos_x, int pos_y, PixelData pix);
+    void AddCluster(ClusterOfPixel& cluster, IMessageSvc* msgSvc);
+    void SetupPixel(int pos_x, int pos_y, PixelData pix, IMessageSvc* msgSvc);
     vector<BufferedCluster> PopClusters();
     void SetLabel(string dlabel) { debug_label = dlabel; }
 
@@ -87,7 +89,7 @@ public:
                           bool hk8_on = true);
     virtual ~HKBaseSensor() {}
 
-    void buildHits(SegmentDigiHitList& output) override;
+    void buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc) override;
 
 protected:
     vector<ClusterHeap> heap_table;

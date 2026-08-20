@@ -1,7 +1,5 @@
 #include "ShapeProcessingSensor.h"
 
-#include "streamlog/streamlog.h"
-
 //TODO remove
 #include <sstream>
 
@@ -71,7 +69,7 @@ GridCoordinate ShapeProcessingSensor::GetNextPoint(GridCoordinate c, GridCoordin
     return { 0, 0 };
 }
 
-vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& spot)
+vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& spot, IMessageSvc* msgSvc)
 {
     vector<GridCoordinate> result;
     std::stringstream logstr;
@@ -132,10 +130,11 @@ vector<GridCoordinate> ShapeProcessingSensor::GetContour(const ClusterOfPixel& s
     result.pop_back();
     logstr << std::endl << "Contour size: " << result.size() << std::endl;
 
-    if(streamlog::out.write<streamlog::DEBUG7>())
+    if( msgSvc->outputLevel() <= MSG::DEBUG )
 #pragma omp critical
     {
-        streamlog::out() << logstr.str() << std::endl;
+	MsgStream log(msgSvc, "ShapeProcessingSensor");
+        log << MSG::DEBUG << logstr.str() << endmsg;
     }
 
     return result;

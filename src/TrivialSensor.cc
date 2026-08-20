@@ -1,4 +1,6 @@
 #include "TrivialSensor.h"
+#include "DDSegmentation/BitFieldCoder.h"
+
 #include "FindUnionAlgorithm.h"
 
 TrivialSensor::TrivialSensor(int layer,
@@ -106,10 +108,11 @@ bool TrivialSensor::CheckStatus(int x, int y, PixelStatus pstat)
     return cond1 or cond2;
 }
 
-void TrivialSensor::buildHits(SegmentDigiHitList& output)
+void TrivialSensor::buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
-    BitField64 bf_encoder = getBFEncoder();
+    uint64_t bitfield = getBitF();
+    dd4hep::DDSegmentation::BitFieldCoder bf_encoder { cellFmtStr };
 
     if (!IsActive()) return;
 
@@ -121,7 +124,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+            bf_encoder.set(bitfield, "sensor", sens_id);
 
             fu_algo.init();
 
@@ -182,7 +185,7 @@ void TrivialSensor::buildHits(SegmentDigiHitList& output)
                 SegmentDigiHit digiHit = {
                     0., 0., 0.,
                     init_time + clock_cnt * clock_step,
-                    bf_encoder.lowWord(),
+                    bf_encoder.lowWord( bitfield ),
                     {}
                 };
                 for (GridCoordinate gcoor : c_item)

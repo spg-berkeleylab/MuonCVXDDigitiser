@@ -38,7 +38,7 @@ public:
 
     bool CheckStatus(int x, int y, PixelStatus pstat) override;
 
-    void buildHits(SegmentDigiHitList& output) override;
+    void buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc) override;
 
 private:
 

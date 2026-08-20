@@ -1,9 +1,7 @@
 #include "AbstractSensor.h"
+#include "DDSegmentation/BitFieldCoder.h"
+
 #include <cmath>
-
-#include <UTIL/ILDConf.h>
-
-using lcio::ILDDetID;
 
 AbstractSensor::AbstractSensor( int layer,
                                 int ladder,
@@ -100,15 +98,15 @@ bool AbstractSensor::checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, Pix
                         pstat);
 }
 
-BitField64 AbstractSensor::getBFEncoder()
+uint64_t AbstractSensor::getBitF()
 {
-    BitField64 bf_encoder { cellFmtStr };
-    bf_encoder.reset();
-    bf_encoder[LCTrackerCellID::subdet()] = _barrel_id;
-    bf_encoder[LCTrackerCellID::side()] = ILDDetID::barrel;
-    bf_encoder[LCTrackerCellID::layer()] = _layer;
-    bf_encoder[LCTrackerCellID::module()] = _ladder;
-    return bf_encoder;
+    dd4hep::DDSegmentation::BitFieldCoder bf_encoder { cellFmtStr };
+    uint64_t bitfield = 0;
+    bf_encoder.set(bitfield, "subdet", _barrel_id);
+    bf_encoder.set(bitfield, "side", 0); // TODO: I replaced this. It was ILDDetID::barrel, which equals 0 according to LCIO docs.
+    bf_encoder.set(bitfield, "layer", _layer);
+    bf_encoder.set(bitfield, "module", _ladder);
+    return bitfield;
 }
 
 bool AbstractSensor::check(int x, int y)
@@ -121,7 +119,7 @@ void AbstractSensor::InitHitRegister()
     if (reset_simtable_at_once) simhit_table.clear();
 }
 
-void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit* hit)
+void AbstractSensor::RegisterHit(int x, int y, SimTrackerHit *hit)
 {
     simhit_table.emplace(l_locate(x, y), hit);
 }

@@ -5,15 +5,13 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <UTIL/BitField64.h>
-#include <UTIL/LCTrackerConf.h>
-#include <EVENT/SimTrackerHit.h>
+#include "GaudiKernel/IMessageSvc.h"
+#include "GaudiKernel/MsgStream.h"
+#include <edm4hep/SimTrackerHit.h>
 
 using std::string;
 using std::vector;
-using UTIL::BitField64;
-using lcio::LCTrackerCellID;
-using EVENT::SimTrackerHit;
+using edm4hep::SimTrackerHit;
 
 enum class PixelStatus : char {
     on,
@@ -45,7 +43,7 @@ struct SegmentDigiHit
     float y;
     float charge;
     float time;
-    int cellID0;
+    int cellID;
     int size;
     SimHitSet sim_hits;
 };
@@ -138,7 +136,7 @@ public:
 
     virtual void InitHitRegister();
 
-    virtual void RegisterHit(int x, int y, SimTrackerHit* hit);
+    virtual void RegisterHit(int x, int y, SimTrackerHit *hit);
 
     virtual void Reset() = 0;
 
@@ -154,7 +152,7 @@ public:
 
     virtual bool CheckStatus(int x, int y, PixelStatus pstat) = 0;
 
-    virtual void buildHits(SegmentDigiHitList& output) = 0;
+    virtual void buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc) = 0;
 
 protected:
 
@@ -165,7 +163,7 @@ protected:
 
     virtual PixelData getPixel(int seg_x, int seg_y, int pos_x, int pos_y);
     virtual bool checkStatus(int seg_x, int seg_y, int pos_x, int pos_y, PixelStatus pstat);
-    virtual BitField64 getBFEncoder();
+    virtual uint64_t getBitF();
     virtual void fillInHitRelation(SimHitSet& sset, LinearPosition pos);
 
     virtual bool check(int x, int y);

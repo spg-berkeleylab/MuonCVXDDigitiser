@@ -1,6 +1,5 @@
 #include "HKBaseSensor.h"
-
-#include "streamlog/streamlog.h"
+#include "DDSegmentation/BitFieldCoder.h"
 
 #include <math.h>
 #include <algorithm>
@@ -46,7 +45,7 @@ ClusterHeap::ClusterHeap(int rows, int cols) :
 ClusterHeap::~ClusterHeap()
 {}
 
-void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
+void ClusterHeap::AddCluster(ClusterOfPixel& cluster, IMessageSvc* msgSvc)
 {
     for (LinearPosition curr_pos : cluster)
     {
@@ -55,12 +54,13 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
         {
             ref_table.emplace(curr_pos, hash_cnt);
         }
-        else if (streamlog::out.write<streamlog::ERROR>())
+        else if ( msgSvc->outputLevel() <= MSG::DEBUG )
 #pragma omp critical
         {
             GridCoordinate gcoord = locate(curr_pos);
-            streamlog::out() << "Cluster heap " << debug_label << ": conflict for pixel "
-                << gcoord.row << ":" << gcoord.col << std::endl;
+	    MsgStream log(msgSvc, "HKBaseSensor");
+            log << MSG::ERROR << "Cluster heap " << debug_label << ": conflict for pixel "
+                << gcoord.row << ":" << gcoord.col << endmsg;
         }
     }
 
@@ -74,7 +74,7 @@ void ClusterHeap::AddCluster(ClusterOfPixel& cluster)
     }
 }
 
-void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix)
+void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix, IMessageSvc* msgSvc)
 {
     LinearPosition pos = locate(pos_x, pos_y);
     auto r_item = ref_table.find(pos);
@@ -94,11 +94,12 @@ void ClusterHeap::SetupPixel(int pos_x, int pos_y, PixelData pix)
 
         ref_table.erase(pos);
     }
-    else if (streamlog::out.write<streamlog::ERROR>())
+    else if ( msgSvc->outputLevel() <= MSG::ERROR )
 #pragma omp critical
     {
-        streamlog::out() << "Cluster heap " << debug_label << ": undefined pixel "
-            << pos_x << ":" << pos_y << std::endl;
+        MsgStream log(msgSvc, "HKBaseSensor");
+        log << MSG::ERROR << "Cluster heap " << debug_label << ": undefined pixel "
+            << pos_x << ":" << pos_y << endmsg;
     }
 }
 
@@ -173,10 +174,11 @@ HKBaseSensor::HKBaseSensor(int layer,
     reset_simtable_at_once = false;
 }
 
-void HKBaseSensor::buildHits(SegmentDigiHitList& output)
+void HKBaseSensor::buildHits(SegmentDigiHitList& output, IMessageSvc* msgSvc)
 {
     FindUnionAlgorithm  fu_algo { s_rows, s_colums };
-    BitField64 bf_encoder = getBFEncoder();
+    uint64_t bitfield = getBitF();
+    dd4hep::DDSegmentation::BitFieldCoder bf_encoder { cellFmtStr };
 
     if (!IsActive()) return;
 
@@ -187,7 +189,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
             //Sensor segments ordered row first
             LinearPosition sens_id = s_locate(h, k);
-            bf_encoder[LCTrackerCellID::sensor()] = sens_id;
+            bf_encoder.set(bitfield, "sensor", sens_id);
 
             ClusterHeap& c_heap = heap_table[sens_id];
 
@@ -257,13 +259,13 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
 
                 for (ClusterOfPixel c_item : fu_algo.get_clusters())
                 {
-                    c_heap.AddCluster(c_item);
+                    c_heap.AddCluster(c_item, msgSvc);
                 }
             }
 
             for (auto p_item : GetPixelsFromSensor(h, k, PixelStatus::ready))
             {
-                c_heap.SetupPixel(p_item.row, p_item.col, p_item.data);
+                c_heap.SetupPixel(p_item.row, p_item.col, p_item.data, msgSvc);
             }
 
             for (BufferedCluster c_item : c_heap.PopClusters())
@@ -272,7 +274,7 @@ void HKBaseSensor::buildHits(SegmentDigiHitList& output)
                 SegmentDigiHit digiHit = {
                     0., 0., 0.,
                     c_item.time,
-                    bf_encoder.lowWord(),
+                    bf_encoder.lowWord(bitfield),
                     {}
                 };
 

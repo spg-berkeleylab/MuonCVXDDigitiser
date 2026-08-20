@@ -2,6 +2,9 @@
 #define ShapeProcessingSensor_h 1
 
 #include "HKBaseSensor.h"
+#include "GaudiKernel/IMessageSvc.h"
+#include "GaudiKernel/MsgStream.h"
+
 #include <vector>
 
 using std::vector;
@@ -27,7 +30,7 @@ public:
     virtual ~ShapeProcessingSensor() {}
 
 protected:
-    vector<GridCoordinate> GetContour(const ClusterOfPixel& spot);
+    vector<GridCoordinate> GetContour(const ClusterOfPixel& spot, IMessageSvc* msgSvc);
 
 private:
     GridCoordinate GetNextPoint(GridCoordinate c, GridCoordinate p);

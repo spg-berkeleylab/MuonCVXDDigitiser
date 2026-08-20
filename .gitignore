@@ -33,6 +33,7 @@
 
 # Misc
 build
+install
 lib
 bin
 .project
