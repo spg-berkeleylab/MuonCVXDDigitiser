@@ -3,6 +3,9 @@
 // Standard
 #include <iostream>
 #include <algorithm>
+#include <cmath>
+#include <random>
+#include <map>
 
 // edm4hep
 #include <edm4hep/MCParticle.h>
@@ -115,9 +118,8 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
       return StatusCode::FAILURE;
     }
     m_laddersInLayer.resize(m_numberOfLayers);
-#ifdef ZSEGMENTED
-    m_sensorsPerLadder.resize(m_numberOfLayers);
-#endif
+    if (m_zSegmented && isBarrel)
+      m_sensorsPerLadder.resize(m_numberOfLayers);
     m_layerHalfPhi.resize(m_numberOfLayers);
     m_layerHalfThickness.resize(m_numberOfLayers);
     m_layerThickness.resize(m_numberOfLayers);
@@ -142,13 +144,13 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
         m_layerThickness[curr_layer] = z_layout.thicknessSensitive * dd4hep::cm / dd4hep::mm ;
         m_layerHalfThickness[curr_layer] = 0.5 * m_layerThickness[curr_layer];
         m_layerRadius[curr_layer] = z_layout.distanceSensitive * dd4hep::cm / dd4hep::mm  + m_layerHalfThickness[curr_layer];
-#ifdef ZSEGMENTED
-        m_sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
-        m_layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
-#else
-        m_layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
-#endif
-     if (!isVertex) { m_layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
+        if (m_zSegmented) { // Zsegmented layers
+          m_sensorsPerLadder[curr_layer] = z_layout.sensorsPerLadder;
+          m_layerLadderLength[curr_layer] = z_layout.lengthSensor * z_layout.sensorsPerLadder * dd4hep::cm / dd4hep::mm ;
+        }
+        else
+          m_layerLadderLength[curr_layer] = z_layout.lengthSensor * dd4hep::cm / dd4hep::mm ;
+     if ((isInnerTracker || isOuterTracker) && z_layout.lengthSensor==0) { m_layerLadderLength[curr_layer] = 2 * z_layout.zHalfSensitive;}
         m_layerLadderWidth[curr_layer] = z_layout.widthSensitive * dd4hep::cm / dd4hep::mm ;          
         m_layerLadderHalfWidth[curr_layer] = m_layerLadderWidth[curr_layer] / 2.;
         m_layerActiveSiOffset[curr_layer] = - z_layout.offsetSensitive * dd4hep::cm / dd4hep::mm ;
@@ -201,14 +203,46 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
 
     // Bins for charge discretization
     // FIXME: Will move to assign more dynamically 
-    if (m_ChargeDigitizeNumBits == 3) m_DigitizedBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
-    
-    //  Here is the updated version of the m_DigitizedBins w/ 4 bits
-    if (m_ChargeDigitizeNumBits == 4) m_DigitizedBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}; //{500, 639, 769, 910, 1057, 1213, 1379, 1559, 1743, 1945, 2193, 2484, 2849, 3427, 4675, 29756};    
-    
-    if (m_ChargeDigitizeNumBits == 5) m_DigitizedBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
-    if (m_ChargeDigitizeNumBits == 6) m_DigitizedBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
-    if (m_ChargeDigitizeNumBits == 8) m_DigitizedBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
+    std::vector<double> genericBins;
+    if (m_ChargeDigitizeNumBits == 3) genericBins = {500, 786, 1100, 1451, 1854, 2390, 3326, 31973};
+    if (m_ChargeDigitizeNumBits == 4) genericBins = {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756};
+    if (m_ChargeDigitizeNumBits == 5) genericBins = {500, 573, 633, 698, 757, 821, 890, 963, 1032, 1104, 1179, 1260, 1337, 1421, 1505, 1600, 1685, 1777, 1875, 1982, 2097, 2220, 2352, 2511, 2679, 2866, 3107, 3429, 3880, 4618, 6287, 16039};
+    if (m_ChargeDigitizeNumBits == 6) genericBins = {500, 542, 572, 601, 629, 661, 692, 721, 750, 779, 812, 842, 877, 913, 946, 981, 1016, 1051, 1087, 1121, 1161, 1196, 1237, 1275, 1313, 1350, 1391, 1431, 1468, 1514, 1560, 1606, 1646, 1687, 1733, 1777, 1821, 1872, 1920, 1976, 2036, 2091, 2145, 2213, 2272, 2337, 2411, 2488, 2573, 2651, 2739, 2834, 2938, 3053, 3194, 3356, 3532, 3764, 4034, 4379, 4907, 5698, 6957, 9636};
+    if (m_ChargeDigitizeNumBits == 8) genericBins = {500, 511, 523, 533, 542, 550, 556, 564, 570, 577, 585, 592, 598, 603, 610, 617, 624, 630, 638, 646, 654, 661, 668, 676, 684, 691, 699, 705, 712, 719, 724, 731, 738, 745, 752, 760, 767, 772, 780, 787, 795, 802, 810, 818, 826, 832, 839, 847, 856, 865, 874, 881, 889, 898, 906, 916, 924, 930, 938, 945, 955, 965, 971, 978, 986, 995, 1004, 1012, 1019, 1027, 1036, 1044, 1053, 1062, 1071, 1079, 1088, 1096, 1104, 1112, 1121, 1131, 1139, 1149, 1158, 1168, 1175, 1184, 1193, 1203, 1211, 1221, 1233, 1241, 1249, 1259, 1268, 1277, 1286, 1294, 1303, 1313, 1321, 1330, 1338, 1348, 1357, 1368, 1378, 1387, 1395, 1406, 1417, 1426, 1434, 1445, 1452, 1460, 1470, 1480, 1492, 1503, 1514, 1525, 1536, 1550, 1560, 1570, 1580, 1592, 1604, 1614, 1623, 1634, 1644, 1653, 1662, 1673, 1684, 1695, 1707, 1717, 1727, 1737, 1747, 1759, 1769, 1780, 1790, 1800, 1812, 1823, 1835, 1846, 1860, 1873, 1885, 1897, 1907, 1918, 1931, 1943, 1958, 1971, 1987, 2000, 2014, 2026, 2041, 2056, 2068, 2080, 2095, 2108, 2119, 2131, 2147, 2162, 2180, 2195, 2213, 2224, 2238, 2256, 2269, 2284, 2300, 2314, 2332, 2351, 2366, 2383, 2401, 2421, 2440, 2458, 2475, 2496, 2519, 2538, 2559, 2581, 2601, 2618, 2636, 2658, 2681, 2703, 2722, 2742, 2767, 2791, 2811, 2836, 2857, 2884, 2913, 2938, 2967, 2995, 3023, 3052, 3086, 3119, 3153, 3188, 3221, 3270, 3304, 3342, 3390, 3428, 3473, 3515, 3556, 3611, 3691, 3742, 3801, 3857, 3928, 3999, 4069, 4141, 4220, 4325, 4417, 4518, 4655, 4789, 4965, 5141, 5359, 5548, 5770, 6017, 6311, 6584, 7024, 7492, 8060, 8740, 9738, 11450, 14878, 23973};
+
+    // Dedicated 4-bit tables for the vertex detector (barrel and endcap), keyed on the
+    // sensor thickness in microns. Keyed on a rounded integer because m_layerThickness is
+    // a float and would never compare equal to a double literal.
+    const std::map<int, std::vector<double>> vertexBins4bit = {
+        {50,  {500, 657, 862, 1132, 1487, 1952, 2563, 3366, 4420, 5804, 7621, 10008, 13142, 17257, 22660, 29756}},
+        {75,  {500, 675, 910, 1228, 1656, 2235, 3015, 4067, 5487, 7403, 9987, 13473, 18177, 24523, 33084, 44634}},
+        {100, {500, 688, 946, 1300, 1788, 2460, 3382, 4652, 6397, 8797, 12098, 16638, 22881, 31467, 43274, 59512}},
+        {200, {500, 720, 1037, 1494, 2152, 3099, 4463, 6428, 9258, 13334, 19205, 27660, 39838, 57378, 82640, 119024}},
+        {400, {500, 754, 1138, 1716, 2588, 3904, 5889, 8883, 13399, 20211, 30486, 45985, 69363, 104626, 157816, 238048}},
+    };
+
+    // One table per layer: LoadGeometry() runs before any hit is read, so the current layer
+    // is not usable here and the choice has to be made for every layer up front.
+    m_DigitizedBins.assign(m_numberOfLayers, genericBins);
+    for (int i = 0; i < m_numberOfLayers; ++i)
+    {
+        int thickness_um = (int)std::lround(m_layerThickness[i] * 1000.);
+        if (m_ChargeDigitizeNumBits == 4 && isVertex)
+        {
+            auto it = vertexBins4bit.find(thickness_um);
+            if (it != vertexBins4bit.end()) m_DigitizedBins[i] = it->second;
+        }
+        if (m_DigitizedBins[i].empty())
+        {
+            warning() << "No charge digitization bins defined for "
+                << m_ChargeDigitizeNumBits << " bits; variable binning is unusable"
+                << " for layer " << i << endmsg;
+            continue;
+        }
+        debug() << "Layer " << i << ": sensor thickness " << thickness_um
+            << " um, " << m_DigitizedBins[i].size() << " charge bins, first/last = "
+            << m_DigitizedBins[i].front() << "/" << m_DigitizedBins[i].back() << endmsg;
+    }
 
     // shift digitized bins for inner and outer tracker by factor of 2
     // this adjusts for the fact that the resolution is 2x worse for inner and outer tracker
@@ -216,8 +250,10 @@ StatusCode MuonCVXDDigitiser::LoadGeometry() {
         debug() << "Subdetector is: " << m_subDetName << endmsg;
         float shift = 500.; // first bin
         float scalefactor = 2.; 
-        for (int i = 0; i < m_DigitizedBins.size(); i++){
-            m_DigitizedBins[i] = (m_DigitizedBins[i] - m_DigitizedBins[0]) * scalefactor + shift;
+        for (auto& bins : m_DigitizedBins) {
+            for (int i = 0; i < (int)bins.size(); i++){
+                bins[i] = (bins[i] - bins[0]) * scalefactor + shift;
+            }
         }
     }
 
@@ -264,18 +300,34 @@ std::tuple<edm4hep::SimTrackerHitCollection,
             << ", module=" << intState.currentLadder << "\n"
             << "- EDep = " << simTrkHit.getEDep() *dd4hep::GeV / dd4hep::keV
             << " keV, path length = " << simTrkHit.getPathLength() * 1000. << " um" << endmsg;
-        float mcp_r = std::sqrt(simTrkHit.getPosition().x *simTrkHit.getPosition().x +simTrkHit.getPosition().y *simTrkHit.getPosition().y);
-        float mcp_phi = std::atan(simTrkHit.getPosition().y /simTrkHit.getPosition().x);
-        float mcp_theta = simTrkHit.getPosition().z == 0 ? 3.1416/2 : std::atan(mcp_r/simTrkHit.getPosition().z);
+        float sim_r = std::sqrt(simTrkHit.getPosition().x *simTrkHit.getPosition().x +simTrkHit.getPosition().y *simTrkHit.getPosition().y);
+        float sim_phi = std::atan(simTrkHit.getPosition().y /simTrkHit.getPosition().x);
+        float sim_theta = simTrkHit.getPosition().z == 0 ? 3.1416/2 : std::atan(sim_r/simTrkHit.getPosition().z);
         debug() << "- Position (mm) x,y,z,t = " << simTrkHit.getPosition().x << ", " 
                                                           << simTrkHit.getPosition().y << ", " 
                                                           << simTrkHit.getPosition().z << ", " 
                                                           << simTrkHit.getTime() << "\n" 
-            << "- Position r(mm),phi,theta = " << mcp_r << ", " << mcp_phi << ", " << mcp_theta 
+            << "- Position r(mm),phi,theta = " << sim_r << ", " << sim_phi << ", " << sim_theta 
             << "\n- MC particle pdg = ";
         edm4hep::MCParticle mcp = simTrkHit.getParticle();
         if (mcp.isAvailable()) {
           debug() << mcp.getPDG();
+
+          float deltaZ = std::abs(simTrkHit.getPosition().z - mcp.getVertex().z);
+          float deltaX = simTrkHit.getPosition().x - mcp.getVertex().x;
+          float deltaY = simTrkHit.getPosition().y - mcp.getVertex().y;
+          float deltaR = std::sqrt(deltaX*deltaX + deltaY*deltaY);
+          float mcp_incidentTheta = std::atan(deltaR/deltaZ);
+          if (mcp_incidentTheta < 0) {
+              mcp_incidentTheta += M_PI/2;
+          }
+          debug() << "\ndelta r: " << deltaR
+                  << "\ndelta z: " << deltaZ
+                  << "\nincident theta: " << mcp_incidentTheta << " radians, or " << mcp_incidentTheta*(180/M_PI) << " degrees";
+
+          double debug_p = std::sqrt(std::pow(simTrkHit.getMomentum().x, 2) + std::pow(simTrkHit.getMomentum().y, 2) + std::pow(simTrkHit.getMomentum().z, 2));
+          double debug_mass = mcp.getMass();
+          debug() << "\nbeta: " << debug_p / std::sqrt(debug_p*debug_p + debug_mass*debug_mass);
         } else {
           debug() << " N.A.";
         }
@@ -291,8 +343,8 @@ std::tuple<edm4hep::SimTrackerHitCollection,
         if (m_PoissonSmearing) PoissonSmearer(simTrkHitVec);
         if (m_electronicEffects) GainSmearer(simTrkHitVec);
         ApplyThreshold(simTrkHitVec);
-        if (m_DigitizeCharge) ChargeDigitizer(simTrkHitVec);
-        if (m_timeSmearingSigma > 0) TimeSmearer(simTrkHitVec);
+        if (m_DigitizeCharge) ChargeDigitizer(simTrkHitVec, &intState);
+        if (m_timeSmearingModel != 0) TimeSmearer(simTrkHitVec, &intState);
         if (m_DigitizeTime) TimeDigitizer(simTrkHitVec);
           
         //**************************************************************************
@@ -310,7 +362,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
             recoHit.setDu(info->Du);
             recoHit.setDv(info->Dv);
             recoHit.setTime(info->Time);
-	
+
           // hit's layer/ladder/petal position does not change
           const int cellid = simTrkHit.getCellID();
           recoHit.setCellID( cellid );
@@ -342,7 +394,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
           edm4hep::Vector3d xLab;
           TransformToLab( cellid, recoHit.getPosition(), xLab);
           recoHit.setPosition( xLab );
-  
+
           // reco global
           debug() << "- RECO GLOBAL position (mm) x,y,z,t = " << recoHit.getPosition().x << ", " 
                                                                         << recoHit.getPosition().y << ", " 
@@ -388,7 +440,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
               << "- charge = " << recoHit.getEDep() << "(True: " << simTrkHit.getEDep() << ")\n"
               << "- incidence angles: theta = " << incidentTheta << ", phi = " << incidentPhi << endmsg;
           
-          std::vector<edm4hep::MutableSimTrackerHit*> rawHits;
+          std::vector<edm4hep::MutableSimTrackerHit> rawHits;
           if (m_produceFullPattern != 0) {
             // Store all the fired points
             for (int iS = 0; iS < (int)simTrkHitVec.size(); ++iS) {
@@ -415,7 +467,7 @@ std::tuple<edm4hep::SimTrackerHitCollection,
                 newsth.setProducedBySecondary(simTrkHit.isProducedBySecondary());
                 newsth.setOverlay(simTrkHit.isOverlay());
                 
-                rawHits.push_back(&newsth);
+                rawHits.push_back(newsth);
               }
             }
           }
@@ -426,9 +478,9 @@ std::tuple<edm4hep::SimTrackerHitCollection,
           for (size_t iH = 0; iH < rawHits.size(); ++iH) {
             edm4hep::MutableTrackerHitSimTrackerHitLink rawLink = rawHitsCol.create();
             rawLink.setFrom( recoHit );
-            rawLink.setTo( *(rawHits.at(iH)) );
+            rawLink.setTo( rawHits.at(iH) );
             rawLink.setWeight(1. / rawHits.size());
-            debug() << "  - " << iH << ": Edep (e-) = " << rawHits.at(iH)->getEDep() << ", t (ns) =" << rawHits.at(iH)->getTime();
+            debug() << "  - " << iH << ": Edep (e-) = " << rawHits.at(iH).getEDep() << ", t (ns) =" << rawHits.at(iH).getTime();
           }
           debug() << "--------------------------------" << endmsg;
           for (int k=0; k < int(simTrkHitVec.size()); ++k) {
@@ -489,15 +541,28 @@ void MuonCVXDDigitiser::FindLocalPosition(edm4hep::SimTrackerHit &hit,
     // Add also z ccordinate
     Vector3D origin( surf->origin()[0], surf->origin()[1], surf->origin()[2]);
     localPosition.z = ( dd4hep::mm * oldPos - dd4hep::cm * origin ).dot( surf->normal() ) / dd4hep::mm;
+    // Prefer the momentum recorded at the hit: that is the direction inside the sensor, with
+    // everything upstream (bending, scattering, energy loss) already folded in. The MC
+    // particle's momentum is taken at its production vertex, which in a solenoid can point
+    // somewhere else entirely -- in a muon-gun sample the two differ by 3.5 deg at the median
+    // but by more than 65 deg for a quarter of the hits. Fall back to the MC particle only
+    // when the hit carries no momentum, as not every producer fills it.
     double Momentum[3];
     edm4hep::MCParticle mcp = hit.getParticle();
+    edm4hep::Vector3f hitMomentum = hit.getMomentum();
+    double hitMom[3] = { hitMomentum.x, hitMomentum.y, hitMomentum.z };
+    bool useHitMomentum = (hitMom[0] != 0. || hitMom[1] != 0. || hitMom[2] != 0.);
     for (int j = 0; j < 3; ++j) {
-      if (mcp.isAvailable()) {
+      if (useHitMomentum) {
+        Momentum[j] = hitMom[j] * dd4hep::GeV;
+      } else if (mcp.isAvailable()) {
         Momentum[j] = mcp.getMomentum()[j] * dd4hep::GeV;
       } else {
-        Momentum[j] = hit.getMomentum()[j];
+        Momentum[j] = 0.;
       }
     }
+    if (!useHitMomentum)
+      debug() << "Hit carries no momentum, falling back to the MC particle" << endmsg;
     // as default put electron's mass
     intState->currentParticleMass = 0.510e-3 * dd4hep::GeV;
     if (hit.getParticle().isAvailable())
@@ -525,16 +590,102 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(edm4hep::SimTrackerHit &hit, Int
     if ( intState->currentLayer == -1)
       return;
  
+    double origPos[3] = {pos.x, pos.y, pos.z};
+    double loopDir[3] = {dir.x, dir.y, dir.z};
+
     entry[2] = -m_layerHalfThickness[intState->currentLayer]; 
     exit[2] = m_layerHalfThickness[intState->currentLayer];
     // entry points: hit position is in middle of layer. ex: entry_x = x - (z distance to bottom of layer) * px/pz
-    double loopPos[3] = {pos.x, pos.y, pos.z};
-    double loopDir[3] = {dir.x, dir.y, dir.z};
     for (int i = 0; i < 2; ++i) {
-        entry[i] = loopPos[i] + loopDir[i] * (entry[2] - pos.z) / dir.z;
-        exit[i]= loopPos[i] + loopDir[i] * (exit[2] - pos.z) / dir.z;
+        entry[i] = origPos[i] + loopDir[i] * (entry[2] - origPos[2]) / loopDir[2];
+        exit[i]= origPos[i] + loopDir[i] * (exit[2] - origPos[2]) / loopDir[2];
     }
-    intState->currentLocalPosition = pos;
+
+    // PDG multiple-scattering charge number z: |q| in units of e. Fall back to unit charge
+    // when the hit carries no MC particle, matching the electron-mass fallback in
+    // FindLocalPosition(). Neutrals are skipped: with z = 0 the log term is log(0) and
+    // theta_0 would evaluate to 0 * -inf = NaN.
+    edm4hep::MCParticle ms_mcp = hit.getParticle();
+    double q_charge = ms_mcp.isAvailable() ? std::fabs(ms_mcp.getCharge()) : 1.0;
+
+    if (m_doMultipleScattering && q_charge == 0.)
+      debug() << "Neutral particle, skipping multiple scattering" << endmsg;
+
+    double msDir[3] = {loopDir[0], loopDir[1], loopDir[2]};
+    double msPos[3] = {origPos[0], origPos[1], origPos[2]};
+
+    if (m_doMultipleScattering && q_charge > 0.) {
+        debug() << "Applying multiple scattering formula" << endmsg;
+        //******************************************************************
+        // Multiple scattering implementation based on PDG formula
+        // (https://pdg.lbl.gov/2020/reviews/rpp2020-rev-passage-particles-matter.pdf)
+        //******************************************************************
+        double p = intState->currentParticleMomentum / dd4hep::GeV; // [GeV/c]
+        double beta = p / std::sqrt(p * p + std::pow(intState->currentParticleMass / dd4hep::GeV, 2));
+
+        double x_0 = 93.7;  // [mm] -> radiation length in silicon
+        double sensorT = m_layerThickness[intState->currentLayer];  // [mm] -> sensor thickness
+
+        static thread_local std::mt19937_64 rng{std::random_device{}()};
+        static thread_local std::normal_distribution<> gauss(0.0, 1.0);
+
+        // normalize direction
+        double mag = std::sqrt(msDir[0]*msDir[0] + msDir[1]*msDir[1] + msDir[2]*msDir[2]);
+        msDir[0] /= mag;
+        msDir[1] /= mag;
+        msDir[2] /= mag;
+
+        double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y;
+        // Step through the sensor in a whole number of slices no thicker than
+        // m_msSliceThickness, so the steps cover exactly the sensor thickness. Accumulating a
+        // floating-point z against sensorT instead runs a whole extra slice: m_layerThickness
+        // is a float, so 50 um / 5 um evaluates to 10.000000149 rather than 10. The small
+        // relative tolerance absorbs that while still rounding a genuine 10.4 up to 11.
+        double sliceT = (m_msSliceThickness > 0.) ? m_msSliceThickness.value() : sensorT;
+        int n_slices = std::max(1, (int)std::ceil(sensorT / sliceT * (1. - 1e-6)));
+        double z_segment = sensorT / n_slices;
+
+        for (int islice = 0; islice < n_slices; ++islice) {
+
+            pathL_segment = z_segment / std::fabs(msDir[2]);  // path length for segment
+
+            // --- Multiple scattering step ---
+            // 0.0136 GeV is the PDG 13.6 MeV constant; natural units (c = 1) with p in GeV/c
+            theta_0 = (0.0136 / (beta * p)) * q_charge * std::sqrt(pathL_segment / x_0)
+                      * (1 + 0.038 * std::log(pathL_segment * std::pow(q_charge, 2)
+                                               / (x_0 * std::pow(beta, 2))));  // as defined in PDG
+
+            theta_plane_x = gauss(rng) * theta_0;
+            theta_plane_y = gauss(rng) * theta_0;
+            theta_out_x = theta_plane_x + std::atan2(msDir[0], msDir[2]);
+            theta_out_y = theta_plane_y + std::atan2(msDir[1], msDir[2]);
+
+            // update dir vector
+            msDir[0] = std::tan(theta_out_x);
+            msDir[1] = std::tan(theta_out_y);
+            msDir[2] = 1.0;
+
+            // renormalize again
+            double mag2 = std::sqrt(msDir[0]*msDir[0] + msDir[1]*msDir[1] + 1.0);
+            msDir[0] /= mag2;
+            msDir[1] /= mag2;
+            msDir[2] /= mag2;
+
+            // update position
+            msPos[0] += msDir[0] * pathL_segment;
+            msPos[1] += msDir[1] * pathL_segment;
+            msPos[2] += msDir[2] * pathL_segment;
+        }
+        // find final exit point
+        for (int i = 0; i < 2; ++i) {
+            exit[i] = msPos[i] + msDir[i] * (exit[2] - msPos[2]) / msDir[2];
+        }
+    }
+    //end of multiple scattering implementation
+
+    intState->currentLocalPosition.x = origPos[0];
+    intState->currentLocalPosition.y = origPos[1];
+    intState->currentLocalPosition.z = origPos[2];
     intState->currentEntryPoint.x = entry[0];
     intState->currentEntryPoint.y = entry[1];
     intState->currentEntryPoint.z = entry[2];
@@ -545,34 +696,116 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(edm4hep::SimTrackerHit &hit, Int
     debug() << "local position: " << intState->currentLocalPosition.x << ", "
                                             << intState->currentLocalPosition.y << ", "
                                             << intState->currentLocalPosition.z << endmsg;
-    double tanx = dir.x / dir.z;
-    double tany = dir.y / dir.z;  
-    
-    // trackLength is in mm -> limit length at 1cm
-    double trackLength = std::min(m_maxTrkLen.value(),
-         m_layerThickness[intState->currentLayer] * sqrt(1.0 + pow(tanx, 2) + pow(tany, 2)));
- 
-    // PRINTING 0.....
-    debug() << intState->currentLayer << endmsg;
-    debug() << m_layerThickness[intState->currentLayer] <<endmsg;
-    debug() << m_maxTrkLen.value() << endmsg;
+
+    // Local unit direction of travel through the sensor. After the multiple-scattering loop
+    // above this is the deflected direction, so the re-simulation chain sees its own kinematics.
+    double dirMag = std::sqrt(msDir[0]*msDir[0] + msDir[1]*msDir[1] + msDir[2]*msDir[2]);
+    double u[3] = { msDir[0]/dirMag, msDir[1]/dirMag, msDir[2]/dirMag };
+    const double halfT = m_layerHalfThickness[intState->currentLayer];
+    const bool crossesPlane = std::fabs(u[2]) > 1e-12;
+
+    // Straight-line crossing of the full sensor along that direction.
+    double crossingLength = crossesPlane
+        ? m_layerThickness[intState->currentLayer] / std::fabs(u[2])
+        : m_maxTrkLen.value();
+
+    // Two mutually exclusive sources for the trail, selected by m_resimulateIonisation:
+    // 0 (Geant4, default): the trail length is the path length Geant4 recorded in the
+    //   sensitive volume and the total deposit is the Geant4 EDep.
+    // 1 (re-simulation): the trail is the full crossing of the sensor along the local
+    //   direction and the energy comes from the m_energyLoss dE/dx parametrisation. Nothing
+    //   but the direction is taken from Geant4, so the chain can be tuned on its own.
+    const bool resimulate = (m_resimulateIonisation != 0);
+
+    double pathLength;
+    if (resimulate)
+    {
+        pathLength = crossingLength;
+    }
+    else
+    {
+        // True path length in the sensitive volume as recorded by Geant4: it already contains
+        // the scattering and curvature inside the sensor, and it is shorter than a full
+        // crossing for a particle that stopped, started or clipped a corner. Fall back to the
+        // straight-line crossing when the producer did not fill it.
+        pathLength = hit.getPathLength();
+        if (!(pathLength > 0.))
+        {
+            pathLength = crossingLength;
+            debug() << "Hit carries no path length, falling back to the sensor crossing" << endmsg;
+        }
+    }
+
+    // trackLength is the physical distance travelled: it sets the segmentation and the
+    // per-segment path length handed to the fluctuation model. Limited at 1cm.
+    double trackLength = std::min(m_maxTrkLen.value(), pathLength);
 
     intState->numberOfSegments = ceil(trackLength / m_segmentLength );
-    double dEmean = (dd4hep::keV * m_energyLoss * trackLength) / ((double)(intState->numberOfSegments));
+
+    // Energy Geant4 actually deposited in the sensor. In G4 mode it is the truth for the total
+    // and anchors both dEmean and the 1/n^2 padding below; SampleFluctuations() still supplies
+    // the segment-to-segment Landau structure around it. In re-simulation mode the total is
+    // left to the parametrisation and the padding is skipped, so the hit stays independent of
+    // the Geant4 deposit. The parametrisation is also the fallback for hits with no deposit.
+    double hcharge = ( hit.getEDep() / dd4hep::GeV );
+    const bool anchorToG4 = !resimulate && (hcharge > 0.);
+    double dEmean = anchorToG4
+        ? hcharge / ((double)(intState->numberOfSegments))
+        : (dd4hep::keV * m_energyLoss * trackLength) / ((double)(intState->numberOfSegments));
+
     intState->ionisationPoints.resize(intState->numberOfSegments);
-    debug() <<  "Track path length: " << trackLength << ", calculated dEmean * N_segment = " << dEmean << " * " << intState->numberOfSegments << " = " << dEmean*intState->numberOfSegments << endmsg;
     intState->eSum = 0.0;
     // TODO m_segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)(intState->numberOfSegments));
-    intState->segmentDepth = m_layerThickness[intState->currentLayer] / ((double)(intState->numberOfSegments));
-    double z = -m_layerHalfThickness[intState->currentLayer] - 0.5 * intState->segmentDepth;
-    
-    double hcharge = ( hit.getEDep() / dd4hep::GeV );
-    debug() << "Number of ionization points: " << intState->numberOfSegments << ", G4 EDep = "  << hcharge << endmsg;
+
+    // Place the trail as a straight segment along u, parametrised by the path coordinate s
+    // measured from the hit position.
+    double sLo, sHi;
+    if (resimulate)
+    {
+        if (crossesPlane)
+        {
+            // The trail spans the whole sensor thickness, entry face to exit face.
+            sLo = (-halfT - origPos[2]) / u[2];
+            sHi = ( halfT - origPos[2]) / u[2];
+            if (sLo > sHi) std::swap(sLo, sHi);
+        }
+        else
+        {
+            // Track running in the sensor plane: no crossing to span, keep the trail centred.
+            sLo = -0.5 * trackLength;
+            sHi = -sLo;
+        }
+    }
+    else
+    {
+        // Centred on the hit position, its extent capped at the full-thickness crossing and
+        // then clipped to the slab: a curling track reports an arc far longer than any straight
+        // segment through the sensor, and ProduceSignalPoints() computes the drift distance as
+        // (halfThickness - z), which goes negative if a point escapes.
+        sLo = -0.5 * std::min(trackLength, crossingLength);
+        sHi = -sLo;
+        if (crossesPlane) {
+            double sA = (-halfT - origPos[2]) / u[2];
+            double sB = ( halfT - origPos[2]) / u[2];
+            if (sA > sB) std::swap(sA, sB);
+            sLo = std::max(sLo, sA);
+            sHi = std::min(sHi, sB);
+        }
+    }
+    if (!(sHi > sLo)) { sLo = 0.; sHi = 0.; } // degenerate, put everything at the hit
+    double geomStep = (sHi - sLo) / ((double)(intState->numberOfSegments));
+    intState->segmentDepth = geomStep * std::fabs(u[2]);
+
+    debug() <<  "Track path length: " << trackLength << ", calculated dEmean * N_segment = " << dEmean << " * " << intState->numberOfSegments << " = " << dEmean*intState->numberOfSegments << endmsg;
+    debug() << "Number of ionization points: " << intState->numberOfSegments
+        << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
+        << ", G4 EDep = "  << hcharge << endmsg;
     for (int i = 0; i < intState->numberOfSegments; ++i) {
-        z += intState->segmentDepth;
-        double x = pos.x + tanx * (z - pos.z);
-        double y = pos.y + tany * (z - pos.z);
+        double sPath = sLo + (i + 0.5) * geomStep;
+        double x = origPos[0] + sPath * u[0];
+        double y = origPos[1] + sPath * u[1];
+        double z = origPos[2] + sPath * u[2];
         // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
         // length in mm, meanLoss eloss in MeV.
 	double cutsOnDR = m_cutOnDeltaRays.value();
@@ -591,19 +824,25 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(edm4hep::SimTrackerHit &hit, Int
         debug() << " " << i << ": z=" << z << ", eloss = " << de << "(total so far: "
             << intState->eSum << "), x=" << x << ", y=" << y << endmsg;
     }
-   
-    const double thr = m_deltaEne/m_electronsPerKeV * dd4hep::keV;
-    while ( hcharge > intState->eSum + thr ) {
-      // Add additional charge sampled from an 1 / n^2 distribution.
-      // Adjust charge to match expectations
-      const double       q = randomTail( thr, hcharge - intState->eSum );
-      
-      const unsigned int h = floor( m_engine.Uniform(0.0, (double)(intState->numberOfSegments)) );
-      intState->ionisationPoints[h].eloss += q;
-      intState->eSum += q;
+
+    // Top the sampled total up to the Geant4 deposit. Only meaningful when the hit is anchored
+    // to Geant4: in re-simulation mode the total is whatever the parametrisation sampled.
+    if (anchorToG4)
+    {
+        const double thr = m_deltaEne/m_electronsPerKeV * dd4hep::keV;
+        while ( hcharge > intState->eSum + thr ) {
+          // Add additional charge sampled from an 1 / n^2 distribution.
+          // Adjust charge to match expectations
+          const double       q = randomTail( thr, hcharge - intState->eSum );
+
+          const unsigned int h = floor( m_engine.Uniform(0.0, (double)(intState->numberOfSegments)) );
+          intState->ionisationPoints[h].eloss += q;
+          intState->eSum += q;
+        }
+        debug() << "Padding each segment charge (1/n^2 pdf) until total below " << m_deltaEne << "e- threshold. New total energy: "
+            << intState->eSum << endmsg;
     }
-    debug() << "Padding each segment charge (1/n^2 pdf) until total below " << m_deltaEne << "e- threshold. New total energy: "
-        << intState->eSum << "\nList of ionization points:";
+    debug() << "List of ionization points:";
     for (int i =0; i < intState->numberOfSegments; ++i) {
         debug() << "\n- " << i << ": E=" << intState->ionisationPoints[i].eloss 
                                          << ", x=" << intState->ionisationPoints[i].x 
@@ -821,7 +1060,7 @@ void MuonCVXDDigitiser::ApplyThreshold(MutableSimTrackerHitVec &simTrkVec) const
  * Digitizes the charge.
  * Discretization based on number of bits and bin width scheme.
  */
-void MuonCVXDDigitiser::ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec) const{
+void MuonCVXDDigitiser::ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec, InternalState *intState) const{
   debug() << "Charge discretization" << endmsg;
   
   float minThreshold = m_threshold;
@@ -829,6 +1068,7 @@ void MuonCVXDDigitiser::ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec) cons
   //int split = 0.3; -- future use
   int numBins = pow(2, m_ChargeDigitizeNumBits.value())-1;
   double discCharge = -999; 
+  const std::vector<double>& bins = m_DigitizedBins[intState->currentLayer];
   for (int i = 0; i < (int)simTrkVec.size(); ++i) {
     edm4hep::MutableSimTrackerHit *hit = simTrkVec[i];
     float origCharge = hit->getEDep();
@@ -845,15 +1085,16 @@ void MuonCVXDDigitiser::ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec) cons
         }
         case 1: { // variable binning
             if (origCharge < 1.0) break;
+            if (bins.empty()) break;
             int binVal=-1;
-            for(unsigned int idx = 0; idx < m_DigitizedBins.size()-1; idx++) {
-                if (m_DigitizedBins[idx+1] > origCharge) {
+            for(unsigned int idx = 0; idx < bins.size()-1; idx++) {
+                if (bins[idx+1] > origCharge) {
                     binVal = idx;
                     break;
                 }
             }
-            if (binVal < 0) discCharge = (m_DigitizedBins[m_DigitizedBins.size()-2] + m_DigitizedBins[m_DigitizedBins.size()-1]) / 2;
-            else discCharge = (m_DigitizedBins[binVal] + m_DigitizedBins[binVal+1]) / 2;
+            if (binVal < 0) discCharge = (bins[bins.size()-2] + bins[bins.size()-1]) / 2;
+            else discCharge = (bins[binVal] + bins[binVal+1]) / 2;
             break;
         }
     }
@@ -874,10 +1115,40 @@ void MuonCVXDDigitiser::ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec) cons
  * - correlated across pixels, uncorrelated across clusters
  * - correlated within the event, un-correlate 
 */
-void MuonCVXDDigitiser::TimeSmearer(MutableSimTrackerHitVec &simTrkVec) const{
+void MuonCVXDDigitiser::TimeSmearer(MutableSimTrackerHitVec &simTrkVec, InternalState *intState) const{
     debug() << "Adding resolution effect to timing measurements" << endmsg;
+
+    // The resolution depends on the layer, not on the individual hit, so it is
+    // evaluated once here rather than inside the loop below.
+    float sigma_total = m_timeSmearingSigma;
+
+    if (m_timeSmearingModel == 2)
+    {
+        // -- Realistic timing in planar sensors application default values: -- //
+        float t_riseDefault = (8.8 * m_layerThickness[intState->currentLayer] * 1e3 + 152.1) * 1e-3; // [ns]
+        float t_rise = (m_t_riseOverride >= 0.0) ? m_t_riseOverride.value() : t_riseDefault;
+        float sigma_landauDefault = 0.03 * m_layerThickness[intState->currentLayer] / 0.05; // [ns] from sensor thickness & charge deposition fluctuations - 30ps/50microns
+        float sigma_timewalkDefault = 0.1 * t_rise; // [ns] t_rise * 0.1
+        float sigma_jitterDefault = (m_electronicNoise * t_rise) / (80000 * m_layerThickness[intState->currentLayer]); // [ns] Q_noise/slope in charge over time 80e/micron = 80000e/mm
+        float sigma_TDCDefault = 0.025 / std::sqrt(12); // time to digital converter using 25 ns for deltaT
+        float sigma_clockDefault = 0.005; // fixed by clock quality 5ps
+
+        float sigma_landau = (m_sigma_landauOverride >= 0.0) ? m_sigma_landauOverride.value() : sigma_landauDefault;
+        float sigma_timewalk = (m_sigma_timewalkOverride >= 0.0) ? m_sigma_timewalkOverride.value() : sigma_timewalkDefault;
+        float sigma_jitter = (m_sigma_jitterOverride >= 0.0) ? m_sigma_jitterOverride.value() : sigma_jitterDefault;
+        float sigma_TDC = (m_sigma_TDCOverride >= 0.0) ? m_sigma_TDCOverride.value() : sigma_TDCDefault;
+        float sigma_clock = (m_sigma_clockOverride >= 0.0) ? m_sigma_clockOverride.value() : sigma_clockDefault;
+
+        sigma_total = std::sqrt(sigma_landau * sigma_landau + sigma_timewalk * sigma_timewalk
+                                       + sigma_jitter * sigma_jitter + sigma_TDC * sigma_TDC
+                                       + sigma_clock * sigma_clock);
+    }
+
+    debug() << "sigma_total: " << sigma_total << endmsg;
+    if (sigma_total <= 0.) return;
+
     for (int i = 0; i < (int)simTrkVec.size(); ++i) {
-        float delta = m_engine.Gaus(0., m_timeSmearingSigma);
+        float delta = m_engine.Gaus(0., sigma_total);
         edm4hep::MutableSimTrackerHit *hit = simTrkVec[i];
         hit->setTime(hit->getTime() + delta);
         debug() << i << ": x=" << hit->getPosition().x

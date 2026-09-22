@@ -235,7 +235,9 @@ std::tuple<edm4hep::TrackerHitPlaneCollection,
                 m_electronicNoise,
                 m_maxTrkLen,
                 m_deltaEne,
-                m_map
+                m_map,
+                m_zSegmented,
+                m_isBarrel
             };
 
             vector<std::size_t> histo_buffer {};

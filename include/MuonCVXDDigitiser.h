@@ -136,6 +136,33 @@ struct TempRecoHit {
  * (default parameter value : 100) <br>
   * @param MaxTrackLength Maximum values for track path length inside the ladder (in mm)", <br>
  * (default parameter value : 10) <br> 
+ * @param TimeSmearingModel time smearing model: 0 = none, 1 = constant sigma taken from
+ * TimeSmearingSigma, 2 = realistic resolution derived from the sensor thickness <br>
+ * (default parameter value : 2) <br>
+ * @param ResimulateIonisation source of the ionisation trail: 0 = take the path length and
+ * the deposited energy from the Geant4 hit, 1 = re-simulate them from the local direction
+ * and the EnergyLoss parametrisation <br>
+ * (default parameter value : 0) <br>
+ * @param DoMultipleScattering Flag to enable multiple scattering of the track inside the sensor <br>
+ * (default parameter value : 0) <br>
+ * @param MSSliceThickness thickness (mm) of the slices the track is stepped through when
+ * applying multiple scattering; the sensor is divided into a whole number of slices no
+ * thicker than this <br>
+ * (default parameter value : 0.005) <br>
+ * @param SigmaLandau override for Landau sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaTimewalk override for timewalk sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaJitter override for jitter sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaTDC override for TDC sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param SigmaClock override for clock sigma <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param TRise override for rise time <br>
+ * (default parameter value : -1, i.e. use the thickness-derived default) <br>
+ * @param LayerIDs list of layer IDs to process <br>
+ * (default parameter value : empty) <br>
  * <br>
  */
 class MuonCVXDDigitiser : public k4FWCore::MultiTransformer<std::tuple<edm4hep::SimTrackerHitCollection,
@@ -200,22 +227,33 @@ protected:
     Gaudi::Property<int>    m_TimeDigitizeNumBits{this, "TimeDigitizeNumBits", 10, "Number of bits used to determine bins for time discretization"};
     Gaudi::Property<double> m_timeMax{this, "TimeMaximum", (double)10., "Cell dynamic range for timing measurement [ns]"};
     Gaudi::Property<int>    m_TimeDigitizeBinning{this, "TimeDigitizeBinning", 0, "Binning scheme used for time discretization"};
-    Gaudi::Property<double> m_timeSmearingSigma{this, "TimeSmearingSigma", 0.05, "Effective intrinsic time measurement resolution effects [ns]."};
+    Gaudi::Property<double> m_timeSmearingSigma{this, "TimeSmearingSigma", 0.05, "Constant intrinsic time measurement resolution (ns), used when TimeSmearingModel = 1."};
+    Gaudi::Property<int>    m_timeSmearingModel{this, "TimeSmearingModel", 2, "Time smearing model: 0 = none, 1 = constant sigma (TimeSmearingSigma), 2 = realistic, derived from sensor thickness."};
     Gaudi::Property<bool>   m_electronicEffects{this, "ElectronicEffects", true, "Apply Electronic Effects"};
     Gaudi::Property<bool>   m_produceFullPattern{this, "StoreFiredPixels", false, "Store fired pixels"};
     Gaudi::Property<std::string> m_encodingStringVariable{this, "EncodingStringParameterName", "GlobalTrackerReadoutID", "The name of the DD4hep constant that contains the Encoding string for the detector"};
+    Gaudi::Property<bool>   m_zSegmented{this, "ZSegmented", false, "Enable sensor segmentation along z-axis for barrel layers only."};
+    Gaudi::Property<int>    m_resimulateIonisation{this, "ResimulateIonisation", 0, "Source of the ionisation trail: 0 = take the path length and the deposited energy from the Geant4 hit, 1 = re-simulate them from the local direction and the EnergyLoss parametrisation."};
+    Gaudi::Property<bool>   m_doMultipleScattering{this, "DoMultipleScattering", false, "Flag to enable multiple scattering of the track inside the sensor."};
+    Gaudi::Property<double> m_msSliceThickness{this, "MSSliceThickness", 0.005, "Slice thickness (mm) used to step the track through the sensor when applying multiple scattering."};
 
+    Gaudi::Property<double> m_t_riseOverride{this, "TRise", -1.0, "Optional override for t_rise (ns). -1 means use default."};
+    Gaudi::Property<double> m_sigma_landauOverride{this, "SigmaLandau", -1.0, "Optional override for sigma_landau (ns). -1 means use default."};
+    Gaudi::Property<double> m_sigma_timewalkOverride{this, "SigmaTimewalk", -1.0, "Optional override for sigma_timewalk (ns). -1 means use default."};
+    Gaudi::Property<double> m_sigma_jitterOverride{this, "SigmaJitter", -1.0, "Optional override for sigma_jitter (ns). -1 means use default."};
+    Gaudi::Property<double> m_sigma_TDCOverride{this, "SigmaTDC", -1.0, "Optional override for sigma_TDC (ns). -1 means use default."};
+    Gaudi::Property<double> m_sigma_clockOverride{this, "SigmaClock", -1.0, "Optional override for sigma_clock (ns). -1 means use default."};
+
+    
     MyG4UniversalFluctuationForSi *m_fluctuate;
 
     // charge discretization
-    std::vector<double> m_DigitizedBins{};
+    std::vector<std::vector<double>> m_DigitizedBins{}; // one bin table per layer
     
     // geometry
     int m_numberOfLayers;
     std::vector<int>   m_laddersInLayer{};
-#ifdef ZSEGMENTED
     std::vector<int>   m_sensorsPerLadder{};
-#endif
     std::vector<float> m_layerRadius{};
     std::vector<float> m_layerThickness{};
     std::vector<float> m_layerHalfThickness{};
@@ -245,10 +283,10 @@ protected:
     void PoissonSmearer(MutableSimTrackerHitVec &simTrkVec) const;
     void GainSmearer(MutableSimTrackerHitVec &simTrkVec) const;
     void ApplyThreshold(MutableSimTrackerHitVec &simTrkVec) const;
-    void ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec) const;
+    void ChargeDigitizer(MutableSimTrackerHitVec &simTrkVec, InternalState *intState) const;
 
     /* Time digitization helpers */
-    void TimeSmearer(MutableSimTrackerHitVec &simTrkVec) const;
+    void TimeSmearer(MutableSimTrackerHitVec &simTrkVec, InternalState *intState) const;
     void TimeDigitizer(MutableSimTrackerHitVec &simTrkVec) const;
 
     /* Reconstruction of measurement and helpers */

@@ -22,7 +22,6 @@ SET( ${PROJECT_NAME}_VERSION_PATCH 0 )
 
 set(PACKAGE_INSTALL_LIB_DIR lib CACHE PATH "Installation directory for libraries")
 set(PACKAGE_INSTALL_INC_DIR include CACHE PATH "Installation directory for headers")
-option(ZSEGMENTED "Sensitives are segmented along z" ON)
 option(OPENMP_ENABLED "Activate OpenMP parallel compilation" ON)
 if(OPENMP_FOUND AND OPENMP_ENABLED)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -31,10 +30,6 @@ endif()
 
 # definitions to pass to the compiler
 ADD_DEFINITIONS( "-Wno-long-long -Wno-effc++ -Wno-unused-parameter -Wno-narrowing" )
-if( ZSEGMENTED )
-    message ( STATUS "Enabled sensor segmentation" )
-    add_compile_definitions( "ZSEGMENTED" )
-endif()
 
 ### LIBRARY #################################################################
 

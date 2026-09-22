@@ -142,6 +142,8 @@ protected:
     Gaudi::Property<int>    m_sensor_type{this, "SensorType", 1, "Sensor model to be used (0 : ChipRD53A, 1 : Trivial)"};
 
     Gaudi::Property<std::string> m_encodingStringVariable{this, "EncodingStringParameterName", "GlobalTrackerReadoutID", "The name of the DD4hep constant that contains the Encoding string for the detector"};
+    Gaudi::Property<bool>   m_zSegmented{this, "ZSegmented", false, "Enable Z-segmentation along z-axis for barrel layers"};
+    Gaudi::Property<bool>   m_isBarrel{this, "IsBarrel", true, "Is the detector a barrel?"};
 
     // geometry
     int m_numberOfLayers;
