@@ -819,6 +819,9 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         double targetPathPerSlice = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
         double z_tolerance = sensorT * 1e-6;  // Small tolerance to handle floating point
 
+        _msTrajectory.clear();
+        _msTrajectory.push_back({pos[0], pos[1], pos[2]});  // Store entry point
+
         while (pos[2] < sensorT - z_tolerance) {
             // Remaining z-distance to sensor boundary
             double z_remaining = sensorT - pos[2];
@@ -853,6 +856,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             pos[0] += dir[0] * pathL_segment;
             pos[1] += dir[1] * pathL_segment;
             pos[2] += dir[2] * pathL_segment;
+
+            _msTrajectory.push_back({pos[0], pos[1], pos[2]});
         }
         //find final exit point
         for (int i = 0; i < 2; ++i) {
@@ -976,13 +981,57 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     streamlog_out (DEBUG5) << "Number of ionization points: " << _numberOfSegments
         << ", trail from " << (resimulate ? "re-simulation" : "Geant4")
         << ", G4 EDep = "  << hcharge << std::endl;
+
+    // When multiple scattering was applied, use the kinked trajectory for ionization placement
+    bool useKinkedPath = (_doMultipleScattering && !_msTrajectory.empty());
+
     for (int i = 0; i < _numberOfSegments; ++i)
     {
-        double sPath = sLo + (i + 0.5) * geomStep;
-        double x = origPos[0] + sPath * u[0];
-        double y = origPos[1] + sPath * u[1];
-        double z = origPos[2] + sPath * u[2];
-        // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV, 
+        double x, y, z;
+
+        if (useKinkedPath)
+        {
+            // Interpolate position along the kinked trajectory
+            // Compute cumulative path lengths along the trajectory
+            double frac = (i + 0.5) / _numberOfSegments;  // Position along trail
+            double targetPathLength = frac * crossingLength;
+
+            double cumulativePath = 0.0;
+            int segIdx = 0;
+            // Find the segment containing the target path length
+            for (segIdx = 0; segIdx + 1 < (int)_msTrajectory.size(); ++segIdx)
+            {
+                double dx = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
+                double dy = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
+                double dz = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
+                double segmentPath = std::sqrt(dx*dx + dy*dy + dz*dz);
+                if (cumulativePath + segmentPath >= targetPathLength)
+                    break;
+                cumulativePath += segmentPath;
+            }
+
+            // Interpolate within the segment
+            double dx = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
+            double dy = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
+            double dz = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
+            double segmentPath = std::sqrt(dx*dx + dy*dy + dz*dz);
+            double t = (segmentPath > 1e-12) ? (targetPathLength - cumulativePath) / segmentPath : 0.5;
+            t = std::max(0.0, std::min(1.0, t));  // Clamp to [0, 1]
+
+            x = _msTrajectory[segIdx][0] + t * dx;
+            y = _msTrajectory[segIdx][1] + t * dy;
+            z = _msTrajectory[segIdx][2] + t * dz;
+        }
+        else
+        {
+            // Use straight-line trail along direction u
+            double sPath = sLo + (i + 0.5) * geomStep;
+            x = origPos[0] + sPath * u[0];
+            y = origPos[1] + sPath * u[1];
+            z = origPos[2] + sPath * u[2];
+        }
+
+        // momentum in MeV/c, mass in MeV, tmax (delta cut) in MeV,
         // length in mm, meanLoss eloss in MeV.
         double de = _fluctuate->SampleFluctuations(double(_currentParticleMomentum / dd4hep::MeV),
                                                    double(_currentParticleMass / dd4hep::MeV),
@@ -1016,10 +1065,11 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     }
     streamlog_out (DEBUG3) << "List of ionization points:" << std::endl;
     for (int i =0; i < _numberOfSegments; ++i) {
-        streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss 
+        streamlog_out (DEBUG3) << "- " << i << ": E=" << _ionisationPoints[i].eloss
             << ", x=" << _ionisationPoints[i].x << ", y=" << _ionisationPoints[i].y << ", z=" << _ionisationPoints[i].z << std::endl;
     }
 
+    _msTrajectory.clear();  // Clean up trajectory for next hit
 }
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {

@@ -245,6 +245,7 @@ protected:
     double _currentLocalPosition[3];
     double _currentEntryPoint[3];
     double _currentExitPoint[3];
+    std::vector<std::array<double, 3>> _msTrajectory;
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
     MyG4UniversalFluctuationForSi *_fluctuate;
