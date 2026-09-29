@@ -826,7 +826,10 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
                       * (1+0.038*std::log(pathL_total*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
 
         _msTrajectory.clear();
+        _msSegmentLengths.clear();
+        _msCumulativePath.clear();
         _msTrajectory.push_back({pos[0], pos[1], pos[2]});  // Store entry point
+        _msCumulativePath.push_back(0.0);  // Cumulative path at entry = 0
 
         int n_slices = 0;  // Count slices to distribute theta_0 correctly
 
@@ -880,7 +883,18 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             pos[1] += dirAvg[1] * pathL_segment;
             pos[2] += dirAvg[2] * pathL_segment;
 
+            // Compute distance from previous trajectory point
+            double prev_x = _msTrajectory.back()[0];
+            double prev_y = _msTrajectory.back()[1];
+            double prev_z = _msTrajectory.back()[2];
+            double dx_seg = pos[0] - prev_x;
+            double dy_seg = pos[1] - prev_y;
+            double dz_seg = pos[2] - prev_z;
+            double segLen = std::sqrt(dx_seg*dx_seg + dy_seg*dy_seg + dz_seg*dz_seg);
+
             _msTrajectory.push_back({pos[0], pos[1], pos[2]});
+            _msSegmentLengths.push_back(segLen);
+            _msCumulativePath.push_back(_msCumulativePath.back() + segLen);
         }
         //find final exit point
         for (int i = 0; i < 2; ++i) {
@@ -1020,32 +1034,27 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
         if (useKinkedPath)
         {
-            // Interpolate position along the kinked trajectory
-            // Compute cumulative path lengths along the trajectory
+            // Interpolate position along the kinked trajectory using precomputed cumulative paths
             double frac = (i + 0.5) / _numberOfSegments;  // Position along trail
             double targetPathLength = frac * crossingLength;
 
-            double cumulativePath = 0.0;
+            // Find segment containing target path length (linear search since n is small)
             int segIdx = 0;
-            // Find the segment containing the target path length
-            for (segIdx = 0; segIdx + 1 < (int)_msTrajectory.size(); ++segIdx)
+            for (segIdx = 0; segIdx + 1 < (int)_msCumulativePath.size(); ++segIdx)
             {
-                double dx_traj = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
-                double dy_traj = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
-                double dz_traj = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
-                double segmentPath = std::sqrt(dx_traj*dx_traj + dy_traj*dy_traj + dz_traj*dz_traj);
-                if (cumulativePath + segmentPath >= targetPathLength)
+                if (_msCumulativePath[segIdx + 1] >= targetPathLength)
                     break;
-                cumulativePath += segmentPath;
             }
 
-            // Interpolate within the segment
+            // Interpolate within the segment using precomputed segment length
+            double segmentPath = _msSegmentLengths[segIdx];
+            double cumulativePath = _msCumulativePath[segIdx];
+            double t = (segmentPath > 1e-12) ? (targetPathLength - cumulativePath) / segmentPath : 0.5;
+            t = std::max(0.0, std::min(1.0, t));  // Clamp to [0, 1]
+
             double dx_traj = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
             double dy_traj = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
             double dz_traj = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
-            double segmentPath = std::sqrt(dx_traj*dx_traj + dy_traj*dy_traj + dz_traj*dz_traj);
-            double t = (segmentPath > 1e-12) ? (targetPathLength - cumulativePath) / segmentPath : 0.5;
-            t = std::max(0.0, std::min(1.0, t));  // Clamp to [0, 1]
 
             x = _msTrajectory[segIdx][0] + t * dx_traj;
             y = _msTrajectory[segIdx][1] + t * dy_traj;
@@ -1098,7 +1107,10 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             << ", x=" << _ionisationPoints[i].x << ", y=" << _ionisationPoints[i].y << ", z=" << _ionisationPoints[i].z << std::endl;
     }
 
-    _msTrajectory.clear();  // Clean up trajectory for next hit
+    // Clean up trajectory cache for next hit
+    _msTrajectory.clear();
+    _msSegmentLengths.clear();
+    _msCumulativePath.clear();
 }
 void MuonCVXDDigitiser::ProduceSignalPoints()
 {
