@@ -869,12 +869,18 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double dirMag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
     double u[3] = { dir[0]/dirMag, dir[1]/dirMag, dir[2]/dirMag };
     const double halfT = _layerHalfThickness[_currentLayer];
-    const bool crossesPlane = std::fabs(u[2]) > 1e-12;
 
-    // Straight-line crossing of the full sensor along that direction.
-    double crossingLength = crossesPlane
-                          ? _layerThickness[_currentLayer] / std::fabs(u[2])
-                          : _maxTrkLen;
+    // Path length accounting for spatial displacement from multiple scattering.
+    // Calculate 3D distance between entry and exit points, which naturally includes
+    // both the z-thickness and lateral displacement from scattering.
+    double dx = exit[0] - entry[0];
+    double dy = exit[1] - entry[1];
+    double dz = exit[2] - entry[2];
+    double crossingLength = std::sqrt(dx*dx + dy*dy + dz*dz);
+
+    // Safety check for nearly-parallel particles
+    if (std::fabs(u[2]) < 1e-12)
+        crossingLength = std::min(crossingLength, _maxTrkLen);
 
     // Two mutually exclusive sources for the trail, selected by _resimulateIonisation:
     //  0 (Geant4, default): the trail length is the path length Geant4 recorded in the
