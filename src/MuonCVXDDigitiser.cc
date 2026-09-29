@@ -812,7 +812,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
         }
 
-        double pathL_segment, theta_0_total, theta_0_slice, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
+        double pathL_segment, theta_0_total, theta_0_slice, theta_plane_x, theta_plane_y;
         // Step through the sensor by path length rather than z-thickness, so scattering effects
         // are properly sampled. Target path length per slice is _msSliceThickness or full thickness.
         // Exit when z-coordinate reaches the sensor boundary (within tolerance).
@@ -900,6 +900,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     double dirMag = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
     double u[3] = { dir[0]/dirMag, dir[1]/dirMag, dir[2]/dirMag };
     const double halfT = _layerHalfThickness[_currentLayer];
+    const bool crossesPlane = std::fabs(u[2]) > 1e-12;
 
     // Path length accounting for spatial displacement from multiple scattering.
     // Calculate 3D distance between entry and exit points, which naturally includes
@@ -1029,26 +1030,26 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             // Find the segment containing the target path length
             for (segIdx = 0; segIdx + 1 < (int)_msTrajectory.size(); ++segIdx)
             {
-                double dx = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
-                double dy = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
-                double dz = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
-                double segmentPath = std::sqrt(dx*dx + dy*dy + dz*dz);
+                double dx_traj = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
+                double dy_traj = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
+                double dz_traj = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
+                double segmentPath = std::sqrt(dx_traj*dx_traj + dy_traj*dy_traj + dz_traj*dz_traj);
                 if (cumulativePath + segmentPath >= targetPathLength)
                     break;
                 cumulativePath += segmentPath;
             }
 
             // Interpolate within the segment
-            double dx = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
-            double dy = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
-            double dz = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
-            double segmentPath = std::sqrt(dx*dx + dy*dy + dz*dz);
+            double dx_traj = _msTrajectory[segIdx+1][0] - _msTrajectory[segIdx][0];
+            double dy_traj = _msTrajectory[segIdx+1][1] - _msTrajectory[segIdx][1];
+            double dz_traj = _msTrajectory[segIdx+1][2] - _msTrajectory[segIdx][2];
+            double segmentPath = std::sqrt(dx_traj*dx_traj + dy_traj*dy_traj + dz_traj*dz_traj);
             double t = (segmentPath > 1e-12) ? (targetPathLength - cumulativePath) / segmentPath : 0.5;
             t = std::max(0.0, std::min(1.0, t));  // Clamp to [0, 1]
 
-            x = _msTrajectory[segIdx][0] + t * dx;
-            y = _msTrajectory[segIdx][1] + t * dy;
-            z = _msTrajectory[segIdx][2] + t * dz;
+            x = _msTrajectory[segIdx][0] + t * dx_traj;
+            y = _msTrajectory[segIdx][1] + t * dy_traj;
+            z = _msTrajectory[segIdx][2] + t * dz_traj;
         }
         else
         {
