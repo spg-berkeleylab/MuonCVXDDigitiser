@@ -248,6 +248,7 @@ protected:
     std::vector<std::array<double, 3>> _msTrajectory;
     std::vector<double> _msSegmentLengths;
     std::vector<double> _msCumulativePath;
+    double _msTotalScatteringAngle;
     IonisationPointVec _ionisationPoints;
     SignalPointVec _signalPoints;
     MyG4UniversalFluctuationForSi *_fluctuate;

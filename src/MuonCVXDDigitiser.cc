@@ -813,17 +813,18 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         }
 
         double pathL_segment, theta_0_total, theta_0_slice, theta_plane_x, theta_plane_y;
-        // Step through the sensor by path length rather than z-thickness, so scattering effects
-        // are properly sampled. Target path length per slice is _msSliceThickness or full thickness.
-        // Exit when z-coordinate reaches the sensor boundary (within tolerance).
-        double targetPathPerSlice = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
-        double z_tolerance = sensorT * 1e-6;  // Small tolerance to handle floating point
+        // Use fixed z-slice thickness for speed. The number of slices is pre-calculated
+        // to cover exactly the sensor thickness, avoiding unbounded while loops.
+        double sliceT = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
+        int n_slices = std::max(1, (int)std::ceil(sensorT / sliceT * (1. - 1e-6)));
+        double z_segment = sensorT / n_slices;
 
         // Compute theta_0 once for full sensor thickness using PDG formula, avoiding per-slice
         // accumulation of log term which underestimates by 12-21% depending on slice count
         double pathL_total = std::fabs(dir[2]) > 1e-12 ? sensorT / std::fabs(dir[2]) : sensorT;
         theta_0_total = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_total/x_0)
                       * (1+0.038*std::log(pathL_total*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+        _msTotalScatteringAngle = theta_0_total;  // Store for later use in ionization placement
 
         _msTrajectory.clear();
         _msSegmentLengths.clear();
@@ -831,18 +832,9 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         _msTrajectory.push_back({pos[0], pos[1], pos[2]});  // Store entry point
         _msCumulativePath.push_back(0.0);  // Cumulative path at entry = 0
 
-        int n_slices = 0;  // Count slices to distribute theta_0 correctly
-
-        while (pos[2] < sensorT - z_tolerance) {
-            // Remaining z-distance to sensor boundary
-            double z_remaining = sensorT - pos[2];
-
-            // Path length for this segment, capped to reach the boundary
-            pathL_segment = std::fabs(dir[2]) > 1e-12
-                          ? std::min(targetPathPerSlice, z_remaining / std::fabs(dir[2]))
-                          : targetPathPerSlice;
-
-            n_slices++;
+        for (int islice = 0; islice < n_slices; ++islice) {
+            // Path length for this segment based on current direction
+            pathL_segment = z_segment / std::fabs(dir[2]);  // Will be adjusted if dir[2] ~0
 
             // --- Multiple scattering step ---
             // Distribute total theta_0 across slices: theta_RMS for each slice = theta_0_total / sqrt(n_slices)
@@ -1026,7 +1018,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         << ", G4 EDep = "  << hcharge << std::endl;
 
     // When multiple scattering was applied, use the kinked trajectory for ionization placement
-    bool useKinkedPath = (_doMultipleScattering && !_msTrajectory.empty());
+    // Skip if scattering angle is small (< 1 mrad) to avoid unnecessary interpolation overhead
+    bool useKinkedPath = (_doMultipleScattering && !_msTrajectory.empty() && _msTotalScatteringAngle > 1e-3);
 
     for (int i = 0; i < _numberOfSegments; ++i)
     {
