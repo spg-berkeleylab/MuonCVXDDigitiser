@@ -813,17 +813,20 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         }
 
         double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
-        // Step through the sensor in a whole number of slices no thicker than
-        // _msSliceThickness, so the steps cover exactly the sensor thickness. Accumulating a
-        // floating-point z against sensorT instead runs a whole extra slice: _layerThickness
-        // is a float, so 50 um / 5 um evaluates to 10.000000149 rather than 10. The small
-        // relative tolerance absorbs that while still rounding a genuine 10.4 up to 11.
-        double sliceT = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
-        int n_slices = std::max(1, (int)std::ceil(sensorT / sliceT * (1. - 1e-6)));
-        double z_segment = sensorT / n_slices;
-        for (int islice = 0; islice < n_slices; ++islice){
+        // Step through the sensor by path length rather than z-thickness, so scattering effects
+        // are properly sampled. Target path length per slice is _msSliceThickness or full thickness.
+        // Exit when z-coordinate reaches the sensor boundary (within tolerance).
+        double targetPathPerSlice = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
+        double z_tolerance = sensorT * 1e-6;  // Small tolerance to handle floating point
 
-            pathL_segment = z_segment / fabs(dir[2]); // path length for segment
+        while (pos[2] < sensorT - z_tolerance) {
+            // Remaining z-distance to sensor boundary
+            double z_remaining = sensorT - pos[2];
+
+            // Path length for this segment, capped to reach the boundary
+            pathL_segment = std::fabs(dir[2]) > 1e-12
+                          ? std::min(targetPathPerSlice, z_remaining / std::fabs(dir[2]))
+                          : targetPathPerSlice;
 
             // --- Multiple scattering step ---
             // 0.0136 GeV is the PDG 13.6 MeV constant; natural units (c = 1) with p in GeV/c
@@ -846,7 +849,7 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             dir[1] /= mag2;
             dir[2] /= mag2;
 
-            //update postion:
+            //update position:
             pos[0] += dir[0] * pathL_segment;
             pos[1] += dir[1] * pathL_segment;
             pos[2] += dir[2] * pathL_segment;
