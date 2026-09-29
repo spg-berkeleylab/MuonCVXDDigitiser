@@ -838,24 +838,37 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
 
             theta_plane_x = RandGauss::shoot(0., theta_0);
             theta_plane_y = RandGauss::shoot(0., theta_0);
-            theta_out_x = theta_plane_x + std::atan2(dir[0],dir[2]);
-            theta_out_y = theta_plane_y + std::atan2(dir[1],dir[2]);
 
-            //update dir vector:
-            dir[0] = std::tan(theta_out_x);
-            dir[1] = std::tan(theta_out_y);
-            dir[2] = 1.0;
+            // Save old direction for proper spatial displacement calculation
+            double dirOld[3] = {dir[0], dir[1], dir[2]};
 
-            // renormalize again
-            double mag2 = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + 1.0);
+            // Rotate direction vector using 3D rotations (valid for arbitrary angles, unlike tan/atan)
+            // Rotation in x-z plane by theta_plane_x: affects dir[0] and dir[2]
+            double dirX_rot = dir[0] * std::cos(theta_plane_x) - dir[2] * std::sin(theta_plane_x);
+            double dirZ_rot = dir[0] * std::sin(theta_plane_x) + dir[2] * std::cos(theta_plane_x);
+            dir[0] = dirX_rot;
+            dir[2] = dirZ_rot;
+
+            // Rotation in y-z plane by theta_plane_y: affects dir[1] and dir[2]
+            dirX_rot = dir[1] * std::cos(theta_plane_y) - dir[2] * std::sin(theta_plane_y);
+            dirZ_rot = dir[1] * std::sin(theta_plane_y) + dir[2] * std::cos(theta_plane_y);
+            dir[1] = dirX_rot;
+            dir[2] = dirZ_rot;
+
+            // Renormalize
+            double mag2 = std::sqrt(dir[0]*dir[0] + dir[1]*dir[1] + dir[2]*dir[2]);
             dir[0] /= mag2;
             dir[1] /= mag2;
             dir[2] /= mag2;
 
-            //update position:
-            pos[0] += dir[0] * pathL_segment;
-            pos[1] += dir[1] * pathL_segment;
-            pos[2] += dir[2] * pathL_segment;
+            // Update position using average of old and new directions
+            // This accounts for scattering being distributed throughout the segment
+            double dirAvg[3] = {0.5 * (dirOld[0] + dir[0]),
+                                0.5 * (dirOld[1] + dir[1]),
+                                0.5 * (dirOld[2] + dir[2])};
+            pos[0] += dirAvg[0] * pathL_segment;
+            pos[1] += dirAvg[1] * pathL_segment;
+            pos[2] += dirAvg[2] * pathL_segment;
 
             _msTrajectory.push_back({pos[0], pos[1], pos[2]});
         }
