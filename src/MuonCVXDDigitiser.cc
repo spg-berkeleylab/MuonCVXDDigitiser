@@ -812,15 +812,23 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
             entry[i] = pos[i] + dir[i] * (entry[2] - pos[2]) / dir[2];
         }
 
-        double pathL_segment, theta_0, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
+        double pathL_segment, theta_0_total, theta_0_slice, theta_plane_x, theta_plane_y, theta_out_x, theta_out_y; //, theta_tangent;
         // Step through the sensor by path length rather than z-thickness, so scattering effects
         // are properly sampled. Target path length per slice is _msSliceThickness or full thickness.
         // Exit when z-coordinate reaches the sensor boundary (within tolerance).
         double targetPathPerSlice = (_msSliceThickness > 0.) ? _msSliceThickness : sensorT;
         double z_tolerance = sensorT * 1e-6;  // Small tolerance to handle floating point
 
+        // Compute theta_0 once for full sensor thickness using PDG formula, avoiding per-slice
+        // accumulation of log term which underestimates by 12-21% depending on slice count
+        double pathL_total = std::fabs(dir[2]) > 1e-12 ? sensorT / std::fabs(dir[2]) : sensorT;
+        theta_0_total = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_total/x_0)
+                      * (1+0.038*std::log(pathL_total*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+
         _msTrajectory.clear();
         _msTrajectory.push_back({pos[0], pos[1], pos[2]});  // Store entry point
+
+        int n_slices = 0;  // Count slices to distribute theta_0 correctly
 
         while (pos[2] < sensorT - z_tolerance) {
             // Remaining z-distance to sensor boundary
@@ -831,13 +839,15 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
                           ? std::min(targetPathPerSlice, z_remaining / std::fabs(dir[2]))
                           : targetPathPerSlice;
 
-            // --- Multiple scattering step ---
-            // 0.0136 GeV is the PDG 13.6 MeV constant; natural units (c = 1) with p in GeV/c
-            theta_0 = (0.0136/(beta*p))*q_charge*std::sqrt(pathL_segment/x_0)
-            *(1+0.038*std::log(pathL_segment*std::pow(q_charge,2)/(x_0*std::pow(beta,2)))); //as defined in PDG
+            n_slices++;
 
-            theta_plane_x = RandGauss::shoot(0., theta_0);
-            theta_plane_y = RandGauss::shoot(0., theta_0);
+            // --- Multiple scattering step ---
+            // Distribute total theta_0 across slices: theta_RMS for each slice = theta_0_total / sqrt(n_slices)
+            // We increment n_slices first to ensure we have the correct count before computing theta_0_slice
+            theta_0_slice = theta_0_total / std::sqrt((double)n_slices);
+
+            theta_plane_x = RandGauss::shoot(0., theta_0_slice);
+            theta_plane_y = RandGauss::shoot(0., theta_0_slice);
 
             // Save old direction for proper spatial displacement calculation
             double dirOld[3] = {dir[0], dir[1], dir[2]};
@@ -952,16 +962,21 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
     // TODO _segmentLength may be different from segmentLength, is it ok?
     double segmentLength = trackLength / ((double)_numberOfSegments);
 
-    // Place the trail as a straight segment along u, parametrised by the path coordinate s
-    // measured from the hit position.
+    // Place the trail as a straight segment along u, parametrised by the path coordinate s.
+    // Use actual entry/exit points when MS has displaced them; otherwise use original hit position.
     double sLo, sHi;
+    double trailRefZ = origPos[2];  // Reference z for trail parametrization
+
     if (resimulate)
     {
         if (crossesPlane)
         {
             // The trail spans the whole sensor thickness, entry face to exit face.
-            sLo = (-halfT - origPos[2]) / u[2];
-            sHi = ( halfT - origPos[2]) / u[2];
+            // Use actual MS-displaced entry point if available
+            if (_doMultipleScattering && !_msTrajectory.empty())
+                trailRefZ = entry[2];
+            sLo = (-halfT - trailRefZ) / u[2];
+            sHi = ( halfT - trailRefZ) / u[2];
             if (sLo > sHi) std::swap(sLo, sHi);
         }
         else
@@ -980,8 +995,8 @@ void MuonCVXDDigitiser::ProduceIonisationPoints(SimTrackerHit *hit)
         sLo = -0.5 * std::min(trackLength, crossingLength);
         sHi = -sLo;
         if (crossesPlane) {
-            double sA = (-halfT - origPos[2]) / u[2];
-            double sB = ( halfT - origPos[2]) / u[2];
+            double sA = (-halfT - trailRefZ) / u[2];
+            double sB = ( halfT - trailRefZ) / u[2];
             if (sA > sB) std::swap(sA, sB);
             sLo = std::max(sLo, sA);
             sHi = std::min(sHi, sB);
